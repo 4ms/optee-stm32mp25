@@ -217,6 +217,12 @@ CFG_TZDRAM_SIZE  ?= 0x02000000
 CFG_TZDRAM_START ?= ($(CFG_DRAM_BASE) + $(CFG_DRAM_SIZE) - $(CFG_TZDRAM_SIZE))
 endif #CFG_STM32MP15
 
+# Remoteproc early TA for coprocessor firmware management
+CFG_RPROC_PTA ?= n
+ifeq ($(CFG_RPROC_PTA),y)
+CFG_IN_TREE_EARLY_TAS += remoteproc/80a4c275-0a47-4905-8285-1486a9771a08
+endif
+
 CFG_REGULATOR_FIXED ?= y
 CFG_STM32_BSEC ?= y
 CFG_STM32_CRYP ?= y
