@@ -384,8 +384,9 @@ static void check_rcc_secure_configuration(void)
 {
 	bool secure = stm32_rcc_is_secure();
 	bool mckprot = stm32_rcc_is_mckprot();
+	bool need_secure = false;
+	bool need_mckprot = false;
 	enum stm32mp_shres id = STM32MP1_SHRES_COUNT;
-	bool have_error = false;
 	uint32_t state = 0;
 
 	if (stm32_bsec_get_state(&state))
@@ -398,17 +399,22 @@ static void check_rcc_secure_configuration(void)
 		if  (shres_state[id] != SHRES_SECURE)
 			continue;
 
-		if ((mckprot_resource(id) && !mckprot) || !secure) {
-			EMSG("RCC %s MCKPROT %s and %s (%u) secure",
-			      secure ? "secure" : "non-secure",
-			      mckprot ? "set" : "not set",
-			      shres2str_id(id), id);
-			have_error = true;
-		}
+		need_secure = true;
+		if (mckprot_resource(id))
+			need_mckprot = true;
+
+		if ((mckprot_resource(id) && !mckprot) || !secure)
+			EMSG("Error: RCC TZEN=%u MCKPROT=%u while %s is secure",
+			     secure, mckprot, shres2str_id(id));
 	}
 
-	if (have_error)
+	DMSG("RCC/PWR secure hardening: TZEN %sable, MCKPROT %sable",
+	     secure ? "en" : "dis", mckprot ? "en" : "dis");
+
+	if (need_secure && !secure)
 		panic();
+
+	stm32mp1_clk_mcuss_protect(need_mckprot);
 }
 
 static TEE_Result stm32mp1_init_final_shres(void)
