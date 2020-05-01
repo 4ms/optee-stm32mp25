@@ -100,6 +100,12 @@ static void gic_pm_register(struct gic_data *gd __unused)
 }
 #endif
 
+#if !defined(CFG_ARM_GICV3)
+static uint8_t gic_op_set_pmr(struct itr_chip *chip, uint8_t mask);
+static uint8_t gic_op_set_ipriority(struct itr_chip *chip, size_t it,
+			uint8_t mask);
+#endif
+
 static const struct itr_ops gic_ops = {
 	.add = gic_op_add,
 	.enable = gic_op_enable,
@@ -107,6 +113,10 @@ static const struct itr_ops gic_ops = {
 	.raise_pi = gic_op_raise_pi,
 	.raise_sgi = gic_op_raise_sgi,
 	.set_affinity = gic_op_set_affinity,
+#if !defined(CFG_ARM_GICV3)
+	.set_pmr = gic_op_set_pmr,
+	.set_ipriority = gic_op_set_ipriority,
+#endif
 };
 DECLARE_KEEP_PAGER(gic_ops);
 
@@ -172,10 +182,10 @@ void gic_cpu_init(struct gic_data *gd)
 	 * allow the Non-secure world to adjust the priority mask itself
 	 */
 #if defined(CFG_ARM_GICV3)
-	write_icc_pmr(0x80);
+	write_icc_pmr(GIC_HIGHEST_NS_PRIORITY);
 	write_icc_igrpen1(1);
 #else
-	io_write32(gd->gicc_base + GICC_PMR, 0x80);
+	io_write32(gd->gicc_base + GICC_PMR, GIC_HIGHEST_NS_PRIORITY);
 
 	/* Enable GIC */
 	io_write32(gd->gicc_base + GICC_CTLR,
@@ -214,11 +224,11 @@ void gic_init(struct gic_data *gd, paddr_t gicc_base_pa, paddr_t gicd_base_pa)
 	 * allow the Non-secure world to adjust the priority mask itself
 	 */
 #if defined(CFG_ARM_GICV3)
-	write_icc_pmr(0x80);
+	write_icc_pmr(GIC_HIGHEST_NS_PRIORITY);
 	write_icc_igrpen1(1);
 	io_setbits32(gd->gicd_base + GICD_CTLR, GICD_CTLR_ENABLEGRP1S);
 #else
-	io_write32(gd->gicc_base + GICC_PMR, 0x80);
+	io_write32(gd->gicc_base + GICC_PMR, GIC_HIGHEST_NS_PRIORITY);
 
 	/* Enable GIC */
 	io_write32(gd->gicc_base + GICC_CTLR, GICC_CTLR_FIQEN |
@@ -335,13 +345,37 @@ static void gic_it_set_prio(struct gic_data *gd, size_t it, uint8_t prio)
 	size_t idx __maybe_unused = it / NUM_INTS_PER_REG;
 	uint32_t mask __maybe_unused = 1 << (it % NUM_INTS_PER_REG);
 
-	/* Assigned to group0 */
-	assert(!(io_read32(gd->gicd_base + GICD_IGROUPR(idx)) & mask));
-
 	/* Set prio it to selected CPUs */
 	DMSG("prio: writing 0x%x to 0x%" PRIxVA,
 		prio, gd->gicd_base + GICD_IPRIORITYR(0) + it);
 	io_write8(gd->gicd_base + GICD_IPRIORITYR(0) + it, prio);
+}
+
+static uint8_t gic_op_set_pmr(struct itr_chip *chip, uint8_t mask)
+{
+	struct gic_data *gd = container_of(chip, struct gic_data, chip);
+	uint32_t pmr = io_read32(gd->gicc_base + GICC_PMR);
+
+	/*
+	 * Order memory updates w.r.t. PMR write, and ensure they're visible
+	 * before potential out of band interrupt trigger because of PMR update.
+	 */
+	dsb_ishst();
+	io_write32(gd->gicc_base + GICC_PMR, mask);
+	dsb_ishst();
+
+	return (uint8_t)pmr;
+}
+
+static uint8_t gic_op_set_ipriority(struct itr_chip *chip, size_t it,
+			uint8_t mask)
+{
+	struct gic_data *gd = container_of(chip, struct gic_data, chip);
+	uint8_t prio = io_read8(gd->gicd_base + GICD_IPRIORITYR(0) + it);
+
+	gic_it_set_prio(gd, it, mask);
+
+	return prio;
 }
 
 static void gic_it_enable(struct gic_data *gd, size_t it)
