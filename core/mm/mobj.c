@@ -756,4 +756,4 @@ static TEE_Result mobj_init(void)
 	return TEE_SUCCESS;
 }
 
-driver_init_late(mobj_init);
+service_init(mobj_init);
