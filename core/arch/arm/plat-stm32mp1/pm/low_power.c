@@ -54,6 +54,8 @@ struct pwr_lp_config {
 	const char *regul_suspend_node_name;
 };
 
+#define TIMEOUT_US_10MS		(10 * 1000)
+
 #ifdef CFG_STM32MP13
 #define PWR_CR1_MASK	(PWR_CR1_LPDS | PWR_CR1_LPCFG | PWR_CR1_LVDS |\
 			 PWR_CR1_STOP2)
@@ -288,6 +290,32 @@ void stm32_enter_cstop(uint32_t mode)
 	if (ddr_standby_sr_entry() != 0)
 		panic();
 #endif
+
+	if (mode == STM32_PM_CSTOP_ALLOW_STANDBY_DDR_SR) {
+		uint64_t to = 0;
+
+		/* set POPL to 20ms */
+		io_clrsetbits32(pwr_base + PWR_CR3_OFF, PWR_CR3_POPL_MASK,
+				20U << PWR_CR3_POPL_SHIFT);
+
+		/* Keep backup RAM content in standby */
+		io_setbits32(pwr_base + PWR_CR2_OFF, PWR_CR2_BREN);
+
+		to = timeout_init_us(TIMEOUT_US_10MS);
+		while (!(io_read32(pwr_base + PWR_CR2_OFF) & PWR_CR2_BRRDY))
+			if (timeout_elapsed(to))
+				panic();
+
+#ifndef CFG_STM32MP13
+		/* Keep retention in standby */
+		to = timeout_init_us(TIMEOUT_US_10MS);
+		io_setbits32(pwr_base + PWR_CR2_OFF, PWR_CR2_RREN);
+
+		while (!(io_read32(pwr_base + PWR_CR2_OFF) & PWR_CR2_RRRDY))
+			if (timeout_elapsed(to))
+				panic();
+#endif
+	}
 }
 
 /*
