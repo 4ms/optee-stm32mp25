@@ -194,11 +194,9 @@ void gic_cpu_init(struct gic_data *gd)
 #endif
 }
 
-void gic_init(struct gic_data *gd, paddr_t gicc_base_pa, paddr_t gicd_base_pa)
+void gic_init_setup(struct gic_data *gd)
 {
 	size_t n;
-
-	gic_init_base_addr(gd, gicc_base_pa, gicd_base_pa);
 
 	for (n = 0; n <= gd->max_it / NUM_INTS_PER_REG; n++) {
 		/* Disable interrupts */
@@ -298,6 +296,12 @@ void gic_init_base_addr(struct gic_data *gd,
 		gd->chip.dt_get_irq = gic_dt_get_irq;
 
 	gic_pm_register(gd);
+}
+
+void gic_init(struct gic_data *gd, paddr_t gicc_base_pa, paddr_t gicd_base_pa)
+{
+	gic_init_base_addr(gd, gicc_base_pa, gicd_base_pa);
+	gic_init_setup(gd);
 }
 
 static void gic_it_add(struct gic_data *gd, size_t it)
@@ -656,12 +660,10 @@ static void gic_save_it(struct gic_data *gd, struct gic_it_pm *pm)
 static void gic_restore_it(struct gic_data *gd, struct gic_it_pm *pm)
 {
 	unsigned int it = pm->it;
-	size_t idx = 0;
+	size_t idx = it / NUM_INTS_PER_REG;
 	uint32_t mask = BIT(it % NUM_INTS_PER_REG);
 	uint32_t shift2 = it % (NUM_INTS_PER_REG / 2);
 	uint32_t shift8 = it % (NUM_INTS_PER_REG / 8);
-
-	idx = it / NUM_INTS_PER_REG;
 
 	io_mask32(gd->gicd_base + GICD_IGROUPR(idx),
 		  (pm->flags & IT_PM_GPOUP1_BIT) ? mask : 0, mask);
@@ -698,11 +700,12 @@ static TEE_Result gic_pm(enum pm_op op, unsigned int pm_hint __unused,
 	struct gic_data *gd = (struct gic_data *)PM_CALLBACK_GET_HANDLE(handle);
 	struct gic_pm *pm = &gd->pm;
 
-	if (op == PM_OP_SUSPEND)
+	if (op == PM_OP_SUSPEND) {
 		sequence = gic_save_it;
-	else
+	} else {
+		gic_init_setup(gd);
 		sequence = gic_restore_it;
-
+	}
 	for (n = 0, cfg = pm->pm_cfg; n < pm->count; n++, cfg++)
 		sequence(gd, cfg);
 
