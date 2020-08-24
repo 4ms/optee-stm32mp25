@@ -110,7 +110,7 @@ static TEE_Result init_stm32mp1_tzc(void)
 
 	itr_add(&tzc_itr_handler);
 	itr_enable(tzc_itr_handler.it);
-	tzc_set_action(TZC_ACTION_INT);
+	tzc_set_action(TZC_ACTION_ERR);
 
 	return TEE_SUCCESS;
 }
