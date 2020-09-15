@@ -162,6 +162,11 @@ CFG_CORE_ASLR ?= n
 # Default disable shared memory as it is not used. Do not force disable it
 # on STM32MP15 for legacy purpose.
 CFG_CORE_RESERVED_SHM ?= n
+# Disable early TA compression to limit HEAP size
+CFG_EARLY_TA_COMPRESS ?= n
+
+# Embed public part of this key in OP-TEE OS
+CFG_RPROC_SIGN_KEY ?= keys/default_rproc.pem
 
 ifeq ($(CFG_EMBED_DTB_SOURCE_FILE),)
 # Some drivers mandate DT support
