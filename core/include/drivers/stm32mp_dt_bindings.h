@@ -24,6 +24,9 @@
 #endif
 
 #ifdef CFG_STM32MP25
+#include <dt-bindings/clock/stm32mp25-clks.h>
+#include <dt-bindings/clock/stm32mp25-clksrc.h>
+#include <dt-bindings/reset/stm32mp25-resets.h>
 #include <dt-bindings/soc/stm32mp25-rif.h>
 #include <dt-bindings/soc/stm32mp25-rifsc.h>
 #include <dt-bindings/soc/stm32mp25-risab.h>
