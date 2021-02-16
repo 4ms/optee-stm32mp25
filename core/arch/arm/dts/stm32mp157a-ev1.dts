@@ -17,7 +17,7 @@
 	compatible = "st,stm32mp157a-ev1", "st,stm32mp157a-ed1", "st,stm32mp157";
 
 	aliases {
-		serial0 = &uart4;
+		serial1 = &usart3;
 	};
 
 	chosen {
