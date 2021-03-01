@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 /*
- * Copyright (c) 2016-2020, STMicroelectronics - All Rights Reserved
+ * Copyright (c) 2016-2021, STMicroelectronics - All Rights Reserved
  */
 
 #include <assert.h>
@@ -26,10 +26,17 @@ struct regul_struct {
 	uint8_t pull_down_pos;
 	uint8_t mask_reset_reg;
 	uint8_t mask_reset_pos;
+	uint8_t icc_reg;
+	uint8_t icc_mask;
 };
 
 static struct i2c_handle_s *pmic_i2c_handle;
 static uint16_t pmic_i2c_addr;
+/*
+ * Special mode corresponds to LDO3 in sink source mode or in bypass mode.
+ * LDO3 doesn't switch back from special to normal mode.
+ */
+static bool ldo3_special_mode;
 
 /* Voltage tables in mV */
 static const uint16_t buck1_voltage_table[] = {
@@ -350,8 +357,16 @@ static const uint16_t ldo3_voltage_table[] = {
 	3300,
 	3300,
 	3300,
+#ifndef CFG_REGULATOR_DRIVERS
+	/* Old specific config to be replaced with ldo3_special_mode support */
 	500,	/* VOUT2/2 (Sink/source mode) */
 	0xFFFF, /* VREFDDR */
+#endif
+};
+
+/* Special mode table is used for sink source OR bypass mode */
+static const uint16_t ldo3_special_mode_table[] = {
+	0,
 };
 
 static const uint16_t ldo5_voltage_table[] = {
@@ -441,6 +456,8 @@ static const struct regul_struct regulators_table[] = {
 		.pull_down_pos	= BUCK1_PULL_DOWN_SHIFT,
 		.mask_reset_reg = MASK_RESET_BUCK_REG,
 		.mask_reset_pos = BUCK1_MASK_RESET_SHIFT,
+		.icc_reg	= BUCK_ICC_TURNOFF_REG,
+		.icc_mask	= BUCK1_ICC_SHIFT,
 	},
 	{
 		.dt_node_name	= "buck2",
@@ -453,6 +470,8 @@ static const struct regul_struct regulators_table[] = {
 		.pull_down_pos	= BUCK2_PULL_DOWN_SHIFT,
 		.mask_reset_reg = MASK_RESET_BUCK_REG,
 		.mask_reset_pos = BUCK2_MASK_RESET_SHIFT,
+		.icc_reg	= BUCK_ICC_TURNOFF_REG,
+		.icc_mask	= BUCK2_ICC_SHIFT,
 	},
 	{
 		.dt_node_name	= "buck3",
@@ -465,6 +484,8 @@ static const struct regul_struct regulators_table[] = {
 		.pull_down_pos	= BUCK3_PULL_DOWN_SHIFT,
 		.mask_reset_reg = MASK_RESET_BUCK_REG,
 		.mask_reset_pos = BUCK3_MASK_RESET_SHIFT,
+		.icc_reg	= BUCK_ICC_TURNOFF_REG,
+		.icc_mask	= BUCK3_ICC_SHIFT,
 	},
 	{
 		.dt_node_name	= "buck4",
@@ -477,6 +498,8 @@ static const struct regul_struct regulators_table[] = {
 		.pull_down_pos	= BUCK4_PULL_DOWN_SHIFT,
 		.mask_reset_reg = MASK_RESET_BUCK_REG,
 		.mask_reset_pos = BUCK4_MASK_RESET_SHIFT,
+		.icc_reg	= BUCK_ICC_TURNOFF_REG,
+		.icc_mask	= BUCK4_ICC_SHIFT,
 	},
 	{
 		.dt_node_name	= "ldo1",
@@ -487,6 +510,8 @@ static const struct regul_struct regulators_table[] = {
 		.enable_pos	= LDO_BUCK_ENABLE_POS,
 		.mask_reset_reg = MASK_RESET_LDO_REG,
 		.mask_reset_pos = LDO1_MASK_RESET_SHIFT,
+		.icc_reg	= LDO_ICC_TURNOFF_REG,
+		.icc_mask	= LDO1_ICC_SHIFT,
 	},
 	{
 		.dt_node_name	= "ldo2",
@@ -497,6 +522,8 @@ static const struct regul_struct regulators_table[] = {
 		.enable_pos	= LDO_BUCK_ENABLE_POS,
 		.mask_reset_reg = MASK_RESET_LDO_REG,
 		.mask_reset_pos = LDO2_MASK_RESET_SHIFT,
+		.icc_reg	= LDO_ICC_TURNOFF_REG,
+		.icc_mask	= LDO2_ICC_SHIFT,
 	},
 	{
 		.dt_node_name	= "ldo3",
@@ -507,6 +534,8 @@ static const struct regul_struct regulators_table[] = {
 		.enable_pos	= LDO_BUCK_ENABLE_POS,
 		.mask_reset_reg = MASK_RESET_LDO_REG,
 		.mask_reset_pos = LDO3_MASK_RESET_SHIFT,
+		.icc_reg	= LDO_ICC_TURNOFF_REG,
+		.icc_mask	= LDO3_ICC_SHIFT,
 	},
 	{
 		.dt_node_name	= "ldo4",
@@ -517,6 +546,8 @@ static const struct regul_struct regulators_table[] = {
 		.enable_pos	= LDO_BUCK_ENABLE_POS,
 		.mask_reset_reg = MASK_RESET_LDO_REG,
 		.mask_reset_pos = LDO4_MASK_RESET_SHIFT,
+		.icc_reg	= LDO_ICC_TURNOFF_REG,
+		.icc_mask	= LDO4_ICC_SHIFT,
 	},
 	{
 		.dt_node_name	= "ldo5",
@@ -527,6 +558,8 @@ static const struct regul_struct regulators_table[] = {
 		.enable_pos	= LDO_BUCK_ENABLE_POS,
 		.mask_reset_reg = MASK_RESET_LDO_REG,
 		.mask_reset_pos = LDO5_MASK_RESET_SHIFT,
+		.icc_reg	= LDO_ICC_TURNOFF_REG,
+		.icc_mask	= LDO5_ICC_SHIFT,
 	},
 	{
 		.dt_node_name	= "ldo6",
@@ -537,6 +570,8 @@ static const struct regul_struct regulators_table[] = {
 		.enable_pos	= LDO_BUCK_ENABLE_POS,
 		.mask_reset_reg = MASK_RESET_LDO_REG,
 		.mask_reset_pos = LDO6_MASK_RESET_SHIFT,
+		.icc_reg	= LDO_ICC_TURNOFF_REG,
+		.icc_mask	= LDO6_ICC_SHIFT,
 	},
 	{
 		.dt_node_name	= "vref_ddr",
@@ -554,6 +589,8 @@ static const struct regul_struct regulators_table[] = {
 		.voltage_table_size = ARRAY_SIZE(fixed_5v_voltage_table),
 		.control_reg	= USB_CONTROL_REG,
 		.enable_pos	= BOOST_ENABLED_POS,
+		.icc_reg	= BUCK_ICC_TURNOFF_REG,
+		.icc_mask	= BOOST_ICC_SHIFT,
 	},
 	{
 		.dt_node_name	= "pwr_sw1",
@@ -561,6 +598,8 @@ static const struct regul_struct regulators_table[] = {
 		.voltage_table_size = ARRAY_SIZE(fixed_5v_voltage_table),
 		.control_reg	= USB_CONTROL_REG,
 		.enable_pos	= USBSW_OTG_SWITCH_ENABLED_POS,
+		.icc_reg	= BUCK_ICC_TURNOFF_REG,
+		.icc_mask	= PWR_SW1_ICC_SHIFT,
 	},
 	{
 		.dt_node_name	= "pwr_sw2",
@@ -568,6 +607,8 @@ static const struct regul_struct regulators_table[] = {
 		.voltage_table_size = ARRAY_SIZE(fixed_5v_voltage_table),
 		.control_reg	= USB_CONTROL_REG,
 		.enable_pos	= SWIN_SWOUT_ENABLED_POS,
+		.icc_reg	= BUCK_ICC_TURNOFF_REG,
+		.icc_mask	= PWR_SW2_ICC_SHIFT,
 	},
 };
 
@@ -586,21 +627,6 @@ static const struct regul_struct *get_regulator_data(const char *name)
 bool stpmic1_regulator_is_valid(const char *name)
 {
 	return get_regulator_data(name);
-}
-
-void stpmic1_regulator_levels_mv(const char *name,
-				 const uint16_t **levels,
-				 size_t *levels_count)
-{
-	const struct regul_struct *regul = get_regulator_data(name);
-
-	assert(regul);
-
-	if (levels_count)
-		*levels_count = regul->voltage_table_size;
-
-	if (levels)
-		*levels = regul->voltage_table;
 }
 
 static size_t voltage_to_index(const char *name, uint16_t millivolts)
@@ -677,6 +703,16 @@ int stpmic1_regulator_voltage_set(const char *name, uint16_t millivolts)
 	if (voltage_index == VOLTAGE_INDEX_INVALID)
 		return -1;
 
+	if ((strncmp(name, "ldo3", 4) == 0) && ldo3_special_mode) {
+		/*
+		 * when the LDO3 is in special mode, we do not change voltage,
+		 * because by setting voltage, the LDO would leaves sink-source
+		 * mode. There is obviously no reason to leave sink-source mode
+		 * at runtime.
+		 */
+		return 0;
+	}
+
 	mask = find_plat_mask(name);
 	if (!mask)
 		return 0;
@@ -684,6 +720,19 @@ int stpmic1_regulator_voltage_set(const char *name, uint16_t millivolts)
 	return stpmic1_register_update(regul->control_reg,
 				       voltage_index << LDO_BUCK_VOLTAGE_SHIFT,
 				       mask);
+}
+
+int stpmic1_regulator_pull_down_set(const char *name)
+{
+	const struct regul_struct *regul = get_regulator_data(name);
+
+	if (regul->pull_down_reg)
+		return stpmic1_register_update(regul->pull_down_reg,
+					       BIT(regul->pull_down_pos),
+					       LDO_BUCK_PULL_DOWN_MASK <<
+					       regul->pull_down_pos);
+
+	return 0;
 }
 
 int stpmic1_regulator_mask_reset_set(const char *name)
@@ -701,6 +750,108 @@ int stpmic1_regulator_mask_reset_set(const char *name)
 				       regul->mask_reset_pos);
 }
 
+int stpmic1_regulator_icc_set(const char *name)
+{
+	const struct regul_struct *regul = get_regulator_data(name);
+
+	if (!regul->mask_reset_reg)
+		return -1;
+
+	return stpmic1_register_update(regul->icc_reg,
+				       BIT(regul->icc_mask),
+				       BIT(regul->icc_mask));
+}
+
+int stpmic1_regulator_sink_mode_set(const char *name)
+{
+	if (strncmp(name, "ldo3", 4))
+		return -1;
+
+	ldo3_special_mode = true;
+
+	/* disable bypass mode, enable sink mode */
+	return stpmic1_register_update(LDO3_CONTROL_REG,
+				       LDO3_DDR_SEL << LDO_BUCK_VOLTAGE_SHIFT,
+				       LDO3_BYPASS | LDO_VOLTAGE_MASK);
+}
+
+int stpmic1_regulator_bypass_mode_set(const char *name)
+{
+	if (strncmp(name, "ldo3", 4))
+		return -1;
+
+	ldo3_special_mode = true;
+
+	/* enable bypass mode, disable sink mode */
+	return stpmic1_register_update(LDO3_CONTROL_REG,
+				       LDO3_BYPASS,
+				       LDO3_BYPASS | LDO_VOLTAGE_MASK);
+}
+
+int stpmic1_active_discharge_mode_set(const char *name)
+{
+	if (!strncmp(name, "pwr_sw1", 7))
+		return stpmic1_register_update(USB_CONTROL_REG,
+					       BIT(VBUS_OTG_DISCHARGE_POS),
+					       BIT(VBUS_OTG_DISCHARGE_POS));
+
+	if (!strncmp(name, "pwr_sw2", 7))
+		return stpmic1_register_update(USB_CONTROL_REG,
+					       BIT(SW_OUT_DISCHARGE_POS),
+					       BIT(SW_OUT_DISCHARGE_POS));
+
+	return -1;
+}
+
+bool stpmic1_regu_has_lp_cfg(const char *name)
+{
+	return get_regulator_data(name)->low_power_reg;
+}
+
+int stpmic1_lp_copy_reg(const char *name)
+{
+	const struct regul_struct *regul = get_regulator_data(name);
+	uint8_t val = 0;
+	int status = 0;
+
+	if (!regul->low_power_reg)
+		return -1;
+
+	status = stpmic1_register_read(regul->control_reg, &val);
+	if (status)
+		return status;
+
+	return stpmic1_register_write(regul->low_power_reg, val);
+}
+
+int stpmic1_lp_reg_on_off(const char *name, uint8_t enable)
+{
+	const struct regul_struct *regul = get_regulator_data(name);
+
+	if (!regul->low_power_reg)
+		return -1;
+
+	return stpmic1_register_update(regul->low_power_reg, enable,
+				       LDO_BUCK_ENABLE_MASK);
+}
+
+int stpmic1_lp_set_voltage(const char *name, uint16_t millivolts)
+{
+	size_t voltage_index = voltage_to_index(name, millivolts);
+	const struct regul_struct *regul = get_regulator_data(name);
+	uint8_t mask = 0;
+
+	assert(voltage_index != VOLTAGE_INDEX_INVALID);
+
+	mask = find_plat_mask(name);
+	if (!mask)
+		return 0;
+
+	return stpmic1_register_update(regul->low_power_reg, voltage_index << 2,
+				       mask);
+}
+
+#ifdef CFG_STM32MP15
 int stpmic1_bo_enable_cfg(const char *name, struct stpmic1_bo_cfg *cfg)
 {
 	const struct regul_struct *regul = get_regulator_data(name);
@@ -804,48 +955,6 @@ int stpmic1_bo_mask_reset_unpg(struct stpmic1_bo_cfg *cfg)
 				       cfg->mrst_mask);
 }
 
-int stpmic1_regulator_voltage_get(const char *name)
-{
-	const struct regul_struct *regul = get_regulator_data(name);
-	uint8_t value = 0;
-	uint8_t mask = 0;
-
-	mask = find_plat_mask(name);
-	if (!mask)
-		return 0;
-
-	if (stpmic1_register_read(regul->control_reg, &value))
-		return -1;
-
-	value = (value & mask) >> LDO_BUCK_VOLTAGE_SHIFT;
-
-	if (value > regul->voltage_table_size)
-		return -1;
-
-	return regul->voltage_table[value];
-}
-
-int stpmic1_lp_copy_reg(const char *name)
-{
-	const struct regul_struct *regul = get_regulator_data(name);
-	uint8_t val = 0;
-	int status = 0;
-
-	if (!regul->low_power_reg)
-		return -1;
-
-	status = stpmic1_register_read(regul->control_reg, &val);
-	if (status)
-		return status;
-
-	return stpmic1_register_write(regul->low_power_reg, val);
-}
-
-bool stpmic1_regu_has_lp_cfg(const char *name)
-{
-	return get_regulator_data(name)->low_power_reg;
-}
-
 int stpmic1_lp_cfg(const char *name, struct stpmic1_lp_cfg *cfg)
 {
 	const struct regul_struct *regul = get_regulator_data(name);
@@ -871,17 +980,6 @@ int stpmic1_lp_load_unpg(struct stpmic1_lp_cfg *cfg)
 		status = stpmic1_register_write(cfg->lp_reg, val);
 
 	return status;
-}
-
-int stpmic1_lp_reg_on_off(const char *name, uint8_t enable)
-{
-	const struct regul_struct *regul = get_regulator_data(name);
-
-	if (!regul->low_power_reg)
-		return -1;
-
-	return stpmic1_register_update(regul->low_power_reg, enable,
-				       LDO_BUCK_ENABLE_MASK);
 }
 
 int stpmic1_lp_on_off_unpg(struct stpmic1_lp_cfg *cfg, int enable)
@@ -911,22 +1009,6 @@ int stpmic1_lp_mode_unpg(struct stpmic1_lp_cfg *cfg, unsigned int mode)
 				       BIT(LDO_BUCK_HPLP_POS));
 }
 
-int stpmic1_lp_set_voltage(const char *name, uint16_t millivolts)
-{
-	size_t voltage_index = voltage_to_index(name, millivolts);
-	const struct regul_struct *regul = get_regulator_data(name);
-	uint8_t mask = 0;
-
-	assert(voltage_index != VOLTAGE_INDEX_INVALID);
-
-	mask = find_plat_mask(name);
-	if (!mask)
-		return 0;
-
-	return stpmic1_register_update(regul->low_power_reg, voltage_index << 2,
-				       mask);
-}
-
 /* Returns 1 if no configuration are expected applied at runtime, 0 otherwise */
 int stpmic1_lp_voltage_cfg(const char *name, uint16_t millivolts,
 			   struct stpmic1_lp_cfg *cfg)
@@ -953,6 +1035,54 @@ int stpmic1_lp_voltage_unpg(struct stpmic1_lp_cfg *cfg)
 	assert(cfg->lp_reg);
 
 	return stpmic1_register_update(cfg->lp_reg, cfg->value,	cfg->mask);
+}
+#endif
+
+TEE_Result stpmic1_regulator_levels_mv(const char *name,
+				       const uint16_t **levels,
+				       size_t *levels_count)
+{
+	const struct regul_struct *regul = get_regulator_data(name);
+
+	if (!regul)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	if ((strncmp(name, "ldo3", 4) == 0) && ldo3_special_mode) {
+		if (levels_count)
+			*levels_count = ARRAY_SIZE(ldo3_special_mode_table);
+		if (levels)
+			*levels = ldo3_special_mode_table;
+	} else {
+		if (levels_count)
+			*levels_count = regul->voltage_table_size;
+		if (levels)
+			*levels = regul->voltage_table;
+	}
+
+	return TEE_SUCCESS;
+}
+
+int stpmic1_regulator_voltage_get(const char *name)
+{
+	const struct regul_struct *regul = get_regulator_data(name);
+	uint8_t value = 0;
+	uint8_t mask = 0;
+
+	if ((strncmp(name, "ldo3", 4) == 0) && ldo3_special_mode)
+		return 0;
+
+	mask = find_plat_mask(name);
+	if (mask) {
+		if (stpmic1_register_read(regul->control_reg, &value))
+			return -1;
+
+		value = (value & mask) >> LDO_BUCK_VOLTAGE_SHIFT;
+	}
+
+	if (value > regul->voltage_table_size)
+		return -1;
+
+	return regul->voltage_table[value];
 }
 
 int stpmic1_register_read(uint8_t register_id,  uint8_t *value)

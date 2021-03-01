@@ -102,6 +102,22 @@
 #define BUCK4_PULL_DOWN_SHIFT		6
 #define VREF_DDR_PULL_DOWN_SHIFT	4
 
+/* ICC register */
+#define BUCK1_ICC_SHIFT			0
+#define BUCK2_ICC_SHIFT			1
+#define BUCK3_ICC_SHIFT			2
+#define BUCK4_ICC_SHIFT			3
+#define PWR_SW1_ICC_SHIFT		4
+#define PWR_SW2_ICC_SHIFT		5
+#define BOOST_ICC_SHIFT			6
+
+#define LDO1_ICC_SHIFT			0
+#define LDO2_ICC_SHIFT			1
+#define LDO3_ICC_SHIFT			2
+#define LDO4_ICC_SHIFT			3
+#define LDO5_ICC_SHIFT			4
+#define LDO6_ICC_SHIFT			5
+
 /* Buck Mask reset register */
 #define BUCK1_MASK_RESET_SHIFT		0
 #define BUCK2_MASK_RESET_SHIFT		1
@@ -116,6 +132,10 @@
 #define LDO5_MASK_RESET_SHIFT		4
 #define LDO6_MASK_RESET_SHIFT		5
 #define VREF_DDR_MASK_RESET_SHIFT	6
+
+/* LDO3 Special modes */
+#define LDO3_BYPASS                     BIT(7)
+#define LDO3_DDR_SEL                    31U
 
 /* Main PMIC Control Register (MAIN_CONTROL_REG) */
 #define ICC_EVENT_ENABLED		BIT(4)
@@ -144,10 +164,47 @@
 /* USB Control Register */
 #define BOOST_OVP_DISABLED_POS		7
 #define VBUS_OTG_DETECTION_DISABLED_POS	6
+#define SW_OUT_DISCHARGE_POS		5
+#define VBUS_OTG_DISCHARGE_POS		4
 #define OCP_LIMIT_HIGH_POS		3
 #define SWIN_SWOUT_ENABLED_POS		2
 #define USBSW_OTG_SWITCH_ENABLED_POS	1
 #define BOOST_ENABLED_POS		0
+
+/* IRQ definitions */
+#define IT_PONKEY_F	0
+#define IT_PONKEY_R	1
+#define IT_WAKEUP_F	2
+#define IT_WAKEUP_R	3
+#define IT_VBUS_OTG_F	4
+#define IT_VBUS_OTG_R	5
+#define IT_SWOUT_F	6
+#define IT_SWOUT_R	7
+
+#define IT_CURLIM_BUCK1	0
+#define IT_CURLIM_BUCK2	1
+#define IT_CURLIM_BUCK3	2
+#define IT_CURLIM_BUCK4	3
+#define IT_OCP_OTG	4
+#define IT_OCP_SWOUT	5
+#define IT_OCP_BOOST	6
+#define IT_OVP_BOOST	7
+
+#define IT_CURLIM_LDO1	0
+#define IT_CURLIM_LDO2	1
+#define IT_CURLIM_LDO3	2
+#define IT_CURLIM_LDO4	3
+#define IT_CURLIM_LDO5	4
+#define IT_CURLIM_LDO6	5
+#define IT_SHORT_SWOTG	6
+#define IT_SHORT_SWOUT	7
+
+#define IT_TWARN_F	0
+#define IT_TWARN_R	1
+#define IT_VINLOW_F	2
+#define IT_VINLOW_R	3
+#define IT_SWIN_F	4
+#define IT_SWIN_R	5
 
 /*
  * Bind SPMIC1 device driver with a specific I2C bus instance
@@ -173,14 +230,14 @@ int stpmic1_register_read(uint8_t register_id, uint8_t *value);
 int stpmic1_register_write(uint8_t register_id, uint8_t value);
 int stpmic1_register_update(uint8_t register_id, uint8_t value, uint8_t mask);
 
-int stpmic1_regulator_mask_reset_set(const char *name);
-
 /* API for low power configuration of regulators driven from STPMIC1 device */
+bool stpmic1_regu_has_lp_cfg(const char *name);
 int stpmic1_lp_copy_reg(const char *name);
 int stpmic1_lp_reg_on_off(const char *name, uint8_t enable);
 int stpmic1_lp_set_mode(const char *name, uint8_t hplp);
 int stpmic1_lp_set_voltage(const char *name, uint16_t millivolts);
 
+#ifdef CFG_STM32MP15
 /*
  * Specific API for controlling regulators driven from STPMIC1 device
  * from unpaged execution context of the STPMIC1 driver.
@@ -231,7 +288,6 @@ int stpmic1_bo_pull_down_unpg(struct stpmic1_bo_cfg *cfg);
 int stpmic1_bo_mask_reset_cfg(const char *name, struct stpmic1_bo_cfg *cfg);
 int stpmic1_bo_mask_reset_unpg(struct stpmic1_bo_cfg *cfg);
 
-bool stpmic1_regu_has_lp_cfg(const char *name);
 int stpmic1_lp_cfg(const char *name, struct stpmic1_lp_cfg *cfg);
 int stpmic1_lp_load_unpg(struct stpmic1_lp_cfg *cfg);
 int stpmic1_lp_on_off_unpg(struct stpmic1_lp_cfg *cfg, int enable);
@@ -240,5 +296,6 @@ int stpmic1_lp_mode_unpg(struct stpmic1_lp_cfg *cfg,
 int stpmic1_lp_voltage_cfg(const char *name, uint16_t millivolts,
 			   struct stpmic1_lp_cfg *cfg);
 int stpmic1_lp_voltage_unpg(struct stpmic1_lp_cfg *cfg);
+#endif /* CFG_STM32MP15 */
 
 #endif /*__STPMIC1_H__*/
