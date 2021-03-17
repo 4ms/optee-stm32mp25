@@ -2,13 +2,15 @@
 /*
  * Copyright (c) 2014, Linaro Limited
  */
-#include <stdbool.h>
-#include <trace.h>
 #include <console.h>
 #include <kernel/misc.h>
 #include <kernel/spinlock.h>
 #include <kernel/thread.h>
 #include <mm/core_mmu.h>
+#include <printk.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <trace.h>
 
 const char trace_ext_prefix[] = "TC";
 int trace_level __nex_data = TRACE_LEVEL;
@@ -60,4 +62,51 @@ int trace_ext_get_core_id(void)
 		return get_core_pos();
 	else
 		return -1;
+}
+
+int printf(const char *fmt, ...)
+{
+	char to_format[MAX_PRINT_SIZE];
+	va_list ap;
+	int s;
+
+	if (trace_get_level() < TRACE_PRINTF_LEVEL)
+		return 0;
+
+	va_start(ap, fmt);
+	s = vsnprintk(to_format, sizeof(to_format), fmt, ap);
+	va_end(ap);
+
+	if (s < 0)
+		return s;
+
+	trace_ext_puts(to_format);
+
+	return s;
+}
+
+
+int putchar(int c)
+{
+	char str[2] = { (char)c, '\0' };
+
+	if (trace_get_level() >= TRACE_PRINTF_LEVEL)
+		trace_ext_puts(str);
+
+	/*
+	 * From the putchar() man page:
+	 * "fputc(), putc() and putchar() return the character written as an
+	 * unsigned char cast to an int or EOF on error."
+	 */
+	return (int)(unsigned char)c;
+}
+
+int puts(const char *str)
+{
+	if (trace_get_level() >= TRACE_PRINTF_LEVEL) {
+		trace_ext_puts(str);
+		trace_ext_puts("\n");
+	}
+
+	return 1;
 }
