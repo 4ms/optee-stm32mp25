@@ -25,6 +25,48 @@
 		};
 	};
 
+	tamp0_in1_pin_a: tamp0_in1_pin_0 {
+		pins {
+			pinmux = <STM32_PINMUX('F', 10, RSVD)>;
+			st,tamp_id = <1>;
+		};
+	};
+
+	tamp0_in2_pin_a: tamp0_in2_pin_0 {
+		pins {
+			pinmux = <STM32_PINMUX('A', 6, RSVD)>;
+			st,tamp_id = <2>;
+		};
+	};
+
+	tamp0_in3_pin_a: tamp0_in3_pin_0 {
+		pins {
+			pinmux = <STM32_PINMUX('C', 0, RSVD)>;
+			st,tamp_id = <3>;
+		};
+	};
+
+	tamp0_in5_pin_a: tamp0_in5_pin_0 {
+		pins {
+			pinmux = <STM32_PINMUX('C', 3, RSVD)>;
+			st,tamp_id = <5>;
+		};
+	};
+
+	tamp0_in8_pin_a: tamp0_in8_pin_0 {
+		pins {
+			pinmux = <STM32_PINMUX('I', 0, RSVD)>;
+			st,tamp_id = <8>;
+		};
+	};
+
+	tamp0_out1_pin_a: tamp0_out1_pin_0 {
+		pins {
+			pinmux = <STM32_PINMUX('I', 0, RSVD)>;
+			st,tamp_id = <1>;
+		};
+	};
+
 	uart4_pins_a: uart4-0 {
 		pins1 {
 			pinmux = <STM32_PINMUX('D', 6, AF8)>; /* UART4_TX */

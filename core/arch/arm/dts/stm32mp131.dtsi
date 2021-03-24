@@ -280,6 +280,13 @@
 			clocks = <&rcc TZC>;
 		};
 
+		tamp: tamp@5c00a000 {
+			compatible = "st,stm32mp13-tamp";
+			reg = <0x5c00a000 0x400>;
+			interrupts = <GIC_SPI 128 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rcc RTCAPB>;
+		};
+
 		pinctrl: pin-controller@50002000 {
 			#address-cells = <1>;
 			#size-cells = <1>;

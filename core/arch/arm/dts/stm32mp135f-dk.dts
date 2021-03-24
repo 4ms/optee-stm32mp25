@@ -587,6 +587,23 @@
 	};
 };
 
+&tamp {
+	status = "okay";
+	st,tamp_passive_nb_sample = <4>;
+	st,tamp_passive_sample_clk_div = <16384>;
+
+	tamp_passive@2 {
+		pinctrl-0 = <&tamp0_in2_pin_a>;
+		status = "okay";
+	};
+
+	/* Connect pin8 and pin22 from CN8 */
+	tamp_active@1 {
+		pinctrl-0 = <&tamp0_in3_pin_a &tamp0_out1_pin_a>;
+		status = "disabled";
+	};
+};
+
 &uart4 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&uart4_pins_a>;
