@@ -1,14 +1,35 @@
 // SPDX-License-Identifier: BSD-3-Clause
 /*
- * Copyright (c) 2018-2019, STMicroelectronics
+ * Copyright (c) 2018-2021, STMicroelectronics
  */
 
+#include <config.h>
 #include <drivers/stm32mp1_pwr.h>
+#include <drivers/regulator.h>
+#include <initcall.h>
 #include <io.h>
+#include <keep.h>
+#include <kernel/boot.h>
 #include <kernel/delay.h>
+#include <kernel/dt.h>
 #include <kernel/panic.h>
+#include <kernel/thread.h>
+#include <libfdt.h>
 #include <mm/core_memprot.h>
 #include <platform_config.h>
+
+#define TIMEOUT_US_10MS		(10U * 1000U)
+
+#define PWR_CR3_VBE		BIT(8)
+#define PWR_CR3_VBRS		BIT(9)
+
+/* STM32MP13x VDDSD1/2 controls */
+#define PWR_CR3_VDDSD1_EN	BIT(13)
+#define PWR_CR3_VDDSD1_RDY	BIT(14)
+#define PWR_CR3_VDDSD2_EN	BIT(15)
+#define PWR_CR3_VDDSD2_RDY	BIT(16)
+#define PWR_CR3_VDDSD1_VALID	BIT(22)
+#define PWR_CR3_VDDSD2_VALID	BIT(23)
 
 #define PWR_CR3_USB33_EN	BIT(24)
 #define PWR_CR3_USB33_RDY	BIT(26)
@@ -17,8 +38,11 @@
 #define PWR_CR3_REG11_EN	BIT(30)
 #define PWR_CR3_REG11_RDY	BIT(31)
 
+/* Mutex for protecting PMIC accesses */
+static struct mutex pwr_regul_mu = MUTEX_INITIALIZER;
+
 struct pwr_regu_desc {
-	unsigned int level_mv;
+	uint16_t level_mv;
 	uint32_t cr3_enable_mask;
 	uint32_t cr3_ready_mask;
 };
@@ -48,41 +72,169 @@ vaddr_t stm32_pwr_base(void)
 	return io_pa_or_va_secure(&base, 1);
 }
 
-unsigned int stm32mp1_pwr_regulator_mv(enum pwr_regulator id)
+static TEE_Result pwr_set_state(const struct regul_desc *desc, bool enable)
 {
-	assert(id < PWR_REGU_COUNT);
-
-	return pwr_regulators[id].level_mv;
-}
-
-void stm32mp1_pwr_regulator_set_state(enum pwr_regulator id, bool enable)
-{
-	uintptr_t cr3 = stm32_pwr_base() + PWR_CR3_OFF;
-	uint32_t enable_mask = pwr_regulators[id].cr3_enable_mask;
-
-	assert(id < PWR_REGU_COUNT);
+	struct pwr_regu_desc *p = (struct pwr_regu_desc *)desc->driver_data;
+	uintptr_t pwr_cr3 = stm32_pwr_base() + PWR_CR3_OFF;
+	uint32_t enable_mask = p->cr3_enable_mask;
 
 	if (enable) {
-		uint64_t to = timeout_init_us(10 * 1000);
-		uint32_t ready_mask = pwr_regulators[id].cr3_ready_mask;
+		uint64_t to = timeout_init_us(TIMEOUT_US_10MS);
+		uint32_t ready_mask = p->cr3_ready_mask;
 
-		io_setbits32(cr3, enable_mask);
+		io_setbits32(pwr_cr3, enable_mask);
 
 		while (!timeout_elapsed(to))
-			if (io_read32(cr3) & ready_mask)
+			if (io_read32(pwr_cr3) & ready_mask)
 				break;
 
-		if (!(io_read32(cr3) & ready_mask))
-			panic();
+		if (!(io_read32(pwr_cr3) & ready_mask))
+			return TEE_ERROR_GENERIC;
 	} else {
-		io_clrbits32(cr3, enable_mask);
+		io_clrbits32(pwr_cr3, enable_mask);
 	}
+
+	return TEE_SUCCESS;
 }
 
-bool stm32mp1_pwr_regulator_is_enabled(enum pwr_regulator id)
+static TEE_Result pwr_get_state(const struct regul_desc *desc, bool *enabled)
 {
-	assert(id < PWR_REGU_COUNT);
+	struct pwr_regu_desc *p = (struct pwr_regu_desc *)desc->driver_data;
+	uintptr_t pwr_cr3 = stm32_pwr_base() + PWR_CR3_OFF;
 
-	return io_read32(stm32_pwr_base() + PWR_CR3_OFF) &
-	       pwr_regulators[id].cr3_enable_mask;
+	*enabled = io_read32(pwr_cr3) & p->cr3_enable_mask;
+
+	return TEE_SUCCESS;
 }
+
+static TEE_Result pwr_get_voltage(const struct regul_desc *desc, uint16_t *mv)
+{
+	struct pwr_regu_desc *p = (struct pwr_regu_desc *)desc->driver_data;
+
+	*mv = p->level_mv;
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result pwr_list_voltages(const struct regul_desc *desc,
+				    uint16_t **levels, size_t *count)
+{
+	struct pwr_regu_desc *p = (struct pwr_regu_desc *)desc->driver_data;
+
+	*count = 1;
+	*levels = &p->level_mv;
+
+	return TEE_SUCCESS;
+}
+
+static void pwr_regul_lock(const struct regul_desc *desc __unused)
+{
+	if (thread_get_id_may_fail() != THREAD_ID_INVALID)
+		mutex_lock(&pwr_regul_mu);
+}
+
+static void pwr_regul_unlock(const struct regul_desc *desc __unused)
+{
+	if (thread_get_id_may_fail() != THREAD_ID_INVALID)
+		mutex_unlock(&pwr_regul_mu);
+}
+
+struct regul_ops pwr_ops = {
+	.set_state = pwr_set_state,
+	.get_state = pwr_get_state,
+	.get_voltage = pwr_get_voltage,
+	.list_voltages = pwr_list_voltages,
+	.lock = pwr_regul_lock,
+	.unlock = pwr_regul_unlock,
+};
+
+#define DEFINE_REG(id, name, supply) { \
+	.node_name = name, \
+	.ops = &pwr_ops, \
+	.driver_data = &pwr_regulators[id], \
+	.supply_name = supply, \
+}
+
+static struct regul_desc stm32mp1_pwr_regs[] = {
+	[PWR_REG11] = DEFINE_REG(PWR_REG11, "reg11", "vdd"),
+	[PWR_REG18] = DEFINE_REG(PWR_REG18, "reg18", "vdd"),
+	[PWR_USB33] = DEFINE_REG(PWR_USB33, "usb33", "vdd_3v3_usbfs"),
+};
+DECLARE_KEEP_PAGER(stm32mp1_pwr_regs);
+
+#ifdef CFG_EMBED_DTB
+static void enable_sd_io(uint32_t enable_mask, uint32_t ready_mask,
+			 uint32_t valid_mask)
+{
+	uintptr_t cr3 = stm32_pwr_base() + PWR_CR3_OFF;
+	uint64_t to = timeout_init_us(TIMEOUT_US_10MS);
+
+	io_setbits32(cr3, enable_mask);
+
+	while (!timeout_elapsed(to))
+		if (io_read32(cr3) & ready_mask)
+			break;
+
+	if (!(io_read32(cr3) & ready_mask))
+		DMSG("timeout during enable sd io for %#"PRIx32, enable_mask);
+
+	/* Disable voltage detector and keep the IOs powered */
+	io_setbits32(cr3, valid_mask);
+	io_clrbits32(cr3, enable_mask);
+}
+
+static TEE_Result stm32mp1_pwr_regu_probe(const void *fdt, int node,
+					  const void *compat_data __unused)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+	int subnode = 0;
+
+	fdt_for_each_subnode(subnode, fdt, node) {
+		const char *reg_name = fdt_get_name(fdt, subnode, NULL);
+		const struct regul_desc *desc = NULL;
+		unsigned int i = 0;
+
+		for (i = 0; i < ARRAY_SIZE(stm32mp1_pwr_regs); i++) {
+			desc = &stm32mp1_pwr_regs[i];
+			if (!strcmp(stm32mp1_pwr_regs[i].node_name, reg_name))
+				break;
+		}
+		assert(i != ARRAY_SIZE(stm32mp1_pwr_regs));
+
+		res = regulator_register(desc, subnode);
+		if (res) {
+			EMSG("Can't register %s: %#"PRIx32, reg_name, res);
+			panic();
+		}
+	}
+
+	if (IS_ENABLED(CFG_STM32MP13)) {
+		enable_sd_io(PWR_CR3_VDDSD1_EN, PWR_CR3_VDDSD1_RDY,
+			     PWR_CR3_VDDSD1_VALID);
+		enable_sd_io(PWR_CR3_VDDSD2_EN, PWR_CR3_VDDSD2_RDY,
+			     PWR_CR3_VDDSD2_VALID);
+	}
+
+	if (fdt_getprop(fdt, node, "st,enable-vbat-charge", NULL)) {
+		uintptr_t cr3 = stm32_pwr_base() + PWR_CR3_OFF;
+
+		io_setbits32(cr3, PWR_CR3_VBE);
+
+		if (fdt_getprop(fdt, node, "st,vbat-charge-1K5", NULL))
+			io_setbits32(cr3, PWR_CR3_VBRS);
+	}
+
+	return TEE_SUCCESS;
+}
+
+static const struct dt_device_match pwr_regu_match_table[] = {
+	{ .compatible = "st,stm32mp1,pwr-reg"},
+	{ }
+};
+
+DEFINE_DT_DRIVER(stm32mp1_pwr_regu_dt_driver) = {
+	.name = "stm32mp1-pwr-regu",
+	.match_table = pwr_regu_match_table,
+	.probe = stm32mp1_pwr_regu_probe,
+};
+#endif /* CFG_EMBED_DTB */
