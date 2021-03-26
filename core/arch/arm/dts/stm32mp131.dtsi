@@ -35,6 +35,12 @@
 		compatible = "operating-points-v2";
 	};
 
+	hse_monitor: hse-monitor {
+		compatible = "st,freq-monitor";
+		counter = <&lptimer3 1 1 0 0>;
+		status = "disabled";
+	};
+
 	intc: interrupt-controller@a0021000 {
 		compatible = "arm,cortex-a7-gic";
 		#interrupt-cells = <3>;
