@@ -57,6 +57,14 @@ struct stm32_scmi_rd {
 	struct rstctrl *rstctrl;
 };
 
+/*
+ * struct stm32_scmi_perfd - Data for the exposed performance domains
+ * @name: Performance domain string ID (aka name) exposed to channel
+ */
+struct stm32_scmi_perfd {
+	const char *name;
+};
+
 /* Locate all non-secure SMT message buffers in last page of SYSRAM */
 #define SMT_BUFFER_BASE		CFG_STM32MP1_SCMI_SHM_BASE
 
@@ -174,6 +182,19 @@ struct channel_resources {
 	size_t clock_count;
 	struct stm32_scmi_rd *rd;
 	size_t rd_count;
+#ifdef CFG_SCMI_MSG_PERF_DOMAIN
+	struct stm32_scmi_perfd *perfd;
+	size_t perfd_count;
+#endif
+};
+
+#define PERFD_CELL(_scmi_id, _name) \
+	[_scmi_id] = { \
+		.name = (_name), \
+	}
+
+struct stm32_scmi_perfd scmi_performance_domain[] = {
+	PERFD_CELL(0 /* PERFD_SCMI0_CPU_OPP */, "cpu-opp"),
 };
 
 static const struct channel_resources scmi_channel[] = {
@@ -186,6 +207,10 @@ static const struct channel_resources scmi_channel[] = {
 		.clock_count = ARRAY_SIZE(stm32_scmi_clock),
 		.rd = stm32_scmi_reset_domain,
 		.rd_count = ARRAY_SIZE(stm32_scmi_reset_domain),
+#ifdef CFG_SCMI_MSG_PERF_DOMAIN
+		.perfd = scmi_performance_domain,
+		.perfd_count = ARRAY_SIZE(scmi_performance_domain),
+#endif
 	},
 };
 
@@ -232,6 +257,14 @@ static size_t __maybe_unused plat_scmi_protocol_count_paranoid(void)
 	if (n < channel_count)
 		count++;
 
+#ifdef CFG_SCMI_MSG_PERF_DOMAIN
+	for (n = 0; n < channel_count; n++)
+		if (scmi_channel[n].perfd_count)
+			break;
+	if (n < channel_count)
+		count++;
+#endif
+
 	return count;
 }
 
@@ -254,6 +287,9 @@ static const uint8_t plat_protocol_list[] = {
 	SCMI_PROTOCOL_ID_RESET_DOMAIN,
 #ifdef CFG_SCMI_MSG_REGULATOR_CONSUMER
 	SCMI_PROTOCOL_ID_VOLTAGE_DOMAIN,
+#endif
+#ifdef CFG_SCMI_MSG_PERF_DOMAIN
+	SCMI_PROTOCOL_ID_PERF,
 #endif
 	0 /* Null termination */
 };
@@ -574,6 +610,121 @@ int32_t plat_scmi_rd_set_state(unsigned int channel_id, unsigned int scmi_id,
 
 	return SCMI_SUCCESS;
 }
+
+#ifdef CFG_SCMI_MSG_PERF_DOMAIN
+/*
+ * Platform SCMI performance domains
+ *
+ * Note: currently exposes a single performance domain that is the CPU DVFS
+ * operating point. Non-secure is allowed to access this performance domain.
+ */
+static struct stm32_scmi_perfd *find_perfd(unsigned int channel_id,
+					   unsigned int domain_id)
+{
+	const struct channel_resources *resource = find_resource(channel_id);
+	size_t n = 0;
+
+	if (resource) {
+		for (n = 0; n < resource->perfd_count; n++)
+			if (n == domain_id)
+				return &resource->perfd[n];
+	}
+
+	return NULL;
+}
+
+size_t plat_scmi_perf_count(unsigned int channel_id)
+{
+	const struct channel_resources *resource = find_resource(channel_id);
+
+	if (!resource)
+		return 0;
+
+	return resource->perfd_count;
+}
+
+const char *plat_scmi_perf_domain_name(unsigned int channel_id,
+				       unsigned int domain_id)
+{
+	struct stm32_scmi_perfd *perfd = find_perfd(channel_id, domain_id);
+
+	if (!perfd)
+		return NULL;
+
+	return perfd->name;
+}
+
+int32_t plat_scmi_perf_levels_array(unsigned int channel_id,
+				    unsigned int domain_id, size_t start_index,
+				    unsigned int *levels, size_t *nb_elts)
+{
+	struct stm32_scmi_perfd *perfd = find_perfd(channel_id, domain_id);
+	size_t full_count = 0;
+	size_t out_count = 0;
+	size_t n = 0;
+
+	if (!perfd)
+		return SCMI_NOT_FOUND;
+
+	full_count = stm32mp1_cpu_opp_count();
+
+	if (!levels) {
+		*nb_elts = full_count - start_index;
+
+		return SCMI_SUCCESS;
+	}
+
+	if (SUB_OVERFLOW(full_count, start_index, &out_count))
+		return SCMI_GENERIC_ERROR;
+
+	out_count = MIN(out_count, *nb_elts);
+
+	FMSG("%zu levels: start %zu requested %zu output %zu",
+	     full_count, start_index, *nb_elts, out_count);
+
+	for (n = 0; n < out_count; n++)
+		levels[n] = stm32mp1_cpu_opp_level(n);
+
+	*nb_elts = out_count;
+
+	return SCMI_SUCCESS;
+}
+
+int32_t plat_scmi_perf_level_get(unsigned int channel_id,
+				 unsigned int domain_id, unsigned int *level)
+{
+	struct stm32_scmi_perfd *perfd = find_perfd(channel_id, domain_id);
+	unsigned int current_level = 0;
+
+	if (!perfd)
+		return SCMI_NOT_FOUND;
+
+	if (stm32mp1_cpu_opp_read_level(&current_level))
+		return SCMI_GENERIC_ERROR;
+
+	*level = current_level;
+
+	return SCMI_SUCCESS;
+}
+
+int32_t plat_scmi_perf_level_set(unsigned int channel_id,
+				 unsigned int domain_id, unsigned int level)
+{
+	struct stm32_scmi_perfd *perfd = find_perfd(channel_id, domain_id);
+
+	if (!perfd)
+		return SCMI_NOT_FOUND;
+
+	switch (stm32mp1_cpu_opp_set_level(level)) {
+	case TEE_SUCCESS:
+		return SCMI_SUCCESS;
+	case TEE_ERROR_BAD_PARAMETERS:
+		return SCMI_OUT_OF_RANGE;
+	default:
+		return SCMI_GENERIC_ERROR;
+	}
+}
+#endif
 
 static TEE_Result stm32_scmi_pm(enum pm_op op, unsigned int pm_hint __unused,
 				const struct pm_callback_handle *hdl __unused)
