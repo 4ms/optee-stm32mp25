@@ -6,7 +6,7 @@ CHECKPATCH_OPT="${CHECKPATCH_OPT:-}"
 CHECKPATCH_IGNORE=$(echo \
 		core/include/gen-asm-defines.h \
 		core/lib/lib{fdt,tomcrypt} core/libzlib \
-		lib/libutils lib/libmbedtls \
+		lib/libutils lib/libmbedtls lib/libpng \
 		lib/libutee/include/elf.h \
 		lib/libutee/include/elf_common.h \
 		core/arch/arm/include/arm{32,64}.h \
