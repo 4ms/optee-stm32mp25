@@ -7,6 +7,7 @@
 #include <boot_api.h>
 #include <config.h>
 #include <console.h>
+#include <drivers/counter.h>
 #include <drivers/gic.h>
 #include <drivers/stm32_etzpc.h>
 #include <drivers/stm32_firewall.h>
@@ -636,3 +637,65 @@ bool stm32mp_supports_second_core(void)
 		return true;
 	}
 }
+
+#ifdef CFG_STM32_HSE_MONITORING
+/* pourcent rate of hse alarm */
+#define HSE_ALARM_PERCENT	110
+#define FREQ_MONITOR_COMPAT	"st,freq-monitor"
+
+static void stm32_hse_over_frequency(uint32_t ticks __unused,
+				     void *user_data __unused)
+{
+	EMSG("HSE over frequency: nb ticks:%"PRIu32, ticks);
+}
+DECLARE_KEEP_PAGER(stm32_hse_over_frequency);
+
+static TEE_Result stm32_hse_monitoring(void)
+{
+	struct clk *hse_clk = stm32mp_rcc_clock_id_to_clk(CK_HSE);
+	struct clk *hsi_clk = stm32mp_rcc_clock_id_to_clk(CK_HSI);
+	unsigned long hse = 0;
+	unsigned long hsi_cal = 0;
+	struct counter_device *counter;
+	uint32_t ticks = 0;
+	void *fdt = NULL;
+	void *config = NULL;
+	int node = 0;
+
+	DMSG("HSE monitoring");
+
+	fdt = get_embedded_dt();
+	node = fdt_node_offset_by_compatible(fdt, 0, FREQ_MONITOR_COMPAT);
+	if (node < 0)
+		panic();
+
+	if (_fdt_get_status(fdt, node) == DT_STATUS_DISABLED)
+		return TEE_SUCCESS;
+
+	hse = clk_get_rate(hse_clk);
+	hsi_cal = clk_get_rate(hsi_clk);
+	/*
+	 * hsi_cal is based on hsi & DIVISOR
+	 * DIVISOR is fixed, (stm32mp13:1024)
+	 */
+	hsi_cal /= 1024;
+
+	ticks = (hse / 100) * HSE_ALARM_PERCENT;
+	ticks /= hsi_cal;
+
+	DMSG("HSE:%luHz HSI cal:%luHz alarm:%"PRIu32, hse, hsi_cal, ticks);
+
+	counter = fdt_counter_get(fdt, node, &config);
+	assert(counter && config);
+
+	counter->alarm.callback = stm32_hse_over_frequency;
+	counter->alarm.ticks = ticks;
+
+	counter_start(counter, config);
+	counter_set_alarm(counter);
+
+	return TEE_SUCCESS;
+}
+
+driver_init_late(stm32_hse_monitoring);
+#endif /* CFG_STM32_HSE_MONITORING */
