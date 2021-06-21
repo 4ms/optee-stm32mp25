@@ -9,8 +9,12 @@
 
 static uint32_t color_to_pixel(uint32_t color)
 {
+#if defined(CFG_STM32_LTDC)
+	return color | 0xFF000000;
+#else
 	/* Convert from ARGB to RGBA and byte swap */
 	return TEE_U32_BSWAP((color >> 24) | (color << 8));
+#endif
 }
 
 struct image *image_alloc(size_t width, size_t height, uint32_t color)
