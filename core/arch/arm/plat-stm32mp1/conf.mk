@@ -334,7 +334,14 @@ endif
 # Default enable SCMI PTA support
 CFG_SCMI_PTA ?= y
 ifeq ($(CFG_SCMI_PTA),y)
+ifneq ($(CFG_SCMI_SCPFW),y)
 $(call force,CFG_SCMI_MSG_DRIVERS,y,Mandated by CFG_SCMI_PTA)
+endif # !CFG_SCMI_SCPFW
+endif # CFG_SCMI_PTA
+
+CFG_SCMI_SCPFW ?= n
+ifeq ($(CFG_SCMI_SCPFW),y)
+$(call force,CFG_SCMI_SCPFW_PRODUCT,optee-stm32mp1)
 endif
 
 # Enable Early TA NVMEM for provisioning management
