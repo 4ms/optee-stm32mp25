@@ -29,6 +29,40 @@ enum remoteproc_sign_type {
 	RPROC_ECDSA_SHA256 = 2,
 };
 
+/* remoteproc_tlv structure offsets */
+#define RPROC_TLV_LENGTH_OF	U(0x02)
+#define RPROC_TLV_VALUE_OF	U(0x04)
+
+/* Little endian to CPU format conversions */
+#define LE16_TO_CPU(x) (((x)[1] << 8) | (x)[0])
+#define LE32_TO_CPU(x) (((x)[3] << 24) | ((x)[2] << 16) | \
+			((x)[1] << 8)  | (x)[0])
+
+#define U64_ADD_TO_ALIGN(x) ((x) + sizeof(uint64_t) - ((x) % sizeof(uint64_t)))
+#define U64_ALIGN_SZ(x) ((x) % (sizeof(uint64_t)) ? U64_ADD_TO_ALIGN(x) : (x))
+
+/*
+ * struct remoteproc_tlv - Type-Length-Value structure
+ * @type: type of data
+ * @length: size of the data.
+ * @value: pointer to the data.
+ */
+struct remoteproc_tlv {
+	uint16_t type;
+	uint16_t length;
+	uint8_t value[0];
+};
+
+/*
+ * struct remoteproc_tlv_hr - type length data sutructure
+ * @magic: magic value of the TLV chunk
+ * @size: total size of the TLV values.
+ */
+struct remoteproc_tlv_hr {
+	int32_t magic;
+	int32_t size;
+};
+
 /*
  * struct remoteproc_segment - program header with hash structure
  * @phdr: program header
@@ -148,6 +182,41 @@ static void remoteproc_header_dump(struct remoteproc_fw_hdr __maybe_unused *hdr)
 	DMSG("img_length :\t%#"PRIx32, hdr->img_length);
 	DMSG("img_offset :\t%#"PRIx32, hdr->img_offset);
 	DMSG("img_type :\t%#"PRIx32, hdr->img_type);
+}
+
+static TEE_Result __maybe_unused
+remoteproc_get_tlv(void *tlv_chunk, uint16_t type,
+		   uint8_t **value, size_t *length)
+{
+	struct remoteproc_tlv_hr *tlv_hdr = tlv_chunk;
+	uint8_t *p_tlv = (uint8_t *)tlv_chunk + sizeof(*tlv_hdr);
+	uint8_t *p_end_tlv = p_tlv + tlv_hdr->size;
+	uint16_t tlv_type = 0;
+	uint16_t tlv_length = 0;
+
+	*value = NULL;
+	*length = 0;
+
+	/* Parse the tlv area */
+	while (p_tlv < p_end_tlv) {
+		tlv_type = LE16_TO_CPU(p_tlv);
+		tlv_length = LE16_TO_CPU(&p_tlv[RPROC_TLV_LENGTH_OF]);
+		if (tlv_type == type) {
+			/* The specified TLV has been found */
+			DMSG("TLV type %#"PRIx16" found, size %#"PRIx16,
+			     type, tlv_length);
+			*value = &p_tlv[RPROC_TLV_VALUE_OF];
+			*length = tlv_length;
+			if (tlv_length)
+				return TEE_SUCCESS;
+			else
+				return TEE_ERROR_NO_DATA;
+		}
+		p_tlv += U64_ALIGN_SZ(sizeof(struct remoteproc_tlv) +
+				      tlv_length);
+	}
+
+	return TEE_ERROR_NO_DATA;
 }
 
 static struct remoteproc_context *remoteproc_find_firmware(uint32_t fw_id)
