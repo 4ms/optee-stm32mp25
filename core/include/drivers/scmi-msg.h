@@ -266,6 +266,11 @@ int32_t plat_scmi_clock_get_state(unsigned int channel_id,
 int32_t plat_scmi_clock_set_state(unsigned int channel_id, unsigned int scmi_id,
 				  bool enable_not_disable);
 
+struct clk_duty;
+
+int32_t plat_scmi_clock_get_duty_cycle(unsigned int channel_id, unsigned int scmi_id,
+				       struct clk_duty *duty);
+
 /* Handlers for SCMI Reset Domain protocol services */
 
 /*
