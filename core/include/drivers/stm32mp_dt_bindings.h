@@ -10,6 +10,7 @@
 #include <dt-bindings/clock/stm32mp13-clksrc.h>
 #include <dt-bindings/regulator/st,stm32mp13-regulator.h>
 #include <dt-bindings/reset/stm32mp13-resets.h>
+#include <dt-bindings/soc/stm32mp13-tzc400.h>
 #endif
 
 #ifdef CFG_STM32MP15
@@ -17,6 +18,7 @@
 #include <dt-bindings/clock/stm32mp1-clksrc.h>
 #include <dt-bindings/regulator/st,stm32mp15-regulator.h>
 #include <dt-bindings/reset/stm32mp1-resets.h>
+#include <dt-bindings/soc/stm32mp15-tzc400.h>
 #endif
 
 #endif /* STM32MP_DT_BINDINGS_H */
