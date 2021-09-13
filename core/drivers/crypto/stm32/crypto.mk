@@ -18,4 +18,9 @@ ifeq ($(CFG_STM32_CRYP),y)
 $(call force,CFG_CRYPTO_DRV_AUTHENC,y,Mandated by CFG_STM32_CRYP)
 endif
 
+ifeq ($(CFG_STM32_HASH),y)
+$(call force,CFG_CRYPTO_DRV_HASH,y,Mandated by CFG_STM32_HASH)
+$(call force,CFG_CRYPTO_DRV_MAC,y,Mandated by CFG_STM32_HASH)
+endif
+
 endif # CFG_STM32_CRYPTO_DRIVER
