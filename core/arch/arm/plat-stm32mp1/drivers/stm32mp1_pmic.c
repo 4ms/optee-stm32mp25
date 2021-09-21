@@ -9,6 +9,7 @@
 #include <drivers/regulator.h>
 #include <drivers/stm32_i2c.h>
 #include <drivers/stm32mp1_pmic.h>
+#include <drivers/stm32mp1_pwr.h>
 #include <drivers/stpmic1.h>
 #include <drivers/stpmic1_regulator.h>
 #include <io.h>
@@ -585,3 +586,78 @@ static TEE_Result initialize_pmic(void)
 	return TEE_SUCCESS;
 }
 service_init(initialize_pmic);
+
+static enum itr_return stpmic1_irq_handler(struct itr_handler *handler __unused)
+{
+	uint8_t read_val = 0U;
+	unsigned int i = 0U;
+
+	FMSG("Stpmic1 irq handler");
+
+	stm32mp_get_pmic();
+
+	for (i = 0U; i < 4U; i++) {
+		if (stpmic1_register_read(ITLATCH1_REG + i, &read_val))
+			panic();
+
+		if (read_val) {
+			FMSG("Stpmic1 irq pending %u:0x%x", i, read_val);
+
+			if (stpmic1_register_write(ITCLEARLATCH1_REG + i,
+						   read_val))
+				panic();
+		}
+	}
+
+	stm32mp_put_pmic();
+
+	return ITRR_HANDLED;
+}
+
+static TEE_Result stpmic1_irq_probe(const void *fdt, int node,
+				    const void *compat_data __unused)
+{
+	TEE_Result res = TEE_SUCCESS;
+	struct itr_handler *hdl = NULL;
+	const fdt32_t *cuint = NULL;
+	size_t it = 0;
+
+	FMSG("Init stpmic1 irq");
+
+	if (!pmic_i2c_addr)
+		return TEE_ERROR_DEFER_DRIVER_INIT;
+
+	cuint = fdt_getprop(fdt, node, "st,wakeup-pin-number", NULL);
+	if (!cuint)
+		panic("Missing wake-up pin description");
+
+	it = fdt32_to_cpu(*cuint) - 1U;
+
+	 res = stm32mp1_pwr_itr_alloc_add(it, stpmic1_irq_handler,
+					  PWR_WKUP_FLAG_FALLING, NULL, &hdl);
+	if (res)
+		return res;
+
+	stm32mp1_pwr_itr_enable(hdl->it);
+
+	/* Enable ponkey irq */
+	stm32mp_get_pmic();
+	if (stpmic1_register_write(ITCLEARMASK1_REG,
+				   BIT(IT_PONKEY_F) | BIT(IT_PONKEY_R)))
+		panic();
+
+	stm32mp_put_pmic();
+
+	return TEE_SUCCESS;
+}
+
+static const struct dt_device_match stpmic1_irq_match_table[] = {
+	{ .compatible = "st,stpmic1-irq" },
+	{ }
+};
+
+DEFINE_DT_DRIVER(stpmic1_irq_dt) = {
+	.name = "stpmic1-irq",
+	.match_table = stpmic1_irq_match_table,
+	.probe = stpmic1_irq_probe,
+};
