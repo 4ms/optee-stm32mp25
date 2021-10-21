@@ -345,6 +345,13 @@ int32_t plat_scmi_clock_rates_by_step(unsigned int channel_id,
 		array[1] = UINT32_MAX;
 		array[2] = 1U;
 		break;
+#ifdef CFG_STM32MP13
+	case CK_SCMI_PLL4_Q:
+		array[0] = 0U;
+		array[1] = UINT32_MAX;
+		array[2] = 0U;
+		break;
+#endif
 	default:
 		array[0] = clk_get_rate(clock->clk);
 		array[1] = array[0];
@@ -375,6 +382,13 @@ int32_t plat_scmi_clock_set_rate(unsigned int channel_id, unsigned int scmi_id,
 			return SCMI_INVALID_PARAMETERS;
 		break;
 #endif
+#ifdef CFG_STM32MP13
+	case CK_SCMI_PLL4_Q:
+		ret = clk_set_rate(clock->clk, rate);
+		if (ret)
+			return SCMI_INVALID_PARAMETERS;
+		break;
+#endif
 	default:
 		if (rate != clk_get_rate(clock->clk))
 			return SCMI_INVALID_PARAMETERS;
@@ -393,6 +407,17 @@ unsigned long plat_scmi_clock_get_rate(unsigned int channel_id,
 		return 0;
 
 	return clk_get_rate(clock->clk);
+}
+
+unsigned long plat_scmi_clock_round_rate(unsigned int channel_id,
+				       unsigned int scmi_id, unsigned long rate)
+{
+	struct stm32_scmi_clk *clock = find_clock(channel_id, scmi_id);
+
+	if (!clock || !stm32mp_nsec_can_access_clock(clock->clock_id))
+		return 0;
+
+	return clk_round_rate(stm32mp_rcc_clock_id_to_clk(clock->clock_id), rate);
 }
 
 int32_t plat_scmi_clock_get_state(unsigned int channel_id, unsigned int scmi_id)
