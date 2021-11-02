@@ -138,3 +138,13 @@ void __weak __noreturn itr_core_handler(void)
 {
 	panic("Secure interrupt handler not defined");
 }
+
+uint8_t itr_set_pmr(uint8_t mask)
+{
+	return itr_chip->ops->set_pmr(itr_chip, mask);
+}
+
+uint8_t itr_set_ipriority(size_t it, uint8_t mask)
+{
+	return itr_chip->ops->set_ipriority(itr_chip, it, mask);
+}

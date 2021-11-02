@@ -38,6 +38,11 @@ struct itr_ops {
 		uint8_t cpu_mask);
 	void (*set_affinity)(struct itr_chip *chip, size_t it,
 		uint8_t cpu_mask);
+#if !defined(CFG_ARM_GICV3)
+	uint8_t (*set_pmr)(struct itr_chip *chip, uint8_t mask);
+	uint8_t (*set_ipriority)(struct itr_chip *chip, size_t it,
+					uint8_t mask);
+#endif
 };
 
 enum itr_return {
@@ -115,6 +120,17 @@ void itr_set_affinity(size_t it, uint8_t cpu_mask);
  */
 void itr_core_handler(void);
 
+/*
+ * Set the Priority Mask Regarding and return its previous value
+ */
+uint8_t itr_set_pmr(uint8_t mask);
+
+/*
+ * Set the targe tinterrupt priority mask and return its previous value
+ */
+uint8_t itr_set_ipriority(size_t it, uint8_t mask);
+
+
 static inline void itr_add(struct itr_handler *handler)
 {
 	itr_add_type_prio(handler, IRQ_TYPE_NONE, 0);
@@ -127,5 +143,6 @@ static inline struct itr_handler *itr_alloc_add(size_t it,
 	return itr_alloc_add_type_prio(it, handler, flags, data, IRQ_TYPE_NONE,
 				       0);
 }
+
 
 #endif /*__KERNEL_INTERRUPT_H*/
