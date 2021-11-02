@@ -131,7 +131,7 @@ CFG_OPTEE_REVISION_MINOR ?= 19
 CFG_OPTEE_REVISION_EXTRA ?=
 
 # Trusted OS implementation version
-TEE_IMPL_VERSION ?= $(shell git describe --always --dirty=-dev 2>/dev/null || \
+TEE_IMPL_VERSION ?= $(shell git describe --always --tags --dirty=-dev 2>/dev/null || \
 		      echo Unknown_$(CFG_OPTEE_REVISION_MAJOR).$(CFG_OPTEE_REVISION_MINOR))$(CFG_OPTEE_REVISION_EXTRA)
 ifeq ($(CFG_OS_REV_REPORTS_GIT_SHA1),y)
 TEE_IMPL_GIT_SHA1 := 0x$(shell git rev-parse --short=8 HEAD 2>/dev/null || echo 0)
