@@ -101,10 +101,6 @@
 #define BSEC_MODE_BIST2_LOCK_MASK	BIT(7)
 
 /* BSEC_DEBUG */
-#define BSEC_HDPEN			BIT(4)
-#define BSEC_SPIDEN			BIT(5)
-#define BSEC_SPINDEN			BIT(6)
-#define BSEC_DBGSWGEN			BIT(10)
 #define BSEC_DEN_ALL_MSK		GENMASK_32(10, 0)
 
 /*
