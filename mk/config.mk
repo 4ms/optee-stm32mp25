@@ -749,6 +749,9 @@ endif
 # Enable SCMI PTA interface for REE SCMI agents
 CFG_SCMI_PTA ?= n
 
+# Enable Trusted User Interface
+CFG_WITH_TUI ?= n
+
 ifneq ($(CFG_STMM_PATH),)
 $(call force,CFG_WITH_STMM_SP,y)
 else

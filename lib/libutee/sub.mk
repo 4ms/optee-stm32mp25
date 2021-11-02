@@ -16,6 +16,11 @@ srcs-y += tee_api_property.c
 srcs-y += tee_socket_pta.c
 srcs-y += tee_system_pta.c
 srcs-y += tee_tcpudp_socket.c
+
+ifeq ($(CFG_WITH_TUI),y)
+subdirs-y += tui
+endif
+
 endif #ifneq ($(sm),ldelf)
 
 subdirs-y += arch/$(ARCH)
