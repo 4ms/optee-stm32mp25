@@ -98,6 +98,7 @@ endif
 
 include core/arch/arm/cpu/cortex-a7.mk
 
+$(call force,CFG_ARM_GIC_PM,y)
 $(call force,CFG_DRIVERS_CLK,y)
 $(call force,CFG_GIC,y)
 $(call force,CFG_INIT_CNTVOFF,y)
