@@ -744,8 +744,38 @@ static void bsec_dt_otp_nsec_access(void *fdt, int bsec_node)
 			}
 		}
 
-		if (!fdt_getprop(fdt, bsec_subnode, "st,non-secure-otp", NULL))
+		/* Handle different kinds of non-secure accesses */
+		if (fdt_getprop(fdt, bsec_subnode,
+				"st,non-secure-otp-provisioning", NULL)) {
+			bool locked, locked_next = false;
+			/* Check if write of OTP is locked */
+			if (stm32_bsec_read_permanent_lock(otp_id, &locked))
+				panic("BSEC: Couldn't read permanent lock at init");
+
+			/*
+			 * Check if fuses of the subnode
+			 * have the same lock status
+			 */
+			for (i = 1; i < (reg_size / sizeof(uint32_t)); i++) {
+				stm32_bsec_read_permanent_lock(otp_id + i,
+							       &locked_next);
+				if (locked != locked_next) {
+					EMSG("Inconsistent status OTP id %u",
+					     otp_id + i);
+					locked = true;
+					continue;
+				}
+			}
+
+			if (locked) {
+				DMSG("BSEC: OTP locked");
+				continue;
+			}
+
+		} else if (!fdt_getprop(fdt, bsec_subnode, "st,non-secure-otp",
+				   NULL)) {
 			continue;
+		}
 
 		if ((offset % sizeof(uint32_t)) || (length % sizeof(uint32_t)))
 			panic("Unaligned non-secure OTP");

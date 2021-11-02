@@ -45,6 +45,14 @@ patternProperties:
           It requires to be 32 bits word aligned to allow non-secure sharing.
         type: boolean
 
+      st,non-secure-otp-provisioning:
+        description: |
+          This property explicits a factory programmed area that allows a non-secure
+          read and write until the first programmed value. Once the provisioning of
+          the specified area is done, access from non-secure is forbidden.
+          It is needed when, by default, the related area is empty and must be provisioned.
+        type: boolean
+
 required:
   - "#address-cells"
   - "#size-cells"
@@ -68,6 +76,11 @@ examples:
       mac_addr@e4 {
         reg = <0xe4 0x8>;
         st,non-secure-otp;
+      };
+
+      oem_enc_key@170 {
+        reg = <0x170 0x10>;
+        st,non-secure-otp-provisioning;
       };
     };
 
