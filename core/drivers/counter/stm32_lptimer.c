@@ -121,6 +121,11 @@ struct lptimer_device {
 	struct itr_handler *itr;
 };
 
+struct stm32_lptimer_config {
+	struct lptimer_ext_input_cfg ext_input;
+	struct lptimer_ext_trigger_cfg ext_trigger;
+};
+
 static TEE_Result stm32_lpt_counter_set_alarm(struct counter_device *counter)
 {
 	struct lptimer_device *lpt_dev = counter_priv(counter);
@@ -228,12 +233,15 @@ static TEE_Result stm32_lpt_counter_stop(struct counter_device *counter)
 	return TEE_SUCCESS;
 }
 
-static TEE_Result stm32_lpt_counter_start(struct counter_device *counter)
+static TEE_Result stm32_lpt_counter_start(struct counter_device *counter,
+					  void *config)
 {
 	struct lptimer_device *lpt_dev = counter_priv(counter);
 	struct stm32_lptimer_platdata *pdata = &lpt_dev->pdata;
-	struct lptimer_ext_input_cfg *ext_input = &pdata->ext_input;
-	struct lptimer_ext_trigger_cfg *ext_trigger = &pdata->ext_trigger;
+	struct stm32_lptimer_config *conf =
+		(struct stm32_lptimer_config *)config;
+	struct lptimer_ext_input_cfg *ext_input = &conf->ext_input;
+	struct lptimer_ext_trigger_cfg *ext_trigger = &conf->ext_trigger;
 	uintptr_t base = pdata->base;
 	uint32_t cfgr = 0;
 	uint32_t cfgr2 = 0;
@@ -271,12 +279,99 @@ static TEE_Result stm32_lpt_counter_start(struct counter_device *counter)
 	return TEE_SUCCESS;
 }
 
+#ifdef CFG_EMBED_DTB
+static uint32_t get_param(const void *params, unsigned int step)
+{
+	const fdt32_t *param_dt = (fdt32_t *)params;
+
+	assert(param_dt);
+
+	return fdt32_to_cpu(*(param_dt + step));
+}
+#else
+static uint32_t get_param(const void *params, unsigned int step)
+{
+	const uint32_t *tim_param = (uint32_t *)params;
+
+	assert(tim_param);
+
+	return tim_params[step];
+}
+#endif
+
+static TEE_Result
+stm32_lptimer_counter_set_config(struct counter_device *counter,
+				 const void *param,
+				 int len, void **config)
+{
+	struct lptimer_device *lpt_dev = counter_priv(counter);
+	struct lptimer_driver_data *ddata = lpt_dev->ddata;
+	struct stm32_lptimer_config *conf;
+	struct lptimer_ext_input_cfg *ext_input;
+	struct lptimer_ext_trigger_cfg *ext_trigger;
+
+	if (!param)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	if (len < 4 || len > 5)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	conf = calloc(1, sizeof(*conf));
+	if (!conf)
+		return TEE_ERROR_OUT_OF_MEMORY;
+
+	ext_trigger = &conf->ext_trigger;
+	ext_trigger->polarity = get_param(param, 0);
+	ext_trigger->mux = get_param(param, 1);
+	ext_trigger->num = 1;
+
+	if (ext_trigger->mux >= ddata->nb_ext_trigger) {
+		free(conf);
+		return TEE_ERROR_BAD_PARAMETERS;
+	}
+
+	DMSG("external trigger pol:%"PRId8" mux:%"PRId8,
+	     ext_trigger->polarity, ext_trigger->mux);
+
+	/* external-input = < polarity mux1 mux2 > */
+	ext_input = &conf->ext_input;
+	ext_input->num = len - 4;
+	ext_input->polarity = get_param(param, 2);
+	ext_input->mux[0] = get_param(param, 3);
+
+	if (ext_input->num == 2)
+		ext_input->mux[1] = get_param(param, 4);
+
+	if (ext_input->mux[0] >= ddata->nb_ext_input ||
+	    ext_input->mux[1] >= ddata->nb_ext_input) {
+		free(conf);
+		return TEE_ERROR_BAD_PARAMETERS;
+	}
+
+	DMSG("external input nb:%"PRIu8" pol:%"PRIu8" mux[0]:%"PRIu8" mux[1]:%"PRIu8,
+	     ext_input->num, ext_input->polarity,
+	     ext_input->mux[0], ext_input->mux[1]);
+
+	*config = conf;
+
+	return TEE_SUCCESS;
+}
+
+static void stm32_lptimer_counter_release_config(void *config)
+{
+	struct lptimer_config *conf = (struct lptimer_config *)config;
+
+	free(conf);
+}
+
 static const struct counter_ops stm32_lpt_counter_ops = {
 	.start = stm32_lpt_counter_start,
 	.stop = stm32_lpt_counter_stop,
 	.get_value = stm32_lpt_counter_get_value,
 	.set_alarm = stm32_lpt_counter_set_alarm,
 	.cancel_alarm = stm32_lpt_counter_cancel_alarm,
+	.set_config = stm32_lptimer_counter_set_config,
+	.release_config = stm32_lptimer_counter_release_config,
 };
 
 static enum itr_return stm32_lptimer_itr(struct itr_handler *h)
@@ -333,78 +428,6 @@ struct dt_id_attr {
 	fdt32_t id_attr[1];
 };
 
-/* external-input = < polarity mux1 mux2 > */
-static int stm32_lptimer_ext_input_dt(struct lptimer_device *lpt_dev)
-{
-	struct lptimer_ext_input_cfg *ext_input = &lpt_dev->pdata.ext_input;
-	struct lptimer_driver_data *ddata = lpt_dev->ddata;
-	const uint32_t *cuint = NULL;
-	int len = 0;
-
-	cuint = fdt_getprop(lpt_dev->fdt, lpt_dev->node,
-			    "external-input", &len);
-	ext_input->num = 0;
-	ext_input->mux[0] = 0;
-	ext_input->mux[1] = 0;
-
-	if (!cuint)
-		return 0;
-
-	len /= sizeof(uint32_t);
-	if (len < 2 || len > 3)
-		return -LPTIM_ERR_INVAL;
-
-	ext_input->num = len - 1;
-	ext_input->polarity = fdt32_to_cpu(*cuint++);
-	ext_input->mux[0] = fdt32_to_cpu(*cuint++);
-
-	if (ext_input->num == 2)
-		ext_input->mux[1] = fdt32_to_cpu(*cuint);
-
-	if (ext_input->mux[0] >= ddata->nb_ext_input ||
-	    ext_input->mux[1] >= ddata->nb_ext_input)
-		return -LPTIM_ERR_INVAL;
-
-	DMSG("external input nb:%"PRIu8" pol:%"PRIu8" mux[0]:%"PRIu8" mux[1]:%"PRIu8,
-	     ext_input->num, ext_input->polarity,
-	     ext_input->mux[0], ext_input->mux[1]);
-
-	return 0;
-}
-
-/* external-trigger = < polarity mux > */
-static int stm32_lptimer_ext_trigger_dt(struct lptimer_device *lpt_dev)
-{
-	struct stm32_lptimer_platdata *pdata = &lpt_dev->pdata;
-	struct lptimer_driver_data *ddata = lpt_dev->ddata;
-	struct lptimer_ext_trigger_cfg *ext_trigger = &pdata->ext_trigger;
-	const uint32_t *cuint = NULL;
-	int len = 0;
-
-	cuint = fdt_getprop(lpt_dev->fdt, lpt_dev->node,
-			    "external-trigger", &len);
-	ext_trigger->num = 0;
-
-	if (!cuint)
-		return 0;
-
-	len /= sizeof(uint32_t);
-	if (len != 2)
-		return -LPTIM_ERR_INVAL;
-
-	ext_trigger->polarity = fdt32_to_cpu(*cuint++);
-	ext_trigger->mux = fdt32_to_cpu(*cuint);
-	ext_trigger->num = 1;
-
-	if (ext_trigger->mux >= ddata->nb_ext_trigger)
-		return -LPTIM_ERR_INVAL;
-
-	DMSG("external trigger pol:%"PRId8" mux:%"PRId8,
-	     ext_trigger->polarity, ext_trigger->mux);
-
-	return 0;
-}
-
 static TEE_Result stm32_lptimer_parse_fdt(struct lptimer_device *lpt_dev)
 {
 	struct stm32_lptimer_platdata *pdata = &lpt_dev->pdata;
@@ -414,7 +437,6 @@ static TEE_Result stm32_lptimer_parse_fdt(struct lptimer_device *lpt_dev)
 	int node = lpt_dev->node;
 	TEE_Result res = TEE_ERROR_GENERIC;
 	int len = 0;
-	int err = 0;
 
 	assert(lpt_dev && lpt_dev->fdt);
 
@@ -436,14 +458,6 @@ static TEE_Result stm32_lptimer_parse_fdt(struct lptimer_device *lpt_dev)
 		return res;
 
 	stm32_lptimer_set_driverdata(lpt_dev);
-
-	err = stm32_lptimer_ext_trigger_dt(lpt_dev);
-	if (err)
-		return err;
-
-	err = stm32_lptimer_ext_input_dt(lpt_dev);
-	if (err)
-		return err;
 
 	node = fdt_subnode_offset(fdt, node, "counter");
 	if (node >= 0 &&
@@ -574,3 +588,4 @@ DEFINE_DT_DRIVER(stm32_lptimer_dt_driver) = {
 	.match_table = stm32_lptimer_match_table,
 	.probe = stm32_lptimer_probe,
 };
+

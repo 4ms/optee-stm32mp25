@@ -1,11 +1,12 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /*
- * Copyright (c) 2020, STMicroelectronics - All Rights Reserved
+ * Copyright (c) 2020-2021, STMicroelectronics - All Rights Reserved
  */
 
 #ifndef COUNTER_H
 #define COUNTER_H
 
+#include <libfdt.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <sys/queue.h>
@@ -28,12 +29,21 @@ struct alarm_cfg {
 
 struct counter_device;
 
+struct counter_param {
+	uint32_t *params;
+	size_t len;
+};
+
 struct counter_ops {
-	TEE_Result (*start)(struct counter_device *counter);
+	TEE_Result (*start)(struct counter_device *counter, void *config);
 	TEE_Result (*stop)(struct counter_device *counter);
 	TEE_Result (*get_value)(struct counter_device *counter, unsigned int *ticks);
 	TEE_Result (*set_alarm)(struct counter_device *counter);
 	TEE_Result (*cancel_alarm)(struct counter_device *counter);
+	TEE_Result (*set_config)(struct counter_device *counter,
+				 const void *param,
+				 int len, void **config);
+	void (*release_config)(void *config);
 };
 
 /**
@@ -62,7 +72,7 @@ struct counter_device {
 /**
  * @brief Start counter device in free running mode.
  */
-TEE_Result counter_start(struct counter_device *counter);
+TEE_Result counter_start(struct counter_device *counter, void *config);
 
 /**
  * @brief Stop counter device.
@@ -84,13 +94,30 @@ TEE_Result counter_set_alarm(struct counter_device *counter);
  */
 TEE_Result counter_cancel_alarm(struct counter_device *counter);
 
+/**
+ * @brief Release the counter configuration.
+ */
+void counter_release_config(struct counter_device *counter, void *config);
+
 #ifdef CFG_DT
 /**
  * @brief Parse and lookup a counter referenced by a device node.
+ * Retrieve an associated configuration.
  *
  * @retval counter device if successful, else 0 on error.
  */
-struct counter_device *fdt_counter_get(const void *fdt, int offs);
+struct counter_device *fdt_counter_get(const void *fdt,
+				       int offs, void **config);
+#else
+/**
+ * @brief Give the counter associated configuration link to given
+ * parameters.
+ *
+ * @retval TEE_SUCCESS if config is returned, error value otherwise.
+ */
+TEE_Result counter_get_config(struct counter_device *cnt_dev,
+			      const struct counter_param *param,
+			      void **config);
 #endif
 
 /**
@@ -99,11 +126,6 @@ struct counter_device *fdt_counter_get(const void *fdt, int offs);
  * @retval counter device if successful, else 0 on error.
  */
 struct counter_device *counter_get_by_name(const char *name);
-
-/**
- * @brief consumer release the counter device.
- */
-void counter_put(struct counter_device *counter);
 
 /* API for provider */
 static inline void *counter_priv(struct counter_device *counter)
