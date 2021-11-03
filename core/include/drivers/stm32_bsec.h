@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 /*
- * Copyright (c) 2017-2020, STMicroelectronics
+ * Copyright (c) 2017-2021, STMicroelectronics
  */
 
 #ifndef __STM32_BSEC_H
@@ -9,6 +9,9 @@
 #include <compiler.h>
 #include <stdint.h>
 #include <tee_api.h>
+
+#define BSEC_BITS_PER_WORD		(8U * sizeof(uint32_t))
+#define BSEC_BYTES_PER_WORD		(sizeof(uint32_t))
 
 /*
  * Load OTP from SAFMEM and provide its value
@@ -142,9 +145,33 @@ TEE_Result stm32_bsec_read_permanent_lock(uint32_t otp_id, bool *locked);
 TEE_Result stm32_bsec_otp_lock(uint32_t service);
 
 /*
+ * Return true if OTP can be read checking ID and invalid state
+ * @otp_id: OTP number
+ */
+bool stm32_bsec_can_access_otp(uint32_t otp_id);
+
+/*
  * Return true if non-secure world is allowed to read the target OTP
  * @otp_id: OTP number
  */
 bool stm32_bsec_nsec_can_access_otp(uint32_t otp_id);
+
+/*
+ * get BSEC global state.
+ * @state: global state
+ *           [1:0] BSEC state
+ *             00b: Sec Open
+ *             01b: Sec Closed
+ *             11b: Invalid
+ *           [8]: Hardware Key set = 1b
+ * Return a TEE_Result compliant status
+ */
+TEE_Result stm32_bsec_get_state(uint32_t *state);
+
+#define BSEC_STATE_SEC_OPEN	U(0x0)
+#define BSEC_STATE_SEC_CLOSED	U(0x1)
+#define BSEC_STATE_INVALID	U(0x3)
+
+#define BSEC_HARDWARE_KEY	BIT(8)
 
 #endif /*__STM32_BSEC_H*/
