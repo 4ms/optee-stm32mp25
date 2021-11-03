@@ -184,7 +184,21 @@ void clk_disable(struct clk *clk)
 
 unsigned long clk_get_rate(struct clk *clk)
 {
-	return clk->rate;
+	unsigned long rate = clk->rate;
+
+	if (clk->ops->get_rate) {
+		unsigned long parent_rate =  0UL;
+
+		if (clk->parent)
+			parent_rate = clk_get_rate(clk->parent);
+
+		return clk->ops->get_rate(clk, parent_rate);
+	}
+
+	if (clk->parent)
+		rate = clk_get_rate(clk->parent);
+
+	return rate;
 }
 
 static TEE_Result clk_set_rate_no_lock(struct clk *clk, unsigned long rate)
