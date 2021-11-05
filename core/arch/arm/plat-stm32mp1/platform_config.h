@@ -11,6 +11,30 @@
 /* Make stacks aligned to data cache line length */
 #define STACK_ALIGNMENT			32
 
+#if defined(CFG_WITH_PAGER)
+#if defined(CFG_WITH_LPAE)
+/*
+ * Optimize unpaged memory size:
+ * - one table for the level2 table for overall vmem range
+ * - two tables for TEE RAM fine grain mapping [2ffc.0000 301f.ffff]
+ * - one table for a 2MByte dynamic shared virtual memory (SHM_VASPACE)
+ */
+#define MAX_XLAT_TABLES			4
+#else
+/*
+ * Optimize unpaged memory size:
+ * - two tables for TEE RAM mapping [2ffc.0000 300f.ffff]
+ * - one table for secure internal RAMs (PM: ROMed core TEE RAM)
+ * - one table for non-secure internal RAMs (PM: DDR first page)
+ * - two tables for a 2MByte dynamiq shared virtual memory (SHM_VASPACE)
+ */
+#define MAX_XLAT_TABLES			6
+#endif /*CFG_WITH_LPAE*/
+#else
+/* Be generous with this setup that has plenty of secure RAM */
+#define MAX_XLAT_TABLES			10
+#endif /*CFG_WITH_PAGER*/
+
 /* SoC interface registers base address ranges */
 #define APB1_BASE			0x40000000
 #define APB1_SIZE			0x0001d000
