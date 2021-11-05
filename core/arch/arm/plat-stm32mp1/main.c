@@ -14,6 +14,7 @@
 #include <drivers/stm32_tamp.h>
 #include <drivers/stm32_uart.h>
 #include <drivers/stm32mp_dt_bindings.h>
+#include <io.h>
 #include <kernel/boot.h>
 #include <kernel/dt.h>
 #include <kernel/interrupt.h>
@@ -149,6 +150,53 @@ static TEE_Result init_console_from_dt(void)
 /* Probe console from DT once clock inits (service init level) are completed */
 service_init_late(init_console_from_dt);
 #endif
+
+static uintptr_t stm32_dbgmcu_base(void)
+{
+	static void *va;
+
+	if (!cpu_mmu_enabled())
+		return DBGMCU_BASE;
+
+	if (!va)
+		va = phys_to_virt(DBGMCU_BASE, MEM_AREA_IO_SEC, 1);
+
+	return (uintptr_t)va;
+}
+
+/* SoC versioning util, returns default ID if can't access DBGMCU */
+TEE_Result stm32mp1_dbgmcu_get_chip_version(uint32_t *chip_version)
+{
+	uint32_t id = STM32MP1_CHIP_DEFAULT_VERSION;
+
+	if (!chip_version)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	if (stm32_bsec_read_debug_conf() & BSEC_DBGSWGEN)
+		id = (io_read32(stm32_dbgmcu_base() + DBGMCU_IDC) &
+		      DBGMCU_IDC_REV_ID_MASK) >> DBGMCU_IDC_REV_ID_SHIFT;
+
+	*chip_version = id;
+
+	return TEE_SUCCESS;
+}
+
+/* SoC device ID util, returns default ID if can't access DBGMCU */
+TEE_Result stm32mp1_dbgmcu_get_chip_dev_id(uint32_t *chip_dev_id)
+{
+	uint32_t id = STM32MP1_CHIP_ID;
+
+	if (!chip_dev_id)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	if (stm32_bsec_read_debug_conf() & BSEC_DBGSWGEN)
+		id = io_read32(stm32_dbgmcu_base() + DBGMCU_IDC) &
+		     DBGMCU_IDC_DEV_ID_MASK;
+
+	*chip_dev_id = id;
+
+	return TEE_SUCCESS;
+}
 
 /*
  * GIC init, used also for primary/secondary boot core wake completion
