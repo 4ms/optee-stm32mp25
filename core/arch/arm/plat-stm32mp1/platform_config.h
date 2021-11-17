@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /*
- * Copyright (c) 2017-2018, STMicroelectronics
+ * Copyright (c) 2017-2022, STMicroelectronics
  */
 
 #ifndef PLATFORM_CONFIG_H
@@ -202,19 +202,19 @@
 #endif
 
 /* TZC resources */
-#define STM32MP1_IRQ_TZC		36
+#define STM32MP1_IRQ_TZC		U(36)
 
-#define STM32MP1_TZC_A7_ID		0
-#define STM32MP1_TZC_M4_ID		1
-#define STM32MP1_TZC_LCD_ID		3
-#define STM32MP1_TZC_GPU_ID		4
-#define STM32MP1_TZC_MDMA_ID		5
-#define STM32MP1_TZC_DMA_ID		6
-#define STM32MP1_TZC_USB_HOST_ID	7
-#define STM32MP1_TZC_USB_OTG_ID		8
-#define STM32MP1_TZC_SDMMC_ID		9
-#define STM32MP1_TZC_ETH_ID		10
-#define STM32MP1_TZC_DAP_ID		15
+#define STM32MP1_TZC_A7_ID		U(0)
+#define STM32MP1_TZC_M4_ID		U(1)
+#define STM32MP1_TZC_LTDC_ID		U(3)
+#define STM32MP1_TZC_GPU_ID		U(4)
+#define STM32MP1_TZC_MDMA_ID		U(5)
+#define STM32MP1_TZC_DMA_ID		U(6)
+#define STM32MP1_TZC_USB_HOST_ID	U(7)
+#define STM32MP1_TZC_USB_OTG_ID		U(8)
+#define STM32MP1_TZC_SDMMC_ID		U(9)
+#define STM32MP1_TZC_ETH_ID		U(10)
+#define STM32MP1_TZC_DAP_ID		U(15)
 
 /* USART/UART resources */
 #define USART1_BASE			UART1_BASE
