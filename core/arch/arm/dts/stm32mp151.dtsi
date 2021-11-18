@@ -5,6 +5,7 @@
  */
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/clock/stm32mp1-clks.h>
+#include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/reset/stm32mp1-resets.h>
 
 / {
@@ -20,6 +21,11 @@
 			clock-frequency = <650000000>;
 			device_type = "cpu";
 			reg = <0>;
+			clocks = <&rcc CK_MPU>;
+			clock-names = "cpu";
+			operating-points-v2 = <&cpu0_opp_table>;
+			nvmem-cells = <&part_number_otp>;
+			nvmem-cell-names = "part_number";
 		};
 	};
 
@@ -28,6 +34,11 @@
 		interrupts = <GIC_SPI 200 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-affinity = <&cpu0>;
 		interrupt-parent = <&intc>;
+	};
+
+	cpu0_opp_table: cpu0-opp-table {
+		compatible = "operating-points-v2";
+		opp-shared;
 	};
 
 	psci {
@@ -458,6 +469,7 @@
 			dmas = <&dmamux1 43 0x400 0x15>,
 			       <&dmamux1 44 0x400 0x11>;
 			dma-names = "rx", "tx";
+			resets = <&rcc USART2_R>;
 			status = "disabled";
 		};
 
@@ -470,6 +482,7 @@
 			dmas = <&dmamux1 45 0x400 0x15>,
 			       <&dmamux1 46 0x400 0x11>;
 			dma-names = "rx", "tx";
+			resets = <&rcc USART3_R>;
 			status = "disabled";
 		};
 
@@ -482,6 +495,7 @@
 			dmas = <&dmamux1 63 0x400 0x15>,
 			       <&dmamux1 64 0x400 0x11>;
 			dma-names = "rx", "tx";
+			resets = <&rcc UART4_R>;
 			status = "disabled";
 		};
 
@@ -494,6 +508,7 @@
 			dmas = <&dmamux1 65 0x400 0x15>,
 			       <&dmamux1 66 0x400 0x11>;
 			dma-names = "rx", "tx";
+			resets = <&rcc UART5_R>;
 			status = "disabled";
 		};
 
@@ -603,6 +618,7 @@
 			dmas = <&dmamux1 79 0x400 0x15>,
 			       <&dmamux1 80 0x400 0x11>;
 			dma-names = "rx", "tx";
+			resets = <&rcc UART7_R>;
 			status = "disabled";
 		};
 
@@ -615,6 +631,7 @@
 			dmas = <&dmamux1 81 0x400 0x15>,
 			       <&dmamux1 82 0x400 0x11>;
 			dma-names = "rx", "tx";
+			resets = <&rcc UART8_R>;
 			status = "disabled";
 		};
 
@@ -699,6 +716,7 @@
 			dmas = <&dmamux1 71 0x400 0x15>,
 			       <&dmamux1 72 0x400 0x11>;
 			dma-names = "rx", "tx";
+			resets = <&rcc USART6_R>;
 			status = "disabled";
 		};
 
@@ -1139,10 +1157,15 @@
 		};
 
 		rcc: rcc@50000000 {
-			compatible = "st,stm32mp1-rcc", "syscon";
+			compatible = "st,stm32mp1-rcc-secure", "st,stm32mp1-rcc", "syscon";
 			reg = <0x50000000 0x1000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			#clock-cells = <1>;
 			#reset-cells = <1>;
+			interrupts = <GIC_SPI 5 IRQ_TYPE_LEVEL_HIGH>;
+			secure-interrupts = <GIC_SPI 145 IRQ_TYPE_LEVEL_HIGH>;
+			secure-interrupt-names = "wakeup";
 		};
 
 		pwr_regulators: pwr@50001000 {
@@ -1598,8 +1621,12 @@
 		bsec: efuse@5c005000 {
 			compatible = "st,stm32mp15-bsec";
 			reg = <0x5c005000 0x400>;
+			clocks = <&rcc BSEC>;
 			#address-cells = <1>;
 			#size-cells = <1>;
+			part_number_otp: part_number_otp@4 {
+				reg = <0x4 0x1>;
+			};
 			ts_cal1: calib@5c {
 				reg = <0x5c 0x2>;
 			};
@@ -1616,8 +1643,11 @@
 			compatible = "st,stm32-etzpc";
 			reg = <0x5C007000 0x400>;
 			clocks = <&rcc TZPC>;
-			status = "disabled";
-			secure-status = "okay";
+		};
+
+		stgen: stgen@5c008000 {
+			compatible = "st,stm32-stgen";
+			reg = <0x5C008000 0x1000>;
 		};
 
 		i2c6: i2c@5c009000 {
