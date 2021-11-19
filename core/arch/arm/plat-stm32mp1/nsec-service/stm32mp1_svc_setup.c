@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 /*
- * Copyright (c) 2017-2020, STMicroelectronics
+ * Copyright (c) 2017-2021, STMicroelectronics
  */
 
 #include <config.h>
@@ -10,7 +10,6 @@
 #include <sm/sm.h>
 #include <sm/std_smc.h>
 
-#include "bsec_svc.h"
 #include "stm32mp1_smc.h"
 
 static enum sm_handler_ret sip_service(struct sm_ctx *ctx __unused,
@@ -38,11 +37,10 @@ static enum sm_handler_ret sip_service(struct sm_ctx *ctx __unused,
 			args->a0 = ARM_SMCCC_RET_NOT_SUPPORTED;
 		}
 		break;
+	/* Deprecated function IDs */
+	case STM32_SIP_SVC_FUNC_BSEC:
 	case STM32_SIP_SVC_FUNC_SCMI_AGENT1:
 		args->a0 = ARM_SMCCC_RET_NOT_SUPPORTED;
-		break;
-	case STM32_SIP_SVC_FUNC_BSEC:
-		bsec_main(args);
 		break;
 	default:
 		return SM_HANDLER_PENDING_SMC;
