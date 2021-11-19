@@ -290,3 +290,6 @@ CFG_STM32_EARLY_CONSOLE_UART ?= 4
 ifeq ($(call cfg-all-enabled,CFG_STM32MP15 CFG_STM32MP13),y)
 $(error CFG_STM32MP13_CLK and CFG_STM32MP15_CLK are exclusive)
 endif
+
+# Generate the STM32 files
+CFG_STM32MP15x_STM32IMAGE ?= n
