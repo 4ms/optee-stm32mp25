@@ -138,7 +138,6 @@
 
 #define OTP_MAX_SIZE			(STM32MP1_OTP_MAX_ID + 1U)
 
-#define DATA0_OTP			0
 #define CFG0_OTP			0
 #define PART_NUMBER_OTP			1
 #define MONOTONIC_OTP			4
@@ -157,8 +156,6 @@
 #define HW2_OTP_IWDG_HW_ENABLE_SHIFT	U(3)
 #define HW2_OTP_IWDG_FZ_STOP_SHIFT	U(5)
 #define HW2_OTP_IWDG_FZ_STANDBY_SHIFT	U(7)
-
-#define DATA0_OTP_SECURED_POS		6
 
 /* GIC resources */
 #define GIC_SIZE			0x2000
