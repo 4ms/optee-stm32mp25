@@ -282,7 +282,6 @@ static bool initialize_pmic_i2c(void)
 static TEE_Result pmic_set_state(const struct regul_desc *desc, bool enable)
 {
 	int ret = 0;
-
 	FMSG("%s: set state to %u", desc->node_name, enable);
 
 	if (enable)
