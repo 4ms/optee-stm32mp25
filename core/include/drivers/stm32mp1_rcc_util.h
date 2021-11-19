@@ -34,4 +34,7 @@ void stm32mp_register_clock_parents_secure(unsigned long clock_id __unused)
 }
 #endif
 
+/* Protect the MCU clock subsytem */
+void stm32mp1_clk_mcuss_protect(bool enable);
+
 #endif /*__DRIVERS_STM32MP1_RCC_UTIL_H__*/

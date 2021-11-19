@@ -1273,6 +1273,16 @@ static TEE_Result stm32mp1_clk_fdt_init(const void *fdt, int node)
 }
 #endif /*CFG_EMBED_DTB*/
 
+void stm32mp1_clk_mcuss_protect(bool enable)
+{
+	uintptr_t rcc_base = stm32_rcc_base();
+
+	if (enable)
+		io_setbits32(rcc_base + RCC_TZCR, RCC_TZCR_MCKPROT);
+	else
+		io_clrbits32(rcc_base + RCC_TZCR, RCC_TZCR_MCKPROT);
+}
+
 /*
  * Conversion between clk references and clock gates and clock on internals
  *
