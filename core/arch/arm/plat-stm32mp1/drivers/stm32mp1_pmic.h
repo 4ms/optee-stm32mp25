@@ -8,13 +8,9 @@
 
 #include <kernel/panic.h>
 
-#ifdef CFG_STPMIC1
+#if defined(CFG_STPMIC1) && defined(CFG_STM32MP15)
 void stm32mp_pmic_apply_boot_on_config(void);
 void stm32mp_pmic_apply_lp_config(const char *lp_state);
-void stm32mp_get_pmic(void);
-void stm32mp_put_pmic(void);
-int stm32mp_dt_pmic_status(void);
-const char *stm32mp_pmic_get_cpu_supply_name(void);
 #else
 static inline void stm32mp_pmic_apply_boot_on_config(void)
 {
@@ -23,7 +19,16 @@ static inline void stm32mp_pmic_apply_boot_on_config(void)
 static inline void stm32mp_pmic_apply_lp_config(const char *lp_state __unused)
 {
 }
+#endif
 
+#if defined(CFG_STPMIC1)
+void stm32mp_get_pmic(void);
+void stm32mp_put_pmic(void);
+void stm32mp_pm_get_pmic(void);
+void stm32mp_pm_put_pmic(void);
+int stm32mp_dt_pmic_status(void);
+const char *stm32mp_pmic_get_cpu_supply_name(void);
+#else
 static inline void stm32mp_get_pmic(void)
 {
 	panic();
@@ -34,9 +39,14 @@ static inline void stm32mp_put_pmic(void)
 	panic();
 }
 
-static inline int stm32mp_dt_pmic_status(void)
+static inline void stm32mp_pm_get_pmic(void)
 {
-	return -1;
+	panic();
+}
+
+static inline void stm32mp_pm_put_pmic(void)
+{
+	panic();
 }
 
 static inline const char *stm32mp_pmic_get_cpu_supply_name(void)

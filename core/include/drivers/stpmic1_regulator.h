@@ -37,8 +37,9 @@ bool stpmic1_is_regulator_enabled(const char *name);
  * @levels: output reference for an arrays of the supported levels, or NULL
  * @levels_count: output reference for number of supported levels, or NULL
  */
-void stpmic1_regulator_levels_mv(const char *name, const uint16_t **levels,
-				 size_t *levels_count);
+TEE_Result stpmic1_regulator_levels_mv(const char *name,
+				       const uint16_t **levels,
+				       size_t *levels_count);
 
 /*
  * Set voltage level @millivolt for target regulator @name
@@ -53,5 +54,29 @@ int stpmic1_regulator_voltage_set(const char *name, uint16_t millivolts);
  * Return a positive millivolt level on success or a negative value on error
  */
 int stpmic1_regulator_voltage_get(const char *name);
+
+/*
+ * Set regulator as pull-down
+ * @name: regulator identifier
+ * Return 0 on success and a non-0 value if failing
+ */
+int stpmic1_regulator_pull_down_set(const char *name);
+
+/*
+ * Reset mask for given regulator
+ * @name: regulator identifier
+ * Return 0 on success and a non-0 value if failing
+ */
+int stpmic1_regulator_mask_reset_set(const char *name);
+
+/*
+ * LDOx specific configurations
+ * @name: regulator identifier
+ * Return 0 on success and a non-0 value if failing
+ */
+int stpmic1_regulator_icc_set(const char *name);
+int stpmic1_regulator_sink_mode_set(const char *name);
+int stpmic1_regulator_bypass_mode_set(const char *name);
+int stpmic1_active_discharge_mode_set(const char *name);
 
 #endif /*__DRIVERS_STPMIC1_REGULATOR_H*/

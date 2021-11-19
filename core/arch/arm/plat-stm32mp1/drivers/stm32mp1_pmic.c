@@ -3,6 +3,10 @@
  * Copyright (c) 2017-2021, STMicroelectronics
  */
 
+#include <config.h>
+#include <drivers/clk.h>
+#include <drivers/clk_dt.h>
+#include <drivers/regulator.h>
 #include <drivers/stm32_i2c.h>
 #include <drivers/stm32mp1_pmic.h>
 #include <drivers/stpmic1.h>
@@ -14,6 +18,7 @@
 #include <kernel/boot.h>
 #include <kernel/panic.h>
 #include <kernel/pm.h>
+#include <kernel/thread.h>
 #include <libfdt.h>
 #include <mm/core_memprot.h>
 #include <platform_config.h>
@@ -38,10 +43,10 @@ static uint32_t pmic_i2c_addr;
 /* CPU voltage supplier if found */
 static char cpu_supply_name[PMIC_REGU_SUPPLY_NAME_LEN];
 
-bool stm32mp_with_pmic(void)
-{
-	return i2c_handle.dt_status & DT_STATUS_OK_SEC;
-}
+/* Mutex for protecting PMIC accesses */
+static struct mutex pmic_mu = MUTEX_INITIALIZER;
+
+static TEE_Result register_pmic_regulator(const char *regu_name, int node);
 
 static int dt_get_pmic_node(void *fdt)
 {
@@ -53,286 +58,42 @@ static int dt_get_pmic_node(void *fdt)
 	return node;
 }
 
-static int dt_pmic_status(void)
-{
-	void *fdt = get_embedded_dt();
+static int pmic_status = -1;
 
-	if (fdt) {
+static unsigned int pmic_dt_status(void)
+{
+	unsigned int __maybe_unused mask = DT_STATUS_OK_NSEC | DT_STATUS_OK_SEC;
+
+	if (pmic_status < 0) {
+		int status = DT_STATUS_DISABLED;
+		void *fdt = get_embedded_dt();
 		int node = dt_get_pmic_node(fdt);
 
-		if (node > 0)
-			return _fdt_get_status(fdt, node);
+		if (node >= 0)
+			status = _fdt_get_status(fdt, node);
+
+		assert(status >= 0 && !((unsigned int)status & !mask));
+		pmic_status = status;
 	}
 
-	return -1;
+	return (unsigned int)pmic_status;
 }
 
-int stm32mp_dt_pmic_status(void)
+static bool pmic_is_secure(void)
 {
-	return dt_pmic_status();
+	assert(pmic_status != -1);
+
+	if (IS_ENABLED(CFG_STM32MP13))
+		return pmic_status & DT_STATUS_OK_SEC;
+	else
+		return pmic_status == DT_STATUS_OK_SEC;
 }
 
-static bool dt_pmic_is_secure(void)
+bool stm32mp_with_pmic(void)
 {
-	int status = dt_pmic_status();
+	assert(pmic_status != -1);
 
-	return status == DT_STATUS_OK_SEC &&
-	       i2c_handle.dt_status == DT_STATUS_OK_SEC;
-}
-
-/*
- * struct regu_bo_config - Boot on configuration for a regulator
- * @flags: Operations expected when entering a low power sequence
- * @cfg: Boot-on configuration to apply during low power sequences
- */
-struct regu_bo_config {
-	uint8_t flags;
-	struct stpmic1_bo_cfg cfg;
-};
-
-#define REGU_BO_FLAG_ENABLE_REGU		BIT(0)
-#define REGU_BO_FLAG_SET_VOLTAGE		BIT(1)
-#define REGU_BO_FLAG_PULL_DOWN			BIT(2)
-#define REGU_BO_FLAG_MASK_RESET			BIT(3)
-
-static struct regu_bo_config *regu_bo_config;
-static size_t regu_bo_count;
-
-/* boot-on mandatory? if so: caller panic() on error status */
-static void dt_get_regu_boot_on_config(void *fdt, const char *regu_name,
-				       int regu_node)
-{
-	const fdt32_t *cuint = NULL;
-	struct regu_bo_config regu_cfg = { };
-	uint16_t mv = 0;
-
-	if ((!fdt_getprop(fdt, regu_node, "regulator-boot-on", NULL)) &&
-	    (!fdt_getprop(fdt, regu_node, "regulator-always-on", NULL)))
-		return;
-
-	regu_cfg.flags |= REGU_BO_FLAG_ENABLE_REGU;
-	if (stpmic1_bo_enable_cfg(regu_name, &regu_cfg.cfg)) {
-		EMSG("PMIC regulator %s not supported", regu_name);
-		panic();
-	}
-
-	if (fdt_getprop(fdt, regu_node, "regulator-pull-down", NULL)) {
-		if (stpmic1_bo_pull_down_cfg(regu_name, &regu_cfg.cfg)) {
-			DMSG("No pull down mode for regu %s", regu_name);
-			panic();
-		}
-		regu_cfg.flags |= REGU_BO_FLAG_PULL_DOWN;
-	}
-
-	if (fdt_getprop(fdt, regu_node, "st,mask-reset", NULL)) {
-		if (stpmic1_bo_mask_reset_cfg(regu_name, &regu_cfg.cfg)) {
-			DMSG("No reset mode for regu %s", regu_name);
-			panic();
-		}
-		regu_cfg.flags |= REGU_BO_FLAG_MASK_RESET;
-	}
-
-	cuint = fdt_getprop(fdt, regu_node,
-			    "regulator-min-microvolt", NULL);
-	if (cuint) {
-		/* DT uses microvolts and driver awaits millivolts */
-		mv = fdt32_to_cpu(*cuint) / 1000;
-
-		if (stpmic1_bo_voltage_cfg(regu_name, mv, &regu_cfg.cfg))
-			DMSG("Ignore regulator-min-microvolt for %s",
-			     regu_name);
-		else
-			regu_cfg.flags |= REGU_BO_FLAG_SET_VOLTAGE;
-	}
-
-	/* Save config in the Boot On configuration list */
-	regu_bo_count++;
-	regu_bo_config = realloc(regu_bo_config,
-				 regu_bo_count * sizeof(regu_cfg));
-	if (!regu_bo_config)
-		panic();
-
-	regu_bo_config[regu_bo_count - 1] = regu_cfg;
-}
-
-void stm32mp_pmic_apply_boot_on_config(void)
-{
-	size_t i = 0;
-
-	for (i = 0; i < regu_bo_count; i++) {
-		struct regu_bo_config *regu_cfg = &regu_bo_config[i];
-
-		if (regu_cfg->flags & REGU_BO_FLAG_SET_VOLTAGE)
-			if (stpmic1_bo_voltage_unpg(&regu_cfg->cfg))
-				panic();
-
-		if (regu_cfg->flags & REGU_BO_FLAG_ENABLE_REGU)
-			if (stpmic1_bo_enable_unpg(&regu_cfg->cfg))
-				panic();
-
-		if (regu_cfg->flags & REGU_BO_FLAG_PULL_DOWN)
-			if (stpmic1_bo_pull_down_unpg(&regu_cfg->cfg))
-				panic();
-
-		if (regu_cfg->flags & REGU_BO_FLAG_MASK_RESET)
-			if (stpmic1_bo_mask_reset_unpg(&regu_cfg->cfg))
-				panic();
-	}
-}
-
-/*
- * @flags: Operations expected when entering a low power sequence
- * @voltage: Target voltage to apply during low power sequences
- */
-struct regu_lp_config {
-	uint8_t flags;
-	struct stpmic1_lp_cfg cfg;
-};
-
-#define REGU_LP_FLAG_LOAD_PWRCTRL	BIT(0)
-#define REGU_LP_FLAG_ON_IN_SUSPEND	BIT(1)
-#define REGU_LP_FLAG_OFF_IN_SUSPEND	BIT(2)
-#define REGU_LP_FLAG_SET_VOLTAGE	BIT(3)
-#define REGU_LP_FLAG_MODE_STANDBY	BIT(4)
-
-/*
- * struct regu_lp_state - Low power configuration for regulators
- * @name: low power state identifier string name
- * @cfg_count: number of regulator configuration instance in @cfg
- * @cfg: regulator configurations for low power state @name
- */
-struct regu_lp_state {
-	const char *name;
-	size_t cfg_count;
-	struct regu_lp_config *cfg;
-};
-
-enum regu_lp_state_id {
-	REGU_LP_STATE_DISK = 0,
-	REGU_LP_STATE_STANDBY,
-	REGU_LP_STATE_MEM,
-	REGU_LP_STATE_MEM_LOWVOLTAGE,
-	REGU_LP_STATE_COUNT
-};
-
-static struct regu_lp_state regu_lp_state[REGU_LP_STATE_COUNT] = {
-	[REGU_LP_STATE_DISK] = { .name = "standby-ddr-off", },
-	[REGU_LP_STATE_STANDBY] = { .name = "standby-ddr-sr", },
-	[REGU_LP_STATE_MEM] = { .name = "lp-stop", },
-	[REGU_LP_STATE_MEM_LOWVOLTAGE] = { .name = "lplv-stop", },
-};
-
-static unsigned int regu_lp_state2idx(const char *name)
-{
-	unsigned int i = 0;
-
-	for (i = 0; i < ARRAY_SIZE(regu_lp_state); i++)
-		if (!strcmp(name, regu_lp_state[i].name))
-			return i;
-
-	panic();
-}
-
-static void dt_get_regu_low_power_config(void *fdt, const char *regu_name,
-					 int regu_node, const char *lp_state)
-{
-	unsigned int state_idx = regu_lp_state2idx(lp_state);
-	struct regu_lp_state *state = regu_lp_state + state_idx;
-	const fdt32_t *cuint = NULL;
-	int regu_state_node = 0;
-	struct regu_lp_config *regu_cfg = NULL;
-
-	state->cfg_count++;
-	state->cfg = realloc(state->cfg,
-			     state->cfg_count * sizeof(*state->cfg));
-	if (!state->cfg)
-		panic();
-
-	regu_cfg = &state->cfg[state->cfg_count - 1];
-
-	memset(regu_cfg, 0, sizeof(*regu_cfg));
-
-	if (stpmic1_regu_has_lp_cfg(regu_name)) {
-		if (stpmic1_lp_cfg(regu_name, &regu_cfg->cfg)) {
-			DMSG("Cannot setup low power for regu %s", regu_name);
-			panic();
-		}
-		/*
-		 * Always copy active configuration (Control register)
-		 * to PWRCTRL Control register, even if regu_state_node
-		 * does not exist.
-		 */
-		regu_cfg->flags |= REGU_LP_FLAG_LOAD_PWRCTRL;
-	}
-
-	/* Parse regulator stte node if any */
-	regu_state_node = fdt_subnode_offset(fdt, regu_node, lp_state);
-	if (regu_state_node <= 0)
-		return;
-
-	if (fdt_getprop(fdt, regu_state_node,
-			"regulator-on-in-suspend", NULL))
-		regu_cfg->flags |= REGU_LP_FLAG_ON_IN_SUSPEND;
-
-	if (fdt_getprop(fdt, regu_state_node,
-			"regulator-off-in-suspend", NULL))
-		regu_cfg->flags |= REGU_LP_FLAG_OFF_IN_SUSPEND;
-
-	cuint = fdt_getprop(fdt, regu_state_node,
-			    "regulator-suspend-microvolt", NULL);
-	if (cuint) {
-		uint32_t mv = fdt32_to_cpu(*cuint) / 1000U;
-
-		if (stpmic1_lp_voltage_cfg(regu_name, mv, &regu_cfg->cfg)) {
-			DMSG("Cannot set voltage for %s", regu_name);
-			panic();
-		}
-		regu_cfg->flags |= REGU_LP_FLAG_SET_VOLTAGE;
-	}
-
-	cuint = fdt_getprop(fdt, regu_state_node,
-			    "regulator-mode", NULL);
-	if (cuint && fdt32_to_cpu(*cuint) == MODE_STANDBY)
-		regu_cfg->flags |= REGU_LP_FLAG_MODE_STANDBY;
-}
-
-/*
- * int stm32mp_pmic_set_lp_config(char *lp_state)
- *
- * Load the low power configuration stored in regu_lp_state[].
- */
-void stm32mp_pmic_apply_lp_config(const char *lp_state)
-{
-	unsigned int state_idx = regu_lp_state2idx(lp_state);
-	struct regu_lp_state *state = &regu_lp_state[state_idx];
-	size_t i = 0;
-
-	if (stpmic1_powerctrl_on())
-		panic();
-
-	for (i = 0; i < state->cfg_count; i++) {
-		struct stpmic1_lp_cfg *cfg = &state->cfg[i].cfg;
-
-		if ((state->cfg[i].flags & REGU_LP_FLAG_LOAD_PWRCTRL) &&
-		    stpmic1_lp_load_unpg(cfg))
-			panic();
-
-		if ((state->cfg[i].flags & REGU_LP_FLAG_ON_IN_SUSPEND) &&
-		    stpmic1_lp_on_off_unpg(cfg, 1))
-			panic();
-
-		if ((state->cfg[i].flags & REGU_LP_FLAG_OFF_IN_SUSPEND) &&
-		    stpmic1_lp_on_off_unpg(cfg, 0))
-			panic();
-
-		if ((state->cfg[i].flags & REGU_LP_FLAG_SET_VOLTAGE) &&
-		    stpmic1_lp_voltage_unpg(cfg))
-			panic();
-
-		if ((state->cfg[i].flags & REGU_LP_FLAG_MODE_STANDBY) &&
-		    stpmic1_lp_mode_unpg(cfg, 1))
-			panic();
-	}
+	return pmic_status & DT_STATUS_OK_SEC;
 }
 
 /* Return a libfdt compliant status value */
@@ -414,9 +175,6 @@ static void parse_regulator_fdt_nodes(void)
 	int regu_node = 0;
 	void *fdt = NULL;
 
-	/* Expected called once */
-	assert(!regu_bo_config && !regu_bo_count);
-
 	fdt = get_embedded_dt();
 	if (!fdt)
 		panic();
@@ -432,8 +190,9 @@ static void parse_regulator_fdt_nodes(void)
 	fdt_for_each_subnode(regu_node, fdt, regulators_node) {
 		int status = _fdt_get_status(fdt, regu_node);
 		const char *regu_name = NULL;
-		size_t n = 0;
+		size_t __maybe_unused n = 0;
 
+		assert(status >= 0);
 		if (status == DT_STATUS_DISABLED)
 			continue;
 
@@ -444,11 +203,8 @@ static void parse_regulator_fdt_nodes(void)
 		if (status & DT_STATUS_OK_NSEC)
 			register_nsec_regu(regu_name);
 
-		dt_get_regu_boot_on_config(fdt, regu_name, regu_node);
-
-		for (n = 0; n < ARRAY_SIZE(regu_lp_state); n++)
-			dt_get_regu_low_power_config(fdt, regu_name, regu_node,
-						     regu_lp_state[n].name);
+		if (register_pmic_regulator(regu_name, regu_node))
+			panic();
 	}
 
 	if (save_cpu_supply_name())
@@ -532,7 +288,14 @@ static bool initialize_pmic_i2c(void)
 
 	i2c->pinctrl = pinctrl;
 
-	stm32mp_get_pmic();
+	if (i2c_handle.dt_status != pmic_dt_status())
+		panic("PMIC and its I2C bus must have the same enable state");
+
+	if (!i2c->clock)
+		panic();
+
+	/* 1st access to PMIC */
+	stm32mp_pm_get_pmic();
 
 	ret = stm32_i2c_init(i2c, &i2c_init);
 	if (ret) {
@@ -547,10 +310,218 @@ static bool initialize_pmic_i2c(void)
 
 	stpmic1_bind_i2c(i2c, pmic_i2c_addr);
 
-	stm32mp_put_pmic();
+	stm32mp_pm_put_pmic();
 
 	return true;
 }
+
+#ifdef CFG_REGULATOR_DRIVERS
+static TEE_Result pmic_set_state(const struct regul_desc *desc, bool enable)
+{
+	int ret = 0;
+
+	FMSG("%s: set state to %u", desc->node_name, enable);
+
+	if (enable)
+		ret = stpmic1_regulator_enable(desc->node_name);
+	else
+		ret = stpmic1_regulator_disable(desc->node_name);
+
+	if (ret)
+		return TEE_ERROR_GENERIC;
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result pmic_get_state(const struct regul_desc *desc, bool *enabled)
+{
+	FMSG("%s: get state", desc->node_name);
+
+	*enabled = stpmic1_is_regulator_enabled(desc->node_name);
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result pmic_get_voltage(const struct regul_desc *desc, uint16_t *mv)
+{
+	int ret = 0;
+
+	FMSG("%s: get volt", desc->node_name);
+
+	ret = stpmic1_regulator_voltage_get(desc->node_name);
+	if (ret < 0)
+		return TEE_ERROR_GENERIC;
+
+	*mv = ret;
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result pmic_set_voltage(const struct regul_desc *desc, uint16_t mv)
+{
+	FMSG("%s: set volt", desc->node_name);
+
+	if (stpmic1_regulator_voltage_set(desc->node_name, mv))
+		return TEE_ERROR_GENERIC;
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result pmic_list_voltages(const struct regul_desc *desc,
+				     uint16_t **levels, size_t *count)
+{
+	FMSG("%s: list volt", desc->node_name);
+
+	if (stpmic1_regulator_levels_mv(desc->node_name,
+					(const uint16_t **)levels, count))
+		return TEE_ERROR_GENERIC;
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result pmic_set_flag(const struct regul_desc *desc, uint16_t flag)
+{
+	int ret = 0;
+
+	FMSG("%s: set_flag %#"PRIx16, desc->node_name, flag);
+
+	switch (flag) {
+	case REGUL_OCP:
+		ret = stpmic1_regulator_icc_set(desc->node_name);
+		break;
+	case REGUL_ACTIVE_DISCHARGE:
+		ret = stpmic1_active_discharge_mode_set(desc->node_name);
+		break;
+	case REGUL_PULL_DOWN:
+		ret = stpmic1_regulator_pull_down_set(desc->node_name);
+		break;
+	case REGUL_MASK_RESET:
+		ret = stpmic1_regulator_mask_reset_set(desc->node_name);
+		break;
+	case REGUL_SINK_SOURCE:
+		ret = stpmic1_regulator_sink_mode_set(desc->node_name);
+		break;
+	case REGUL_ENABLE_BYPASS:
+		ret = stpmic1_regulator_bypass_mode_set(desc->node_name);
+		break;
+	default:
+		DMSG("Invalid flag %#"PRIx16, flag);
+		panic();
+	}
+
+	if (ret)
+		return TEE_ERROR_GENERIC;
+
+	return TEE_SUCCESS;
+}
+
+static void driver_lock(const struct regul_desc *desc __unused)
+{
+	if (thread_get_id_may_fail() != THREAD_ID_INVALID)
+		mutex_lock(&pmic_mu);
+
+	stm32mp_get_pmic();
+}
+
+static void driver_unlock(const struct regul_desc *desc __unused)
+{
+	if (thread_get_id_may_fail() != THREAD_ID_INVALID)
+		mutex_unlock(&pmic_mu);
+
+	stm32mp_put_pmic();
+}
+
+static TEE_Result driver_suspend(const struct regul_desc *desc, uint8_t state,
+				 uint16_t mv)
+{
+	int ret = 0;
+
+	FMSG("%s: suspend state:%"PRIu8", %"PRIu16" mV", desc->node_name,
+	     state, mv);
+
+	if (!stpmic1_regu_has_lp_cfg(desc->node_name))
+		return TEE_SUCCESS;
+
+	ret = stpmic1_lp_copy_reg(desc->node_name);
+	if (ret)
+		return TEE_ERROR_GENERIC;
+
+	if ((state & LP_STATE_OFF) != 0U) {
+		ret = stpmic1_lp_reg_on_off(desc->node_name, 0);
+		if (ret)
+			return TEE_ERROR_GENERIC;
+	}
+
+	if ((state & LP_STATE_ON) != 0U) {
+		ret = stpmic1_lp_reg_on_off(desc->node_name, 1);
+		if (ret)
+			return TEE_ERROR_GENERIC;
+	}
+
+	if ((state & LP_STATE_SET_VOLT) != 0U) {
+		ret = stpmic1_lp_set_voltage(desc->node_name, mv);
+		if (ret)
+			return TEE_ERROR_GENERIC;
+	}
+
+	return 0;
+}
+
+const struct regul_ops pmic_ops = {
+	.set_state = pmic_set_state,
+	.get_state = pmic_get_state,
+	.set_voltage = pmic_set_voltage,
+	.get_voltage = pmic_get_voltage,
+	.list_voltages = pmic_list_voltages,
+	.set_flag = pmic_set_flag,
+	.lock = driver_lock,
+	.unlock = driver_unlock,
+	.suspend = driver_suspend,
+};
+
+#define DEFINE_REGU(name) { \
+	.node_name = name, \
+	.ops = &pmic_ops, \
+	.ramp_delay_uv_per_us = 2200, \
+	.enable_ramp_delay_us = 1000, \
+}
+
+static const struct regul_desc pmic_reguls[] = {
+	DEFINE_REGU("buck1"),
+	DEFINE_REGU("buck2"),
+	DEFINE_REGU("buck3"),
+	DEFINE_REGU("buck4"),
+	DEFINE_REGU("ldo1"),
+	DEFINE_REGU("ldo2"),
+	DEFINE_REGU("ldo3"),
+	DEFINE_REGU("ldo4"),
+	DEFINE_REGU("ldo5"),
+	DEFINE_REGU("ldo6"),
+	DEFINE_REGU("vref_ddr"),
+	DEFINE_REGU("boost"),
+	DEFINE_REGU("pwr_sw1"),
+	DEFINE_REGU("pwr_sw2"),
+};
+DECLARE_KEEP_PAGER(pmic_reguls);
+
+static TEE_Result register_pmic_regulator(const char *regu_name, int node)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+	size_t i = 0;
+
+	for (i = 0; i < ARRAY_SIZE(pmic_reguls); i++)
+		if (!strcmp(pmic_reguls[i].node_name, regu_name))
+			break;
+
+	assert(i < ARRAY_SIZE(pmic_reguls));
+
+	res = regulator_register(pmic_reguls + i, node);
+	if (res)
+		EMSG("Failed to register %s, error: %#"PRIx32, regu_name, res);
+
+	return res;
+}
+#endif /* CFG_REGULATOR_DRIVERS */
 
 /*
  * Automated suspend/resume at system suspend/resume is expected
@@ -572,16 +543,33 @@ DECLARE_KEEP_PAGER(pmic_pm);
 /* stm32mp_get/put_pmic allows secure atomic sequences to use non secure PMIC */
 void stm32mp_get_pmic(void)
 {
-	stm32_i2c_resume(&i2c_handle);
+	if (!pmic_is_secure()) {
+		stm32_i2c_resume(&i2c_handle);
+		stm32_pinctrl_load_config(i2c_handle.pinctrl);
+	}
 }
 
 void stm32mp_put_pmic(void)
+{
+	if (!pmic_is_secure())
+		stm32_i2c_suspend(&i2c_handle);
+}
+
+/* stm32mp_pm_get/put_pmic enforces get/put PMIC accesses */
+void stm32mp_pm_get_pmic(void)
+{
+	stm32_i2c_resume(&i2c_handle);
+}
+
+void stm32mp_pm_put_pmic(void)
 {
 	stm32_i2c_suspend(&i2c_handle);
 }
 
 static void register_non_secure_pmic(void)
 {
+	unsigned int __maybe_unused clock_id = 0;
+
 	/* Allow this function to be called when STPMIC1 not used */
 	if (!i2c_handle.base.pa)
 		return;
@@ -591,23 +579,22 @@ static void register_non_secure_pmic(void)
 
 #ifdef CFG_STM32MP1_SHARED_RESOURCES
 	stm32mp_register_non_secure_periph_iomem(i2c_handle.base.pa);
+	/*
+	 * Non secure PMIC can be used by secure world during power state
+	 * transition when non-secure world is suspended. Therefore secure
+	 * the I2C clock parents, if not specifically the I2C clock itself.
+	 */
+	clock_id = stm32mp_rcc_clk_to_clock_id(i2c_handle.clock);
+	stm32mp_register_clock_parents_secure(clock_id);
 #endif /* CFG_STM32MP1_SHARED_RESOURCES */
-}
-
-static void register_secure_pmic(void)
-{
-#ifdef CFG_STM32MP1_SHARED_RESOURCES
-	stm32mp_register_secure_periph_iomem(i2c_handle.base.pa);
-#endif /* CFG_STM32MP1_SHARED_RESOURCES */
-
-	register_pm_driver_cb(pmic_pm, NULL, "stm32mp1-pmic");
 }
 
 static TEE_Result initialize_pmic(void)
 {
 	unsigned long pmic_version = 0;
 
-	if (!initialize_pmic_i2c()) {
+	if (pmic_dt_status() == DT_STATUS_DISABLED ||
+	    !initialize_pmic_i2c()) {
 		DMSG("No PMIC");
 		register_non_secure_pmic();
 		return TEE_SUCCESS;
@@ -621,10 +608,13 @@ static TEE_Result initialize_pmic(void)
 	DMSG("PMIC version = 0x%02lx", pmic_version);
 	stpmic1_dump_regulators();
 
-	if (dt_pmic_is_secure())
-		register_secure_pmic();
-	else
+	if (stpmic1_powerctrl_on())
+		panic("Failed to enable pmic pwr control");
+
+	if (!pmic_is_secure())
 		register_non_secure_pmic();
+
+	register_pm_core_service_cb(pmic_pm, NULL, "stm32mp1-pmic");
 
 	parse_regulator_fdt_nodes();
 
@@ -632,4 +622,4 @@ static TEE_Result initialize_pmic(void)
 
 	return TEE_SUCCESS;
 }
-driver_init(initialize_pmic);
+service_init(initialize_pmic);
