@@ -32,16 +32,6 @@
 #include "context.h"
 #include "power.h"
 
-/*
- * Workaround for compilation untill CPU freq OPP is integrated
- */
-#define PLAT_MAX_OPP_NB 2
-#define PLAT_MAX_PLLCFG_NB 6
-static void stm32mp1_clk_lp_save_opp_pll1_settings(uint8_t *a __maybe_unused, size_t b __maybe_unused) { };
-/*
- * end of Workaround for compilation untill CPU freq OPP is integrated
- */
-
 #define TRAINING_AREA_SIZE		64
 
 /*
