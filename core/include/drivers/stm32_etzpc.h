@@ -1,12 +1,13 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 /*
- * Copyright (c) 2014, ARM Limited and Contributors. All rights reserved.
- * Copyright (c) 2018-2019, STMicroelectronics
+ * Copyright (c) 2014-2021, ARM Limited and Contributors. All rights reserved.
+ * Copyright (c) 2018-2021, STMicroelectronics
  */
 
 #ifndef __STM32_ETZPC_H__
 #define __STM32_ETZPC_H__
 
+#include <drivers/clk.h>
 #include <util.h>
 #include <types_ext.h>
 
@@ -18,71 +19,20 @@ enum etzpc_decprot_attributes {
 	ETZPC_DECPROT_MAX = 4,
 };
 
+struct stm32_etzpc_platdata {
+	const char *name;
+	uintptr_t base;
+	struct clk *clk;
+	uint8_t *periph_cfg;
+	uint16_t *tzma_cfg;
+};
+
 #define ETZPC_TZMA_ALL_SECURE		GENMASK_32(9, 0)
 #define ETZPC_TZMA_ALL_NO_SECURE	0x0
 
-/*
- * Load a DECPROT configuration
- * @decprot_id: ID that is the index of the DECPROT in the ETZPC interface
- * @decprot_attr: Restriction access attributes
- */
-void etzpc_configure_decprot(uint32_t decprot_id,
-			     enum etzpc_decprot_attributes decprot_attr);
-
-/*
- * Get the DECPROT attribute
- * @decprot_id: ID that is the index of the DECPROT in the ETZPC interface
- * Return attribute of this DECPROT
- */
-enum etzpc_decprot_attributes etzpc_get_decprot(uint32_t decprot_id);
-
-/*
- * Lock access to the DECPROT attributes
- * @decprot_id: ID that is the index of the DECPROT in the ETZPC interface
- */
-void etzpc_lock_decprot(uint32_t decprot_id);
-
-/*
- * Return the lock status of the target DECPROT
- * @decprot_id: ID that is the index of the DECPROT in the ETZPC interface
- */
-bool etzpc_get_lock_decprot(uint32_t decprot_id);
-
-/*
- * Configure the target TZMA read only size
- * @tzma_id: ID that is the index of the TZMA in the ETZPC interface
- * @tzma_value: Read-only size
- */
-void etzpc_configure_tzma(uint32_t tzma_id, uint16_t tzma_value);
-
-/*
- * Get the target TZMA read only size
- * @tzma_id: ID that is the index of the TZMA in the ETZPC interface
- * Return the size of read-only area
- */
-uint16_t etzpc_get_tzma(uint32_t tzma_id);
-
-/*
- * Lock the target TZMA
- * @tzma_id: ID that is the index of the TZMA in the ETZPC interface
- */
-void etzpc_lock_tzma(uint32_t tzma_id);
-
-/*
- * Return the lock status of the target TZMA
- * @tzma_id: ID that is the index of the TZMA in the ETZPC interface
- * Return true if TZMA is locked, false otherwise
- */
-bool etzpc_get_lock_tzma(uint32_t tzma_id);
-
-/*
- * Init the ETZPC device, nedded when not using the device tree
- * @base: ETZPC interface registers physcal base address
- */
 #ifdef CFG_STM32_ETZPC
 void stm32_etzpc_init(paddr_t base);
 #else
 static inline void stm32_etzpc_init(paddr_t __unused base) {}
 #endif
-
 #endif /*__STM32_ETZPC_H__*/
