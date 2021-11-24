@@ -9,6 +9,7 @@
 #include <console.h>
 #include <drivers/gic.h>
 #include <drivers/stm32_etzpc.h>
+#include <drivers/stm32_firewall.h>
 #include <drivers/stm32_iwdg.h>
 #include <drivers/stm32_tamp.h>
 #include <drivers/stm32_uart.h>
@@ -175,82 +176,6 @@ void main_secondary_init_gic(void)
 }
 
 #ifdef CFG_STM32MP13
-#ifdef CFG_STM32_ETZPC
-/* Configure ETZPC cell and lock it when resource is secure */
-static void config_lock_decprot(uint32_t decprot_id,
-				enum etzpc_decprot_attributes decprot_attr)
-{
-	etzpc_configure_decprot(decprot_id, decprot_attr);
-
-	if (decprot_attr == ETZPC_DECPROT_S_RW)
-		etzpc_lock_decprot(decprot_id);
-}
-
-static TEE_Result set_etzpc_secure_configuration(void)
-{
-	config_lock_decprot(STM32MP1_ETZPC_BKPSRAM_ID, ETZPC_DECPROT_S_RW);
-	config_lock_decprot(STM32MP1_ETZPC_DDRCTRLPHY_ID,
-			    ETZPC_DECPROT_NS_R_S_W);
-
-	/* Configure ETZPC with peripheral registering */
-	config_lock_decprot(STM32MP1_ETZPC_ADC1_ID, ETZPC_DECPROT_NS_RW);
-	config_lock_decprot(STM32MP1_ETZPC_ADC2_ID, ETZPC_DECPROT_NS_RW);
-	config_lock_decprot(STM32MP1_ETZPC_CRYP_ID, ETZPC_DECPROT_NS_RW);
-	config_lock_decprot(STM32MP1_ETZPC_DCMIPP_ID, ETZPC_DECPROT_NS_RW);
-	config_lock_decprot(STM32MP1_ETZPC_ETH1_ID, ETZPC_DECPROT_NS_RW);
-	config_lock_decprot(STM32MP1_ETZPC_ETH2_ID, ETZPC_DECPROT_NS_RW);
-	config_lock_decprot(STM32MP1_ETZPC_FMC_ID, ETZPC_DECPROT_NS_RW);
-	/* HASH is secure */
-	config_lock_decprot(STM32MP1_ETZPC_HASH_ID, ETZPC_DECPROT_S_RW);
-	config_lock_decprot(STM32MP1_ETZPC_I2C3_ID, ETZPC_DECPROT_NS_RW);
-	/* I2C4 is secure */
-	config_lock_decprot(STM32MP1_ETZPC_I2C4_ID, ETZPC_DECPROT_S_RW);
-	config_lock_decprot(STM32MP1_ETZPC_I2C5_ID, ETZPC_DECPROT_NS_RW);
-	/* IWDG1 is secure */
-	config_lock_decprot(STM32MP1_ETZPC_IWDG1_ID, ETZPC_DECPROT_S_RW);
-	config_lock_decprot(STM32MP1_ETZPC_LPTIM2_ID, ETZPC_DECPROT_NS_RW);
-	/* LPTIM3 is secure */
-	config_lock_decprot(STM32MP1_ETZPC_LPTIM3_ID, ETZPC_DECPROT_S_RW);
-	config_lock_decprot(STM32MP1_ETZPC_LTDC_ID, ETZPC_DECPROT_NS_RW);
-	/* MCE is secure */
-	config_lock_decprot(STM32MP1_ETZPC_MCE_ID, ETZPC_DECPROT_S_RW);
-	config_lock_decprot(STM32MP1_ETZPC_OTG_ID, ETZPC_DECPROT_NS_RW);
-	/* PKA is secure */
-	config_lock_decprot(STM32MP1_ETZPC_PKA_ID, ETZPC_DECPROT_S_RW);
-	config_lock_decprot(STM32MP1_ETZPC_QSPI_ID, ETZPC_DECPROT_NS_RW);
-	/* RNG is secure */
-	config_lock_decprot(STM32MP1_ETZPC_RNG_ID, ETZPC_DECPROT_S_RW);
-	/* SAES is secure */
-	config_lock_decprot(STM32MP1_ETZPC_SAES_ID, ETZPC_DECPROT_NS_RW);
-	config_lock_decprot(STM32MP1_ETZPC_SDMMC1_ID, ETZPC_DECPROT_NS_RW);
-	config_lock_decprot(STM32MP1_ETZPC_SDMMC2_ID, ETZPC_DECPROT_NS_RW);
-	config_lock_decprot(STM32MP1_ETZPC_SPI4_ID, ETZPC_DECPROT_NS_RW);
-	config_lock_decprot(STM32MP1_ETZPC_SPI5_ID, ETZPC_DECPROT_NS_RW);
-	config_lock_decprot(STM32MP1_ETZPC_SRAM1_ID, ETZPC_DECPROT_NS_RW);
-	config_lock_decprot(STM32MP1_ETZPC_SRAM2_ID, ETZPC_DECPROT_NS_RW);
-	/* SRAM3 is secure */
-	config_lock_decprot(STM32MP1_ETZPC_SRAM3_ID, ETZPC_DECPROT_S_RW);
-	/* STGENC is secure */
-	config_lock_decprot(STM32MP1_ETZPC_STGENC_ID, ETZPC_DECPROT_S_RW);
-	/* TIM12 is secure */
-	config_lock_decprot(STM32MP1_ETZPC_TIM12_ID, ETZPC_DECPROT_S_RW);
-	config_lock_decprot(STM32MP1_ETZPC_TIM13_ID, ETZPC_DECPROT_NS_RW);
-	config_lock_decprot(STM32MP1_ETZPC_TIM14_ID, ETZPC_DECPROT_NS_RW);
-	/* TIM15 is secure */
-	config_lock_decprot(STM32MP1_ETZPC_TIM15_ID, ETZPC_DECPROT_S_RW);
-	config_lock_decprot(STM32MP1_ETZPC_TIM16_ID, ETZPC_DECPROT_NS_RW);
-	config_lock_decprot(STM32MP1_ETZPC_TIM17_ID, ETZPC_DECPROT_NS_RW);
-	config_lock_decprot(STM32MP1_ETZPC_USART1_ID, ETZPC_DECPROT_NS_RW);
-	config_lock_decprot(STM32MP1_ETZPC_USART2_ID, ETZPC_DECPROT_NS_RW);
-	config_lock_decprot(STM32MP1_ETZPC_USBPHYCTRL_ID, ETZPC_DECPROT_NS_RW);
-	config_lock_decprot(STM32MP1_ETZPC_VREFBUF_ID, ETZPC_DECPROT_NS_RW);
-
-	return TEE_SUCCESS;
-}
-
-driver_init_late(set_etzpc_secure_configuration);
-#endif /* CFG_STM32_ETZPC */
-
 #ifdef CFG_STM32_GPIO
 
 #define NB_PINS_PER_BANK		U(16)
@@ -289,13 +214,19 @@ early_init_late(set_all_gpios_non_secure);
 
 static TEE_Result init_stm32mp1_drivers(void)
 {
+	TEE_Result res = TEE_ERROR_GENERIC;
+	const struct stm32_firewall_cfg sec_cfg[] = {
+		{ FWLL_SEC_RW | FWLL_MASTER(0) },
+		{ }, /* Null terminated */
+	};
+
 	/* Without secure DTB support, some drivers must be inited */
 	if (!IS_ENABLED(CFG_EMBED_DTB))
 		stm32_etzpc_init(ETZPC_BASE);
 
-	/* Secure internal memories for the platform, once ETZPC is ready */
-	etzpc_configure_tzma(0, ETZPC_TZMA_ALL_SECURE);
-	etzpc_lock_tzma(0);
+	res = stm32_firewall_set_config(ROM_BASE, ROM_SIZE, sec_cfg);
+	if (res)
+		panic("Unable to secure ROM");
 
 #ifdef CFG_TZSRAM_START
 	COMPILE_TIME_ASSERT(((SYSRAM_BASE + SYSRAM_SIZE) <= CFG_TZSRAM_START) ||
@@ -303,13 +234,14 @@ static TEE_Result init_stm32mp1_drivers(void)
 			     (SYSRAM_SEC_SIZE >= CFG_TZSRAM_SIZE)));
 #endif /* CFG_TZSRAM_START */
 
-	etzpc_configure_tzma(1, SYSRAM_SEC_SIZE >> SMALL_PAGE_SHIFT);
-	etzpc_lock_tzma(1);
+	res = stm32_firewall_set_config(SYSRAM_BASE, SYSRAM_SEC_SIZE, sec_cfg);
+	if (res)
+		panic("Unable to secure SYSRAM");
 
 	return TEE_SUCCESS;
 }
 
-service_init_late(init_stm32mp1_drivers);
+driver_init_late(init_stm32mp1_drivers);
 
 static TEE_Result init_late_stm32mp1_drivers(void)
 {

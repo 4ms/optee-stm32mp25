@@ -42,7 +42,7 @@ static struct stm32_firewall_device *find_device(paddr_t base, size_t size,
 				return fdev;
 			}
 
-			if (reg->addr && reg->size && base >= reg->addr &&
+			if (reg->size && base >= reg->addr &&
 			    base + size - 1 <= reg->addr + reg->size - 1) {
 				*idx = i;
 				return fdev;
