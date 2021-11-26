@@ -9,8 +9,10 @@
 /* Platform util for the RCC drivers */
 vaddr_t stm32_rcc_base(void);
 
+#ifdef CFG_DRIVERS_CLK
 /* Helper from platform RCC clock driver */
 struct clk *stm32mp_rcc_clock_id_to_clk(unsigned long clock_id);
+#endif
 
 #ifdef CFG_STM32MP15_CLK
 /* Export stm32mp1_clk_ops to make it pager resisdent for STM32MP15 */

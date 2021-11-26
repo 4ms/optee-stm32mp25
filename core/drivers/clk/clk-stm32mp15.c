@@ -1212,24 +1212,6 @@ static void get_osc_freq_from_dt(const void *fdt)
 }
 #endif /*CFG_EMBED_DTB*/
 
-static void enable_static_secure_clocks(void)
-{
-	unsigned int idx = 0;
-	const unsigned long secure_enable[] = {
-		DDRC1, DDRC1LP, DDRC2, DDRC2LP, DDRPHYC, DDRPHYCLP, DDRCAPB,
-		AXIDCG, DDRPHYCAPB, DDRPHYCAPBLP, TZPC, TZC1, TZC2, STGEN_K,
-		BSEC,
-	};
-
-	for (idx = 0; idx < ARRAY_SIZE(secure_enable); idx++) {
-		clk_enable(stm32mp_rcc_clock_id_to_clk(secure_enable[idx]));
-		stm32mp_register_clock_parents_secure(secure_enable[idx]);
-	}
-
-	if (CFG_TEE_CORE_NB_CORE > 1)
-		clk_enable(stm32mp_rcc_clock_id_to_clk(RTCAPB));
-}
-
 static void __maybe_unused enable_rcc_tzen(void)
 {
 	io_setbits32(stm32_rcc_base() + RCC_TZCR, RCC_TZCR_TZEN);
@@ -1513,6 +1495,24 @@ static struct clk *stm32mp1_clk_dt_get_clk(struct dt_driver_phandle_args *pargs,
 /* Non-null reference for compat data */
 static const uint8_t non_secure_rcc;
 
+static void enable_static_secure_clocks(void)
+{
+	unsigned int idx = 0;
+	const unsigned long secure_enable[] = {
+		DDRC1, DDRC1LP, DDRC2, DDRC2LP, DDRPHYC, DDRPHYCLP, DDRCAPB,
+		AXIDCG, DDRPHYCAPB, DDRPHYCAPBLP, TZPC, TZC1, TZC2, STGEN_K,
+		BSEC,
+	};
+
+	for (idx = 0; idx < ARRAY_SIZE(secure_enable); idx++) {
+		clk_enable(stm32mp_rcc_clock_id_to_clk(secure_enable[idx]));
+		stm32mp_register_clock_parents_secure(secure_enable[idx]);
+	}
+
+	if (CFG_TEE_CORE_NB_CORE > 1)
+		clk_enable(stm32mp_rcc_clock_id_to_clk(RTCAPB));
+}
+
 static TEE_Result stm32mp1_clock_provider_probe(const void *fdt, int offs,
 						const void *compat_data)
 {
@@ -1560,6 +1560,33 @@ DEFINE_DT_DRIVER(stm32mp1_clock_dt_driver) = {
 	.probe = stm32mp1_clock_provider_probe,
 };
 #else /*CFG_DRIVERS_CLK_DT*/
+static void stm32_clock_enable(unsigned long clock_id)
+{
+	int index = clock_id_to_gate_index(clock_id);
+
+	if (index >= 0)
+		__clk_enable(stm32mp1_clk_gate + index);
+
+	assert(clock_id_to_always_on_index(clock_id) >= 0);
+}
+
+static void enable_static_secure_clocks(void)
+{
+	unsigned int idx = 0;
+	const unsigned long secure_enable[] = {
+		DDRC1, DDRC1LP, DDRC2, DDRC2LP, DDRPHYC, DDRPHYCLP, DDRCAPB,
+		AXIDCG, DDRPHYCAPB, DDRPHYCAPBLP, TZPC, TZC1, TZC2, STGEN_K,
+		BSEC,
+	};
+	for (idx = 0; idx < ARRAY_SIZE(secure_enable); idx++) {
+		stm32_clock_enable(secure_enable[idx]);
+		stm32mp_register_clock_parents_secure(secure_enable[idx]);
+	}
+
+	if (CFG_TEE_CORE_NB_CORE > 1)
+		stm32_clock_enable(RTCAPB);
+}
+
 static TEE_Result stm32mp1_clk_early_init(void)
 {
 	TEE_Result __maybe_unused res = TEE_ERROR_GENERIC;
