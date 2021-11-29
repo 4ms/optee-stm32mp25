@@ -527,18 +527,6 @@ static struct regul_property flag_prop[] = {
 		.name = "regulator-pull-down",
 		.flag = REGUL_PULL_DOWN,
 	},
-	{
-		.name = "st,mask-reset",
-		.flag = REGUL_MASK_RESET,
-	},
-	{
-		.name = "st,regulator-sink-source",
-		.flag = REGUL_SINK_SOURCE,
-	},
-	{
-		.name = "st,regulator-bypass",
-		.flag = REGUL_ENABLE_BYPASS,
-	},
 };
 
 static TEE_Result parse_properties(const void *fdt, struct rdev *rdev, int node)

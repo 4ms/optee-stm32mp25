@@ -25,27 +25,12 @@ int plat_get_lp_mode_count(void);
  * The regulator is needed to exit from suspend so it is turned on during suspend entry.
  */
 #define REGUL_BOOT_ON		BIT(1)
-
-/*
- * ST proprietary flags: to be in a private struct
- * To move to driver private.
- */
-
 /* regulator-over-current-protection: Enable over current protection. */
 #define REGUL_OCP		BIT(2)
 /* regulator-active-discharge: enable active discharge. */
 #define REGUL_ACTIVE_DISCHARGE	BIT(3)
 /* regulator-pull-down: Enable pull down resistor when the regulator is disabled. */
 #define REGUL_PULL_DOWN		BIT(4)
-/*
- * st,mask-reset: set mask reset for the regulator, meaning that the regulator
- * setting is maintained during pmic reset.
- */
-#define REGUL_MASK_RESET	BIT(5)
-/* st,regulator-sink-source: set the regulator in sink source mode */
-#define REGUL_SINK_SOURCE	BIT(6)
-/* st,regulator-bypass: set the regulator in bypass mode */
-#define REGUL_ENABLE_BYPASS	BIT(7)
 
 struct rdev *regulator_get_by_node_name(const char *node_name);
 struct rdev *regulator_get_by_regulator_name(const char *reg_name);
