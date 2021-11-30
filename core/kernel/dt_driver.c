@@ -2,8 +2,7 @@
 /*
  * Copyright (c) 2021, Linaro Limited
  * Copyright (c) 2021, Bootlin
- * Copyright (c) 2021, Linaro Limited
- * Copyright (c) 2021, STMicroelectronics
+ * Copyright (c) 2022, STMicroelectronics
  */
 
 #include <assert.h>
@@ -106,6 +105,7 @@ static void assert_type_is_valid(enum dt_driver_type type)
 	case DT_DRIVER_CLK:
 	case DT_DRIVER_RSTCTRL:
 	case DT_DRIVER_UART:
+	case DT_DRIVER_PINCTRL:
 		return;
 	default:
 		assert(0);
@@ -175,6 +175,8 @@ int fdt_get_dt_driver_cells(const void *fdt, int nodeoffset,
 	case DT_DRIVER_RSTCTRL:
 		cells_name = "#reset-cells";
 		break;
+	case DT_DRIVER_PINCTRL:
+		return 0;
 	default:
 		panic();
 	}
