@@ -12,7 +12,6 @@
 #include <drivers/stm32_iwdg.h>
 #include <drivers/stm32_tamp.h>
 #include <drivers/stm32_uart.h>
-#include <drivers/stm32mp1_etzpc.h>
 #include <drivers/stm32mp_dt_bindings.h>
 #include <kernel/boot.h>
 #include <kernel/dt.h>
