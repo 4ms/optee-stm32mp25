@@ -1344,26 +1344,6 @@
 			status = "disabled";
 		};
 
-		hash1: hash@54002000 {
-			compatible = "st,stm32f756-hash";
-			reg = <0x54002000 0x400>;
-			interrupts = <GIC_SPI 80 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&rcc HASH1>;
-			resets = <&rcc HASH1_R>;
-			dmas = <&mdma1 31 0x2 0x1000A02 0x0 0x0>;
-			dma-names = "in";
-			dma-maxburst = <2>;
-			status = "disabled";
-		};
-
-		rng1: rng@54003000 {
-			compatible = "st,stm32-rng";
-			reg = <0x54003000 0x400>;
-			clocks = <&rcc RNG1_K>;
-			resets = <&rcc RNG1_R>;
-			status = "disabled";
-		};
-
 		mdma1: dma-controller@58000000 {
 			compatible = "st,stm32h7-mdma";
 			reg = <0x58000000 0x1000>;
@@ -1561,54 +1541,6 @@
 			};
 		};
 
-		usart1: serial@5c000000 {
-			compatible = "st,stm32h7-uart";
-			reg = <0x5c000000 0x400>;
-			interrupts-extended = <&exti 26 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&rcc USART1_K>;
-			wakeup-source;
-			status = "disabled";
-		};
-
-		spi6: spi@5c001000 {
-			#address-cells = <1>;
-			#size-cells = <0>;
-			compatible = "st,stm32h7-spi";
-			reg = <0x5c001000 0x400>;
-			interrupts = <GIC_SPI 86 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&rcc SPI6_K>;
-			resets = <&rcc SPI6_R>;
-			dmas = <&mdma1 34 0x0 0x40008 0x0 0x0>,
-			       <&mdma1 35 0x0 0x40002 0x0 0x0>;
-			dma-names = "rx", "tx";
-			status = "disabled";
-		};
-
-		i2c4: i2c@5c002000 {
-			compatible = "st,stm32mp15-i2c";
-			reg = <0x5c002000 0x400>;
-			interrupt-names = "event", "error";
-			interrupts = <GIC_SPI 95 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&rcc I2C4_K>;
-			resets = <&rcc I2C4_R>;
-			#address-cells = <1>;
-			#size-cells = <0>;
-			st,syscfg-fmp = <&syscfg 0x4 0x8>;
-			wakeup-source;
-			i2c-analog-filter;
-			status = "disabled";
-		};
-
-		iwdg1: watchdog@5c003000 {
-			compatible = "st,stm32mp1-iwdg";
-			reg = <0x5C003000 0x400>;
-			interrupts = <GIC_SPI 150 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&rcc IWDG1>, <&rcc CK_LSI>;
-			clock-names = "pclk", "lsi";
-			status = "disabled";
-		};
-
 		rtc: rtc@5c004000 {
 			compatible = "st,stm32mp1-rtc";
 			reg = <0x5c004000 0x400>;
@@ -1645,33 +1577,6 @@
 			interrupts = <GIC_SPI 4 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rcc TZC1>, <&rcc TZC2>;
 			st,mem-map = <0xc0000000 0x40000000>;
-		};
-
-		etzpc: etzpc@5c007000 {
-			compatible = "st,stm32-etzpc";
-			reg = <0x5C007000 0x400>;
-			clocks = <&rcc TZPC>;
-		};
-
-		stgen: stgen@5c008000 {
-			compatible = "st,stm32-stgen";
-			reg = <0x5C008000 0x1000>;
-		};
-
-		i2c6: i2c@5c009000 {
-			compatible = "st,stm32mp15-i2c";
-			reg = <0x5c009000 0x400>;
-			interrupt-names = "event", "error";
-			interrupts = <GIC_SPI 135 IRQ_TYPE_LEVEL_HIGH>,
-				     <GIC_SPI 136 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&rcc I2C6_K>;
-			resets = <&rcc I2C6_R>;
-			#address-cells = <1>;
-			#size-cells = <0>;
-			st,syscfg-fmp = <&syscfg 0x4 0x20>;
-			wakeup-source;
-			i2c-analog-filter;
-			status = "disabled";
 		};
 
 		tamp: tamp@5c00a000 {
@@ -1834,6 +1739,103 @@
 				st,bank-name = "GPIOZ";
 				st,bank-ioport = <11>;
 				status = "disabled";
+			};
+		};
+
+		etzpc: etzpc@5c007000 {
+			compatible = "st,stm32-etzpc", "firewall-bus";
+			reg = <0x5C007000 0x400>;
+			clocks = <&rcc TZPC>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			hash1: hash@54002000 {
+				compatible = "st,stm32f756-hash";
+				reg = <0x54002000 0x400>;
+				interrupts = <GIC_SPI 80 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&rcc HASH1>;
+				resets = <&rcc HASH1_R>;
+				dmas = <&mdma1 31 0x2 0x1000A02 0x0 0x0>;
+				dma-names = "in";
+				dma-maxburst = <2>;
+				status = "disabled";
+			};
+
+			rng1: rng@54003000 {
+				compatible = "st,stm32-rng";
+				reg = <0x54003000 0x400>;
+				clocks = <&rcc RNG1_K>;
+				resets = <&rcc RNG1_R>;
+				status = "disabled";
+			};
+
+			usart1: serial@5c000000 {
+				compatible = "st,stm32h7-uart";
+				reg = <0x5c000000 0x400>;
+				interrupts-extended = <&exti 26 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&rcc USART1_K>;
+				wakeup-source;
+				status = "disabled";
+			};
+
+			spi6: spi@5c001000 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				compatible = "st,stm32h7-spi";
+				reg = <0x5c001000 0x400>;
+				interrupts = <GIC_SPI 86 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&rcc SPI6_K>;
+				resets = <&rcc SPI6_R>;
+				dmas = <&mdma1 34 0x0 0x40008 0x0 0x0>,
+				<&mdma1 35 0x0 0x40002 0x0 0x0>;
+				dma-names = "rx", "tx";
+				status = "disabled";
+			};
+
+			i2c4: i2c@5c002000 {
+				compatible = "st,stm32mp15-i2c";
+				reg = <0x5c002000 0x400>;
+				interrupt-names = "event", "error";
+				interrupts = <GIC_SPI 95 IRQ_TYPE_LEVEL_HIGH>,
+					     <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&rcc I2C4_K>;
+				resets = <&rcc I2C4_R>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+				st,syscfg-fmp = <&syscfg 0x4 0x8>;
+				wakeup-source;
+				i2c-analog-filter;
+				status = "disabled";
+			};
+
+			iwdg1: watchdog@5c003000 {
+				compatible = "st,stm32mp1-iwdg";
+				reg = <0x5C003000 0x400>;
+				interrupts = <GIC_SPI 150 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&rcc IWDG1>, <&rcc CK_LSI>;
+				clock-names = "pclk", "lsi";
+				status = "disabled";
+			};
+
+			i2c6: i2c@5c009000 {
+				compatible = "st,stm32mp15-i2c";
+				reg = <0x5c009000 0x400>;
+				interrupt-names = "event", "error";
+				interrupts = <GIC_SPI 135 IRQ_TYPE_LEVEL_HIGH>,
+					     <GIC_SPI 136 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&rcc I2C6_K>;
+				resets = <&rcc I2C6_R>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+				st,syscfg-fmp = <&syscfg 0x4 0x20>;
+				wakeup-source;
+				i2c-analog-filter;
+				status = "disabled";
+			};
+
+			stgen: stgen@5c008000 {
+				compatible = "st,stm32-stgen";
+				reg = <0x5C008000 0x1000>;
 			};
 		};
 	};
