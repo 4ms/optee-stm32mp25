@@ -8,6 +8,7 @@
 
 #include <dt-bindings/clock/stm32mp1-clksrc.h>
 #include <dt-bindings/mfd/st,stpmic1.h>
+#include <dt-bindings/soc/stm32mp15-etzpc.h>
 
 #include "stm32mp157d-ed1.dts"
 
