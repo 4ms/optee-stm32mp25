@@ -10,6 +10,7 @@
 #include <drivers/clk.h>
 #include <drivers/clk_dt.h>
 #include <drivers/stm32_gpio.h>
+#include <gpio.h>
 #include <io.h>
 #include <kernel/dt.h>
 #include <kernel/boot.h>
@@ -23,8 +24,6 @@
 #include <stm32_util.h>
 #include <trace.h>
 #include <util.h>
-
-#define GPIO_PIN_MAX		15
 
 #define GPIO_MODER_OFFSET	U(0x00)
 #define GPIO_OTYPER_OFFSET	U(0x04)
@@ -130,6 +129,74 @@ static struct stm32_gpio_bank *stm32_gpio_get_bank(unsigned int bank_id)
 	return bank;
 }
 
+static int __maybe_unused stm32_gpio_bank_get_count(unsigned int bank_id)
+{
+	struct stm32_gpio_bank *bank = stm32_gpio_get_bank(bank_id);
+
+	if (!bank) {
+		EMSG("Error: can not find GPIO bank %c", bank_id + 'A');
+		return -1;
+	}
+
+	return bank->ngpios;
+}
+
+static enum gpio_level
+stm32_gpio_get_level(struct gpio_chip *chip __maybe_unused,
+		     unsigned int gpio)
+{
+	uint32_t bank_id = (gpio & DT_GPIO_BANK_MASK) >> DT_GPIO_BANK_SHIFT;
+	uint32_t pin = (gpio & DT_GPIO_PIN_MASK) >> DT_GPIO_PIN_SHIFT;
+	struct stm32_gpio_bank *bank = stm32_gpio_get_bank(bank_id);
+	enum gpio_level level = GPIO_LEVEL_LOW;
+
+	if (!bank) {
+		EMSG("Error: can not find GPIO bank %c", bank_id + 'A');
+		return level;
+	}
+
+	clk_enable(bank->clock);
+
+	if (io_read32(bank->base + GPIO_IDR_OFFSET) & BIT(pin))
+		level = GPIO_LEVEL_HIGH;
+
+	clk_disable(bank->clock);
+
+	return level;
+}
+
+static void stm32_gpio_set_level(struct gpio_chip *chip __maybe_unused,
+				 unsigned int gpio, enum gpio_level level)
+{
+	uint32_t bank_id = (gpio & DT_GPIO_BANK_MASK) >> DT_GPIO_BANK_SHIFT;
+	uint32_t pin = (gpio & DT_GPIO_PIN_MASK) >> DT_GPIO_PIN_SHIFT;
+	struct stm32_gpio_bank *bank = stm32_gpio_get_bank(bank_id);
+
+	if (!bank) {
+		EMSG("Error: can not find GPIO bank %c", bank_id + 'A');
+		return;
+	}
+
+	clk_enable(bank->clock);
+
+	if (level == GPIO_LEVEL_HIGH)
+		io_write32(bank->base + GPIO_BSRR_OFFSET, BIT(pin));
+	else
+		io_write32(bank->base + GPIO_BSRR_OFFSET, BIT(pin + 16));
+
+	clk_disable(bank->clock);
+}
+
+static const struct gpio_ops stm32_gpio_ops = {
+	.get_value = stm32_gpio_get_level,
+	.set_value = stm32_gpio_set_level,
+};
+
+const struct gpio_ops *stm32_gpio_get_ops(void)
+{
+	return &stm32_gpio_ops;
+}
+
 /* Apply GPIO (@bank/@pin) configuration described by @cfg */
 static void set_gpio_cfg(uint32_t bank_id, uint32_t pin, struct gpio_cfg *cfg)
 {
@@ -223,59 +290,6 @@ void stm32_pinctrl_load_standby_cfg(struct stm32_pinctrl_list *list)
 
 	STAILQ_FOREACH(p, list, link)
 		set_gpio_cfg(p->bank, p->pin, &p->standby_cfg);
-}
-
-static __maybe_unused bool valid_gpio_config(struct stm32_gpio_bank *bank,
-					     unsigned int pin, bool input)
-{
-	uint32_t mode = 0;
-
-	if (pin > GPIO_PIN_MAX)
-		return false;
-
-	clk_enable(bank->clock);
-	mode = (io_read32(bank->base + GPIO_MODER_OFFSET) >> (pin << 1)) &
-	       GPIO_MODE_MASK;
-	clk_disable(bank->clock);
-
-	if (input)
-		return mode == GPIO_MODE_INPUT;
-	else
-		return mode == GPIO_MODE_OUTPUT;
-}
-
-int stm32_gpio_get_input_level(unsigned int bank_id, unsigned int pin)
-{
-	struct stm32_gpio_bank *bank = stm32_gpio_get_bank(bank_id);
-	int rc = 0;
-
-	assert(valid_gpio_config(bank, pin, true));
-
-	clk_enable(bank->clock);
-
-	if (io_read32(bank->base + GPIO_IDR_OFFSET) == BIT(pin))
-		rc = 1;
-
-	clk_disable(bank->clock);
-
-	return rc;
-}
-
-void stm32_gpio_set_output_level(unsigned int bank_id, unsigned int pin,
-				 int level)
-{
-	struct stm32_gpio_bank *bank = stm32_gpio_get_bank(bank_id);
-
-	assert(valid_gpio_config(bank, pin, false));
-
-	clk_enable(bank->clock);
-
-	if (level)
-		io_write32(bank->base + GPIO_BSRR_OFFSET, BIT(pin));
-	else
-		io_write32(bank->base + GPIO_BSRR_OFFSET, BIT(pin + 16));
-
-	clk_disable(bank->clock);
 }
 
 TEE_Result stm32_gpio_set_secure_cfg(unsigned int bank_id, unsigned int pin,

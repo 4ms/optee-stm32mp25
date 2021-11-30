@@ -143,45 +143,11 @@ TEE_Result stm32_pinctrl_dt_get_by_name(const void *fdt, int nodeoffset,
 					struct stm32_pinctrl_list **plist);
 
 /*
- * Set target output GPIO pin to high or low level
+ * Get the gpio_ops handle for a GPIO
  *
- * @bank: GPIO bank identifier as assigned by the platform
- * @pin: GPIO pin position in the GPIO bank
- * @high: 1 to set GPIO to high level, 0 to set to GPIO low level
+ * Return the generic gpio_ops for GPIOS
  */
-void stm32_gpio_set_output_level(unsigned int bank, unsigned int pin, int high);
-
-/*
- * Set output GPIO pin referenced by @pinctrl to high or low level
- *
- * @pinctrl: Reference to pinctrl
- * @high: 1 to set GPIO to high level, 0 to set to GPIO low level
- */
-static inline void stm32_pinctrl_set_gpio_level(struct stm32_pinctrl *pinctrl,
-						int high)
-{
-	stm32_gpio_set_output_level(pinctrl->bank, pinctrl->pin, high);
-}
-
-/*
- * Get input GPIO pin current level, high or low
- *
- * @bank: GPIO bank identifier as assigned by the platform
- * @pin: GPIO pin position in the GPIO bank
- * Return 1 if GPIO level is high, 0 if it is low
- */
-int stm32_gpio_get_input_level(unsigned int bank, unsigned int pin);
-
-/*
- * Set target output GPIO pin to high or low level
- *
- * @pinctrl: Reference to pinctrl
- * Return 1 if GPIO level is high, 0 if it is low
- */
-static inline int stm32_pinctrl_get_gpio_level(struct stm32_pinctrl *pinctrl)
-{
-	return stm32_gpio_get_input_level(pinctrl->bank, pinctrl->pin);
-}
+const struct gpio_ops *stm32_gpio_get_ops(void);
 
 #ifdef CFG_STM32_GPIO
 /*
