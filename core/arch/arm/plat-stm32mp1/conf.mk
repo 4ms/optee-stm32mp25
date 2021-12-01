@@ -102,6 +102,7 @@ $(call force,CFG_DRIVERS_CLK,y)
 $(call force,CFG_GIC,y)
 $(call force,CFG_INIT_CNTVOFF,y)
 $(call force,CFG_PSCI_ARM32,y)
+$(call force,CFG_REGULATOR_DRIVERS,y)
 $(call force,CFG_SECURE_TIME_SOURCE_CNTPCT,y)
 $(call force,CFG_SM_PLATFORM_HANDLER,y)
 $(call force,CFG_STM32_SHARED_IO,y)
@@ -118,6 +119,7 @@ $(call force,CFG_STM32MP1_SCMI_SIP,n)
 $(call force,CFG_STM32MP1_SHARED_RESOURCES,n)
 $(call force,CFG_STM32MP13_CLK,y)
 $(call force,CFG_STM32MP13_RSTCTRL,y)
+$(call force,CFG_STPMIC1,n)
 $(call force,CFG_TEE_CORE_NB_CORE,1)
 $(call force,CFG_WITH_NSEC_GPIOS,n)
 CFG_EXTERNAL_DT ?= n
@@ -130,6 +132,7 @@ $(call force,CFG_BOOT_SECONDARY_REQUEST,y)
 $(call force,CFG_DRIVERS_CLK_FIXED,n)
 $(call force,CFG_SECONDARY_INIT_CNTFRQ,y)
 $(call force,CFG_STM32MP1_SHARED_RESOURCES,y)
+$(call force,CFG_STM32_VREFBUF,n)
 $(call force,CFG_STM32MP15_CLK,y)
 $(call force,CFG_STM32MP15_RSTCTRL,y)
 CFG_CORE_RESERVED_SHM ?= y
@@ -152,10 +155,13 @@ ifeq ($(CFG_EMBED_DTB_SOURCE_FILE),)
 # Some drivers mandate DT support
 $(call force,CFG_DRIVERS_CLK_DT,n)
 $(call force,CFG_DRIVERS_RSTCTRL,n)
+$(call force,CFG_REGULATOR_FIXED,n)
 $(call force,CFG_STM32_CRYP,n)
 $(call force,CFG_STM32_GPIO,n)
 $(call force,CFG_STM32_I2C,n)
 $(call force,CFG_STM32_IWDG,n)
+$(call force,CFG_STM32_REGULATOR_GPIO,n)
+$(call force,CFG_STM32_VREFBUF,y)
 $(call force,CFG_STM32_TAMP,n)
 $(call force,CFG_STPMIC1,n)
 $(call force,CFG_STM32MP1_SCMI_SIP,n)
@@ -191,16 +197,19 @@ CFG_TZDRAM_SIZE  ?= 0x02000000
 CFG_TZDRAM_START ?= ($(CFG_DRAM_BASE) + $(CFG_DRAM_SIZE) - $(CFG_TZDRAM_SIZE))
 endif #CFG_STM32MP15
 
+CFG_REGULATOR_FIXED ?= y
 CFG_STM32_BSEC ?= y
 CFG_STM32_CRYP ?= y
 CFG_STM32_ETZPC ?= y
 CFG_STM32_GPIO ?= y
 CFG_STM32_I2C ?= y
 CFG_STM32_IWDG ?= y
+CFG_STM32_REGULATOR_GPIO ?= y
 CFG_STM32_RNG ?= y
 CFG_STM32_RSTCTRL ?= y
 CFG_STM32_TAMP ?= y
 CFG_STM32_UART ?= y
+CFG_STM32_VREFBUF ?= y
 CFG_STPMIC1 ?= y
 CFG_SYSCFG ?= y
 CFG_TZC400 ?= y
