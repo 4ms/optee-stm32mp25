@@ -8,7 +8,12 @@
 
 #include <tee_api_types.h>
 
+enum cipher_ip_id {
+	CRYP_IP,
+	SAES_IP,
+};
+
 TEE_Result stm32_register_authenc(void);
-TEE_Result stm32_register_cipher(void);
+TEE_Result stm32_register_cipher(enum cipher_ip_id);
 
 #endif /* __DRIVERS_CRYPTO_STM32_COMMON_H */

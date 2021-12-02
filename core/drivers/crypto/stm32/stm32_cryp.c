@@ -1297,7 +1297,7 @@ static TEE_Result stm32_cryp_probe(const void *fdt, int node,
 	}
 
 	if (IS_ENABLED(CFG_CRYPTO_DRV_CIPHER)) {
-		res = stm32_register_cipher();
+		res = stm32_register_cipher(CRYP_IP);
 		if (res) {
 			EMSG("Failed to register to cipher: %#"PRIx32, res);
 			panic();
