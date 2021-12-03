@@ -59,6 +59,17 @@ struct clk_rate_request {
 };
 
 /**
+ * struct clk_duty - Struture encoding the duty cycle ratio of a clock
+ *
+ * @num:	Numerator of the duty cycle ratio
+ * @den:	Denominator of the duty cycle ratio
+ */
+struct clk_duty {
+	unsigned int num;
+	unsigned int den;
+};
+
+/**
  * struct clk_ops
  *
  * @is_enabled: Get effective state of the clock (on / off)
@@ -79,6 +90,8 @@ struct clk_ops {
 			       unsigned long parent_rate);
 	unsigned long (*get_rate)(struct clk *clk,
 				  unsigned long parent_rate);
+	TEE_Result (*get_duty_cycle)(struct clk *clk,
+				     struct clk_duty *duty);
 	TEE_Result (*determine_rate)(struct clk *clk,
 				     struct clk_rate_request *req);
 };
@@ -200,5 +213,14 @@ struct clk *clk_get_parent_by_index(struct clk *clk, size_t pidx);
  * Return a TEE_Result compliant value
  */
 TEE_Result clk_set_parent(struct clk *clk, struct clk *parent);
+
+/**
+ * clk_get_duty_cyle - Get clock duty cycle
+ *
+ * @clk: Clock for which the duty cycle is requested
+ * @duty: Output duty cycle info
+ * Return a TEE_Result compliant value
+ */
+TEE_Result clk_get_duty_cyle(struct clk *clk, struct clk_duty *duty);
 
 #endif /* __DRIVERS_CLK_H */
