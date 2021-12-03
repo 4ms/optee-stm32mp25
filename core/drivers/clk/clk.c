@@ -401,3 +401,11 @@ TEE_Result clk_get_duty_cyle(struct clk *clk, struct clk_duty *duty)
 
 	return TEE_ERROR_GENERIC;
 }
+
+unsigned long clk_round_rate(struct clk *clk, unsigned long rate)
+{
+	if (clk->ops->round_rate)
+		return clk->ops->round_rate(clk, rate, clk->parent->rate);
+
+	return TEE_ERROR_GENERIC;
+}

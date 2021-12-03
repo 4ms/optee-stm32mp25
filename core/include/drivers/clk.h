@@ -92,6 +92,9 @@ struct clk_ops {
 				  unsigned long parent_rate);
 	TEE_Result (*get_duty_cycle)(struct clk *clk,
 				     struct clk_duty *duty);
+	unsigned long (*round_rate)(struct clk *clk,
+				    unsigned long rate,
+				    unsigned long parent_rate);
 	TEE_Result (*determine_rate)(struct clk *clk,
 				     struct clk_rate_request *req);
 };
@@ -222,5 +225,13 @@ TEE_Result clk_set_parent(struct clk *clk, struct clk *parent);
  * Return a TEE_Result compliant value
  */
 TEE_Result clk_get_duty_cyle(struct clk *clk, struct clk_duty *duty);
+
+/**
+ * clk_round_rate - Round the given rate for a clock
+ * @clk: Clock for which the round rate is need
+ * @rate: The rate which is to be rounded
+ * Returns the closest rate actually supported by the clock.
+ */
+unsigned long clk_round_rate(struct clk *clk, unsigned long rate);
 
 #endif /* __DRIVERS_CLK_H */
