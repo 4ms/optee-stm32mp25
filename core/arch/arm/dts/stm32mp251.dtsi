@@ -1,0 +1,446 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
+/*
+ * Copyright (C) STMicroelectronics 2021 - All Rights Reserved
+ * Author: Alexandre Torgue <alexandre.torgue@foss.st.com> for STMicroelectronics.
+ */
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+
+/ {
+	#address-cells = <2>;
+	#size-cells = <2>;
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu0: cpu@0 {
+			compatible = "arm,cortex-a35";
+			device_type = "cpu";
+			reg = <0>;
+			enable-method = "psci";
+		};
+	};
+
+	psci {
+		compatible = "arm,psci-1.0";
+		method = "smc";
+	};
+
+	intc: interrupt-controller@4ac00000 {
+		compatible = "arm,cortex-a7-gic";
+		#interrupt-cells = <3>;
+		interrupt-controller;
+		reg = <0x0 0x4ac10000 0x0 0x1000>,
+		      <0x0 0x4ac20000 0x0 0x2000>,
+		      <0x0 0x4ac40000 0x0 0x2000>,
+		      <0x0 0x4ac60000 0x0 0x2000>;
+		#address-cells = <1>;
+	};
+
+	clocks {
+		clk_hse: clk-hse {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <24000000>;
+		};
+
+		clk_hsi: clk-hsi {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <64000000>;
+		};
+
+		clk_lse: clk-lse {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <32768>;
+		};
+
+		clk_lsi: clk-lsi {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <32000>;
+		};
+
+		clk_msi: clk-msi {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <4000000>;
+		};
+
+		clk_i2sin: clk-i2sin {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <0>;
+		};
+	};
+
+	soc@0 {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		interrupt-parent = <&intc>;
+		ranges = <0x0 0x0 0x0 0x80000000>;
+
+		hpdma1: dma-controller@40400000 {
+			compatible = "st,stm32-dma3";
+			reg = <0x40400000 0x1000>;
+			status = "disabled";
+		};
+
+		hpdma2: dma-controller@40410000 {
+			reg = <0x40410000 0x1000>;
+			status = "disabled";
+		};
+
+		hpdma3: dma-controller@40420000 {
+			reg = <0x40420000 0x1000>;
+			status = "disabled";
+		};
+
+		ipcc1: mailbox@40490000 {
+			reg = <0x40490000 0x400>;
+			status = "disabled";
+		};
+
+		ommanager: ommanager@40500000 {
+			reg = <0x40500000 0x400>;
+			status = "disabled";
+		};
+
+		rifsc: rifsc@42080000 {
+			compatible = "st,stm32mp25-rifsc";
+			reg = <0x42080000 0x1000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			usart2: serial@400e0000 {
+				reg = <0x400e0000 0x400>;
+				status = "disabled";
+			};
+
+			usart3: serial@400f0000 {
+				reg = <0x400f0000 0x400>;
+				status = "disabled";
+			};
+
+			uart4: serial@40100000 {
+				reg = <0x40100000 0x400>;
+				status = "disabled";
+			};
+
+			uart5: serial@40110000 {
+				reg = <0x40110000 0x400>;
+				status = "disabled";
+			};
+
+			i2c1: i2c@40120000 {
+				reg = <0x40120000 0x400>;
+				status = "disabled";
+			};
+
+			i2c7: i2c@40180000 {
+				reg = <0x40180000 0x400>;
+				status = "disabled";
+			};
+
+			usart6: serial@40220000 {
+				reg = <0x40220000 0x400>;
+				status = "disabled";
+			};
+
+			uart9: serial@402c0000 {
+				reg = <0x402c0000 0x400>;
+				status = "disabled";
+			};
+
+			usart1: serial@40330000 {
+				reg = <0x40330000 0x400>;
+				status = "disabled";
+			};
+
+			uart7: serial@40370000 {
+				reg = <0x40370000 0x400>;
+				status = "disabled";
+			};
+
+			uart8: serial@40380000 {
+				reg = <0x40380000 0x400>;
+				status = "disabled";
+			};
+
+			hash: hash@42010000  {
+				reg = <0x42010000  0x400>;
+				status = "disabled";
+			};
+
+			rng: rng@42020000 {
+				reg = <0x42020000 0x400>;
+				status = "disabled";
+			};
+
+			iwdg1: watchdog@44010000 {
+				reg = <0x44010000 0x400>;
+				status = "disabled";
+			};
+		};
+
+		iac: iac@42090000 {
+			reg = <0x42090000 0x400>;
+			status = "disabled";
+		};
+
+		risaf1: risaf@420a0000 {
+			reg = <0x420a0000 0x1000>;
+			status = "disabled";
+		};
+
+		risaf2: risaf@420b0000 {
+			reg = <0x420b0000 0x1000>;
+			status = "disabled";
+		};
+
+		risaf4: risaf@420d0000 {
+			reg = <0x420d0000 0x1000>;
+			status = "disabled";
+		};
+
+		risaf5: risaf@420e0000 {
+			reg = <0x420e0000 0x1000>;
+			status = "disabled";
+		};
+
+		risab1: risab@420f0000 {
+			reg = <0x420f0000 0x1000>;
+			status = "disabled";
+		};
+
+		risab2: risab@42100000 {
+			reg = <0x42100000 0x1000>;
+			status = "disabled";
+		};
+
+		risab3: risab@42110000 {
+			reg = <0x42110000 0x1000>;
+			status = "disabled";
+		};
+
+		risab4: risab@42120000 {
+			reg = <0x42120000 0x1000>;
+			status = "disabled";
+		};
+
+		risab5: risab@42130000 {
+			reg = <0x42130000 0x1000>;
+			status = "disabled";
+		};
+
+		risab6: risab@42140000 {
+			reg = <0x42140000 0x1000>;
+			status = "disabled";
+		};
+
+		bsec: efuse@44000000 {
+			reg = <0x44000000 0x1000>;
+			status = "disabled";
+		};
+
+		serc: serc@44080000 {
+			reg = <0x44080000 0x1000>;
+			status = "disabled";
+		};
+
+		rcc: rcc@44200000 {
+			reg = <0x44200000 0x10000>;
+			status = "disabled";
+		};
+
+		pwr: pwr@44210000 {
+			reg = <0x44210000 0x400>;
+			status = "disabled";
+		};
+
+		exti1: interrupt-controller@44220000 {
+			reg = <0x44220000 0x400>;
+			status = "disabled";
+		};
+
+		syscfg: syscon@44230000 {
+			reg = <0x44230000 0x10000>;
+			status = "disabled";
+		};
+
+		pinctrl: pinctrl@44240000 {
+			#address-cells = <1>;
+			#size-cells = <1>;
+			compatible = "st,stm32mp257-pinctrl";
+			ranges = <0 0x44240000 0xa0400>;
+			pins-are-numbered;
+
+			gpioa: gpio@44240000 {
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				reg = <0x0 0x400>;
+				st,bank-name = "GPIOA";
+				status = "disabled";
+			};
+
+			gpiob: gpio@44250000 {
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				reg = <0x10000 0x400>;
+				st,bank-name = "GPIOB";
+				status = "disabled";
+			};
+
+			gpioc: gpio@44260000 {
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				reg = <0x20000 0x400>;
+				st,bank-name = "GPIOC";
+				status = "disabled";
+			};
+
+			gpiod: gpio@44270000 {
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				reg = <0x30000 0x400>;
+				st,bank-name = "GPIOD";
+				status = "disabled";
+			};
+
+			gpioe: gpio@44280000 {
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				reg = <0x40000 0x400>;
+				st,bank-name = "GPIOE";
+				status = "disabled";
+			};
+
+			gpiof: gpio@44290000 {
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				reg = <0x50000 0x400>;
+				st,bank-name = "GPIOF";
+				status = "disabled";
+			};
+
+			gpiog: gpio@442a0000 {
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				reg = <0x60000 0x400>;
+				st,bank-name = "GPIOG";
+				status = "disabled";
+			};
+
+			gpioh: gpio@442b0000 {
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				reg = <0x70000 0x400>;
+				st,bank-name = "GPIOH";
+				status = "disabled";
+			};
+
+			gpioi: gpio@442c0000 {
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				reg = <0x80000 0x400>;
+				st,bank-name = "GPIOI";
+				status = "disabled";
+			};
+
+			gpioj: gpio@442d0000 {
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				reg = <0x90000 0x400>;
+				st,bank-name = "GPIOJ";
+				status = "disabled";
+			};
+
+			gpiok: gpio@442e0000 {
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				reg = <0xa0000 0x400>;
+				st,bank-name = "GPIOK";
+				status = "disabled";
+			};
+		};
+
+		rtc: rtc@46000000 {
+			reg = <0x46000000 0x400>;
+			status = "disabled";
+		};
+
+		tamp: tamp@46010000 {
+			reg = <0x46010000 0x400>;
+			status = "disabled";
+		};
+
+		pinctrl_z: pinctrl-z@46200000 {
+			#address-cells = <1>;
+			#size-cells = <1>;
+			compatible = "st,stm32mp257-z-pinctrl";
+			ranges = <0 0x46200000 0x400>;
+			pins-are-numbered;
+
+			gpioz: gpio@46200000 {
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				reg = <0 0x400>;
+				st,bank-name = "GPIOZ";
+				st,bank-ioport = <11>;
+				status = "disabled";
+			};
+		};
+
+		exti2: interrupt-controller@46230000 {
+			reg = <0x46230000 0x400>;
+			status = "disabled";
+		};
+
+		hsem: hwspinlock@46240000 {
+			reg = <0x46240000 0x400>;
+			status = "disabled";
+		};
+
+		ipcc2: mailbox@46250000 {
+			reg = <0x46250000 0x400>;
+			status = "disabled";
+		};
+
+		stgenc: stgen@48080000 {
+			reg = <0x48080000 0x1000>;
+			status = "disabled";
+		};
+
+		fmc: memory-controller@48200000 {
+			reg = <0x48200000 0x400>;
+			status = "disabled";
+		};
+	};
+};
