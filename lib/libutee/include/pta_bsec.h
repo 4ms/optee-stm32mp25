@@ -65,6 +65,8 @@
 #define LOCK_SHADOW_W			BIT(28)
 #define LOCK_SHADOW_P			BIT(27)
 #define LOCK_ERROR			BIT(26)
+#define STATUS_PROVISIONING		BIT(1)
+#define STATUS_SECURE			BIT(0)
 
 #define LOCK_MASK_SHADOW		GENMASK_32(29, 27)
 #endif /* __PTA_BSEC_H */

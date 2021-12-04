@@ -211,6 +211,7 @@ TEE_Result stm32_bsec_get_state(uint32_t *state);
 #define BSEC_STATE_SEC_OPEN	U(0x0)
 #define BSEC_STATE_SEC_CLOSED	U(0x1)
 #define BSEC_STATE_INVALID	U(0x3)
+#define BSEC_STATE_MASK		GENMASK_32(1, 0)
 
 #define BSEC_HARDWARE_KEY	BIT(8)
 
