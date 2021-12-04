@@ -6,10 +6,12 @@
 
 #include <config.h>
 #include <console.h>
+#include <drivers/gic.h>
 #include <drivers/stm32_uart.h>
 #include <initcall.h>
 #include <kernel/dt.h>
 #include <kernel/boot.h>
+#include <kernel/interrupt.h>
 #include <kernel/misc.h>
 #include <mm/core_memprot.h>
 #include <platform_config.h>
@@ -34,7 +36,11 @@ register_phys_mem_pgdir(MEM_AREA_IO_SEC, AHB5_BASE, AHB5_SIZE);
 register_phys_mem_pgdir(MEM_AREA_IO_SEC, SAPB_BASE, SAPB_SIZE);
 register_phys_mem_pgdir(MEM_AREA_IO_SEC, SAHB_BASE, SAHB_SIZE);
 
+register_phys_mem_pgdir(MEM_AREA_IO_SEC, GIC_BASE, GIC_SIZE);
+
 register_ddr(DDR_BASE, CFG_DRAM_SIZE);
+
+static struct gic_data gic_data;
 
 #define _ID2STR(id)		(#id)
 #define ID2STR(id)		_ID2STR(id)
@@ -136,3 +142,14 @@ static TEE_Result init_console_from_dt(void)
 /* Probe console from DT once clock inits (service init level) are completed */
 service_init_late(init_console_from_dt);
 #endif /*STM32_UART*/
+
+void main_init_gic(void)
+{
+	gic_init(&gic_data, GIC_BASE + GICC_OFFSET, GIC_BASE + GICD_OFFSET);
+	itr_init(&gic_data.chip);
+}
+
+void itr_core_handler(void)
+{
+	gic_it_handle(&gic_data);
+}

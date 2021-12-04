@@ -85,6 +85,11 @@
 
 #define SYSRAM_BASE			0x0e000000
 
+/* GIC resources */
+#define GIC_SIZE			0x80000
+#define GICC_OFFSET			0x20000
+#define GICD_OFFSET			0x10000
+
 /* Console configuration */
 #define STM32MP1_DEBUG_USART_BASE	UART4_BASE
 #define GIC_SPI_UART4			126
