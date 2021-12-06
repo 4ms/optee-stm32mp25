@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 /*
- * Copyright (c) 2021, STMicroelectronics
+ * Copyright (c) 2021-2023, STMicroelectronics
  */
 
+#include <drivers/stm32_firewall.h>
 #include <drivers/stm32_rifsc.h>
 #include <dt-bindings/soc/stm32mp25-rifsc.h>
 #include <io.h>
@@ -114,6 +115,7 @@ struct dt_id_attr {
 	fdt32_t id_attr[1];
 };
 
+static struct stm32_firewall_device *fdev;
 static struct rifsc_driver_data rifsc_drvdata;
 static struct rifsc_platdata rifsc_pdata;
 
@@ -242,6 +244,104 @@ static TEE_Result stm32_rifsc_parse_fdt(const void *fdt, int node,
 	return TEE_SUCCESS;
 }
 
+static TEE_Result
+stm32_rifsc_has_access(struct stm32_firewall_device *dev __unused,
+		       unsigned int id,
+		       paddr_t base __unused, size_t sz __unused,
+		       const struct stm32_firewall_cfg *cfg)
+{
+	TEE_Result res = TEE_ERROR_ACCESS_DENIED;
+	const struct stm32_firewall_cfg *f_cfg = cfg;
+	unsigned int reg_id = id / 32;
+	unsigned int periph_offset = id - (reg_id * 32);
+	uintptr_t rifsc_base = rifsc_pdata.base;
+	uint32_t sec_reg_value = 0;
+	uint32_t priv_reg_value = 0;
+	uint32_t cid_reg_value = 0;
+	uint32_t mode = 0;
+
+	DMSG("Check firewall access for peripheral (ID): %u", id);
+
+	assert(rifsc_base);
+
+	if (!f_cfg)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	for (f_cfg = cfg; f_cfg->access; f_cfg++) {
+		/* The CID corresponds to the * FWLL_MASTER(ID) + 1 */
+		unsigned int master = ((f_cfg->access & FWLL_MASTER_MASK) >>
+				      FWLL_MASTER_SHIFT) + 1;
+
+		if (master > MAX_CID_SUPPORTED) {
+			EMSG("This CID does not exist: %u", master);
+			panic();
+		}
+
+		mode = cfg->access & FWLL_CONF_MASK;
+
+		if (mode == FWLL_NO_ACCESS)
+			continue;
+
+		sec_reg_value = io_read32(rifsc_base + _RIFSC_RISC_SECCFGR0 +
+					  0x4 * reg_id);
+		priv_reg_value = io_read32(rifsc_base + _RIFSC_RISC_PRIVCFGR0 +
+					   0x4 * reg_id);
+		cid_reg_value = io_read32(rifsc_base +
+					  _RIFSC_RISC_PER0_CIDCFGR +
+					  0x8 * id);
+
+		if (!(mode & (FWLL_SEC_PRIV | FWLL_SEC_UNPRIV |
+			      FWLL_NSEC_PRIV | FWLL_NSEC_UNPRIV)))
+			return TEE_ERROR_BAD_PARAMETERS;
+
+		/*
+		 * First check conditions for semaphore mode, which doesn't
+		 * take into account static CID.
+		 */
+		if (cid_reg_value & _CIDCFGR_SEMEN) {
+			if (cid_reg_value & BIT(master + SEMWL_SHIFT)) {
+				/* Static CID is irrelevant if semaphore mode */
+				goto skip_cid_check;
+			} else {
+				return TEE_ERROR_ACCESS_DENIED;
+			}
+		}
+
+		if (!(cid_reg_value & _CIDCFGR_CFEN) ||
+		    ((cid_reg_value & RIFSC_RISC_SCID_MASK) >>
+		    RIFSC_RISC_SCID_SHIFT) == RIF_CID0)
+			goto skip_cid_check;
+
+		/*
+		 * Coherency check with the CID configuration
+		 */
+		if (((cid_reg_value & RIFSC_RISC_SCID_MASK) >>
+		    RIFSC_RISC_SCID_SHIFT) != master)
+			return TEE_ERROR_ACCESS_DENIED;
+
+skip_cid_check:
+		/* Check non-secure, non-privilege configuration */
+		if (mode & (FWLL_NSEC_UNPRIV) &&
+		    (sec_reg_value & BIT(periph_offset) ||
+		     priv_reg_value & BIT(periph_offset)))
+			return TEE_ERROR_ACCESS_DENIED;
+
+		/* Check secure configuration */
+		if ((mode & (FWLL_SEC_PRIV) || mode & (FWLL_SEC_UNPRIV)) &&
+		    !(sec_reg_value & BIT(periph_offset)))
+			return TEE_ERROR_ACCESS_DENIED;
+
+		/* Check unprivilege configuration */
+		if ((priv_reg_value & BIT(periph_offset)) &&
+		    (!(mode & FWLL_NSEC_PRIV)) && (!(mode & FWLL_SEC_PRIV)))
+			return TEE_ERROR_ACCESS_DENIED;
+
+		res = TEE_SUCCESS;
+	}
+
+	return res;
+}
+
 static TEE_Result stm32_risup_cfg(struct rifsc_platdata *pdata,
 				  struct risup_cfg *risup)
 {
@@ -363,6 +463,7 @@ stm32_rifsc_put_data_config(int ndata __unused, void *data_cfg)
 }
 
 static const struct stm32_firewall_ops stm32_rifsc_fw_ops = {
+	.has_access = stm32_rifsc_has_access,
 	.get_data_config = stm32_rifsc_get_data_config,
 	.set_data_config = stm32_rifsc_set_data_config,
 	.put_data_config = stm32_rifsc_put_data_config,
@@ -388,11 +489,161 @@ static TEE_Result stm32_rifsc_probe(const void *fdt, int node,
 	if (res)
 		return res;
 
+	fdev = stm32_firewall_dev_alloc();
+	if (!fdev)
+		return TEE_ERROR_OUT_OF_MEMORY;
+
+	fdev->name = "rifsc";
+	fdev->ops = &stm32_rifsc_fw_ops;
+	fdev->compat = (struct stm32_firewall_compat *)compat_data;
+	fdev->priv = (void *)&rifsc_pdata;
+
+	res = stm32_firewall_dev_register(fdev);
+	if (res)
+		goto out;
+
+	stm32_firewall_bus_probe(fdev, fdt, node);
+
+out:
+	if (res)
+		free(fdev);
+
 	return res;
 }
 
+static struct stm32_firewall_reg
+rifsc_compat_mp25[STM32MP25_RIFSC_IAC_ID + 1] = {
+	[STM32MP25_RIFSC_TIM1_ID] = { 0x40200000 },
+	[STM32MP25_RIFSC_TIM2_ID] = { 0x40000000 },
+	[STM32MP25_RIFSC_TIM3_ID] = { 0x40010000 },
+	[STM32MP25_RIFSC_TIM4_ID] = { 0x40020000 },
+	[STM32MP25_RIFSC_TIM5_ID] = { 0x40030000 },
+	[STM32MP25_RIFSC_TIM6_ID] = { 0x40040000 },
+	[STM32MP25_RIFSC_TIM7_ID] = { 0x40050000 },
+	[STM32MP25_RIFSC_TIM8_ID] = { 0x40210000 },
+	[STM32MP25_RIFSC_TIM10_ID] = { 0x401C0000 },
+	[STM32MP25_RIFSC_TIM11_ID] = { 0x401D0000 },
+	[STM32MP25_RIFSC_TIM12_ID] = { 0x40060000 },
+	[STM32MP25_RIFSC_TIM13_ID] = { 0x40070000 },
+	[STM32MP25_RIFSC_TIM14_ID] = { 0x40080000 },
+	[STM32MP25_RIFSC_TIM15_ID] = { 0x40250000 },
+	[STM32MP25_RIFSC_TIM16_ID] = { 0x40260000 },
+	[STM32MP25_RIFSC_TIM17_ID] = { 0x40270000 },
+	[STM32MP25_RIFSC_TIM20_ID] = { 0x40320000 },
+	[STM32MP25_RIFSC_LPTIM1_ID] = { 0x40090000 },
+	[STM32MP25_RIFSC_LPTIM2_ID] = { 0x400A0000 },
+	[STM32MP25_RIFSC_LPTIM3_ID] = { 0x46050000 },
+	[STM32MP25_RIFSC_LPTIM4_ID] = { 0x46060000 },
+	[STM32MP25_RIFSC_LPTIM5_ID] = { 0x46070000 },
+	[STM32MP25_RIFSC_SPI1_ID] = { 0x40230000 },
+	[STM32MP25_RIFSC_SPI2_ID] = { 0x400B0000 },
+	[STM32MP25_RIFSC_SPI3_ID] = { 0x400C0000 },
+	[STM32MP25_RIFSC_SPI4_ID] = { 0x40240000 },
+	[STM32MP25_RIFSC_SPI5_ID] = { 0x40280000 },
+	[STM32MP25_RIFSC_SPI6_ID] = { 0x40350000 },
+	[STM32MP25_RIFSC_SPI7_ID] = { 0x40360000 },
+	[STM32MP25_RIFSC_SPI8_ID] = { 0x46020000 },
+	[STM32MP25_RIFSC_SPDIFRX_ID] = { 0x400D0000 },
+	[STM32MP25_RIFSC_USART1_ID] = { 0x40330000 },
+	[STM32MP25_RIFSC_USART2_ID] = { 0x400E0000 },
+	[STM32MP25_RIFSC_USART3_ID] = { 0x400F0000 },
+	[STM32MP25_RIFSC_UART4_ID] = { 0x40100000 },
+	[STM32MP25_RIFSC_UART5_ID] = { 0x40110000 },
+	[STM32MP25_RIFSC_USART6_ID] = { 0x40220000 },
+	[STM32MP25_RIFSC_UART7_ID] = { 0x40370000 },
+	[STM32MP25_RIFSC_UART8_ID] = { 0x40380000 },
+	[STM32MP25_RIFSC_UART9_ID] = { 0x402C0000 },
+	[STM32MP25_RIFSC_LPUART1_ID] = { 0x46030000 },
+	[STM32MP25_RIFSC_I2C1_ID] = { 0x40120000 },
+	[STM32MP25_RIFSC_I2C2_ID] = { 0x40130000 },
+	[STM32MP25_RIFSC_I2C3_ID] = { 0x40140000 },
+	[STM32MP25_RIFSC_I2C4_ID] = { 0x40150000 },
+	[STM32MP25_RIFSC_I2C5_ID] = { 0x40160000 },
+	[STM32MP25_RIFSC_I2C6_ID] = { 0x40170000 },
+	[STM32MP25_RIFSC_I2C7_ID] = { 0x40180000 },
+	[STM32MP25_RIFSC_I2C8_ID] = { 0x46040000 },
+	[STM32MP25_RIFSC_SAI1_ID] = { 0x40290000 },
+	[STM32MP25_RIFSC_SAI2_ID] = { 0x402A0000 },
+	[STM32MP25_RIFSC_SAI3_ID] = { 0x402B0000 },
+	[STM32MP25_RIFSC_SAI4_ID] = { 0x40340000},
+	[STM32MP25_RIFSC_MDF1_ID] = { 0x404D0000 },
+	[STM32MP25_RIFSC_ADF1_ID] = { 0x46220000 },
+	[STM32MP25_RIFSC_FDCAN_ID] = { 0xFFFFFFFF },
+	[STM32MP25_RIFSC_HDP_ID] = { 0x44090000 },
+	[STM32MP25_RIFSC_ADC12_ID] = { 0x404E0000 },
+	[STM32MP25_RIFSC_ADC3_ID] = { 0x404F0000 },
+	[STM32MP25_RIFSC_ETH1_ID] = { 0x482C0000 },
+	[STM32MP25_RIFSC_ETH2_ID] = { 0x482D0000 },
+	[STM32MP25_RIFSC_USBH_ID] = { 0xFFFFFFFF },
+	[STM32MP25_RIFSC_USB3DR_ID] = { 0x48300000 },
+	[STM32MP25_RIFSC_COMBOPHY_ID] = { 0x480C0000 },
+	[STM32MP25_RIFSC_PCIE_ID] = { 0x48400000 },
+	[STM32MP25_RIFSC_UCPD1_ID] = { 0x480A0000 },
+	[STM32MP25_RIFSC_ETHSW_DEIP_ID] = { 0x4C000000 },
+	[STM32MP25_RIFSC_ETHSW_ACM_CFG_ID] = { 0x4B080000 },
+	[STM32MP25_RIFSC_ETHSW_ACM_MSGBUF_ID] = { 0x4B000000 },
+	[STM32MP25_RIFSC_STGEN_ID] = { 0x48080000 },
+	[STM32MP25_RIFSC_OCTOSPI1_ID] = { 0x40430000 },
+	[STM32MP25_RIFSC_OCTOSPI2_ID] = { 0x40440000 },
+	[STM32MP25_RIFSC_SDMMC1_ID] = { 0x48220000 },
+	[STM32MP25_RIFSC_SDMMC2_ID] = { 0x48230000 },
+	[STM32MP25_RIFSC_SDMMC3_ID] = { 0x48240000 },
+	[STM32MP25_RIFSC_GPU_ID] = { 0x48280000 },
+	[STM32MP25_RIFSC_LTDC_CMN_ID] = { 0x48010000 },
+	[STM32MP25_RIFSC_DSI_CMN_ID] = { 0x48000000 },
+	[STM32MP25_RIFSC_LVDS_ID] = { 0x48060000 },
+	[STM32MP25_RIFSC_CSI_ID] = { 0x48020000 },
+	[STM32MP25_RIFSC_DCMIPP_ID] = { 0x48030000 },
+	[STM32MP25_RIFSC_DCMI_PSSI_ID] = { 0xFFFFFFFF },
+	[STM32MP25_RIFSC_VDEC_ID] = { 0x480D0000 },
+	[STM32MP25_RIFSC_VENC_ID] = { 0x480E0000 },
+	[STM32MP25_RIFSC_RNG_ID] = { 0x42020000 },
+	[STM32MP25_RIFSC_PKA_ID] = { 0x42060000 },
+	[STM32MP25_RIFSC_SAES_ID] = { 0x42050000 },
+	[STM32MP25_RIFSC_HASH_ID] = { 0x42010000 },
+	[STM32MP25_RIFSC_CRYP1_ID] = { 0x42030000 },
+	[STM32MP25_RIFSC_CRYP2_ID] = { 0x42040000 },
+	[STM32MP25_RIFSC_IWDG1_ID] = { 0x44010000 },
+	[STM32MP25_RIFSC_IWDG2_ID] = { 0x44020000 },
+	[STM32MP25_RIFSC_IWDG3_ID] = { 0x44030000 },
+	[STM32MP25_RIFSC_IWDG4_ID] = { 0x44040000 },
+	[STM32MP25_RIFSC_IWDG5_ID] = { 0x46090000 },
+	[STM32MP25_RIFSC_WWDG1_ID] = { 0x44050000 },
+	[STM32MP25_RIFSC_WWDG2_ID] = { 0x460A0000 },
+	[STM32MP25_RIFSC_VREFBUF_ID] = { 0x44060000 },
+	[STM32MP25_RIFSC_DTS_ID] = { 0x44070000 },
+	[STM32MP25_RIFSC_RAMCFG_ID] = { 0x42070000 },
+	[STM32MP25_RIFSC_CRC_ID] = { 0x404C0000 },
+	[STM32MP25_RIFSC_SERC_ID] = { 0x44080000 },
+	[STM32MP25_RIFSC_OCTOSPIM_ID] = { 0x40500000 },
+	[STM32MP25_RIFSC_GICV2M_ID] = { 0x48090000 },
+	[STM32MP25_RIFSC_I3C1_ID] = { 0x40190000 },
+	[STM32MP25_RIFSC_I3C2_ID] = { 0x401A0000 },
+	[STM32MP25_RIFSC_I3C3_ID] = { 0x401B0000 },
+	[STM32MP25_RIFSC_I3C4_ID] = { 0x46080000 },
+	[STM32MP25_RIFSC_ICACHE_DCACHE_ID] = { 0x40470000 },
+	[STM32MP25_RIFSC_LTDC_L0L1_ID] = { 0xFFFFFFFF },
+	[STM32MP25_RIFSC_LTDC_L2_ID] = { 0xFFFFFFFF },
+	[STM32MP25_RIFSC_LTDC_ROT_ID] = { 0xFFFFFFFF },
+	[STM32MP25_RIFSC_DSI_TRIG_ID] = { 0xFFFFFFFF },
+	[STM32MP25_RIFSC_DSI_RDFIFO_ID] = { 0xFFFFFFFF },
+	[STM32MP25_RIFSC_OTFDEC1_ID] = { 0x40450000 },
+	[STM32MP25_RIFSC_OTFDEC2_ID] = { 0x40460000 },
+	[STM32MP25_RIFSC_IAC_ID] = { 0x42090000 },
+};
+
+static const struct stm32_firewall_compat rifsc_compat[] = {
+	{
+		.reg = rifsc_compat_mp25,
+		.compat_size = ARRAY_SIZE(rifsc_compat_mp25)
+	},
+};
+
 static const struct dt_device_match rifsc_match_table[] = {
-	{ .compatible = "st,stm32mp25-rifsc", .compat_data = rifsc_compat },
+	{
+		.compatible = "st,stm32mp25-rifsc",
+		.compat_data = (void *)rifsc_compat,
+	},
 	{ }
 };
 
