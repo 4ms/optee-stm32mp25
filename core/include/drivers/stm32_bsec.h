@@ -9,6 +9,7 @@
 #include <compiler.h>
 #include <stdint.h>
 #include <tee_api.h>
+#include <types_ext.h>
 
 /* BSEC_DEBUG */
 #define BSEC_HDPEN			BIT(4)
@@ -22,6 +23,23 @@
 
 #define BSEC_BITS_PER_WORD		(8U * sizeof(uint32_t))
 #define BSEC_BYTES_PER_WORD		(sizeof(uint32_t))
+
+/*
+ * Structure and API function for BSEC driver to get some platform data.
+ *
+ * @base: BSEC interface registers physical base address
+ * @shadow: BSEC shadow base address
+ * @upper_start: Base ID for the BSEC upper words in the platform
+ * @max_id: Max value for BSEC word ID for the platform
+ */
+struct stm32_bsec_static_cfg {
+	paddr_t base;
+	paddr_t shadow;
+	unsigned int upper_start;
+	unsigned int max_id;
+};
+
+void plat_bsec_get_static_cfg(struct stm32_bsec_static_cfg *cfg);
 
 /*
  * Load OTP from SAFMEM and provide its value

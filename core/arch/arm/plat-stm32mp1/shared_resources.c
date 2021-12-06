@@ -4,6 +4,7 @@
  */
 
 #include <config.h>
+#include <drivers/stm32_bsec.h>
 #include <drivers/stm32_etzpc.h>
 #include <drivers/stm32_firewall.h>
 #include <drivers/stm32_gpio.h>

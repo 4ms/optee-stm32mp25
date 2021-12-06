@@ -8,7 +8,6 @@
 
 #include <assert.h>
 #include <drivers/clk.h>
-#include <drivers/stm32_bsec.h>
 #include <drivers/stm32mp1_rcc_util.h>
 #include <kernel/panic.h>
 #include <stdbool.h>
@@ -109,21 +108,6 @@ static inline bool stm32mp_nsec_can_access_clock(unsigned long clock_id
 	return true;
 }
 #endif /* CFG_STM32MP1_SHARED_RESOURCES */
-
-/*
- * Structure and API function for BSEC driver to get some platform data.
- *
- * @base: BSEC interface registers physical base address
- * @upper_start: Base ID for the BSEC upper words in the platform
- * @max_id: Max value for BSEC word ID for the platform
- */
-struct stm32_bsec_static_cfg {
-	paddr_t base;
-	unsigned int upper_start;
-	unsigned int max_id;
-};
-
-void stm32mp_get_bsec_static_cfg(struct stm32_bsec_static_cfg *cfg);
 
 /*
  * Shared reference counter: increments by 2 on secure increment
