@@ -67,8 +67,8 @@ srcs-$(CFG_STM32MP15_HUK) += stm32mp15_huk.c
 
 subdirs-y += counter
 subdirs-y += crypto
-subdirs-y += firewall
 subdirs-$(CFG_DRIVERS_ADC) += adc
+subdirs-$(CFG_STM32_FIREWALL) += firewall
 subdirs-$(CFG_BNXT_FW) += bnxt
 subdirs-$(CFG_DRIVERS_CLK) += clk
 subdirs-$(CFG_DRIVERS_RSTCTRL) += rstctrl
