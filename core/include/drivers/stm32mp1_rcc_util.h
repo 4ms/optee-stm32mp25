@@ -38,4 +38,8 @@ void stm32mp_register_clock_parents_secure(unsigned long clock_id __unused)
 /* Protect the MCU clock subsytem */
 void stm32mp1_clk_mcuss_protect(bool enable);
 
+/* PM sequences specific to SoC STOP mode support */
+void stm32mp1_clk_save_context_for_stop(void);
+void stm32mp1_clk_restore_context_for_stop(void);
+
 #endif /*__DRIVERS_STM32MP1_RCC_UTIL_H__*/
