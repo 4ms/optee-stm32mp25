@@ -158,6 +158,15 @@
 			reg = <0x50020000 0x400>;
 		};
 
+		rtc: rtc@5c004000 {
+			compatible = "st,stm32mp13-rtc";
+			reg = <0x5c004000 0x400>;
+			clocks = <&rcc RTCAPB>, <&rcc RTC>;
+			clock-names = "pclk", "rtc_ck";
+			interrupts-extended = <&exti 19 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
 		bsec: efuse@5c005000 {
 			compatible = "st,stm32mp13-bsec";
 			reg = <0x5c005000 0x400>;
