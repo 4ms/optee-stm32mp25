@@ -14,6 +14,7 @@
 #define CLK_SET_RATE_GATE	BIT(0) /* must be gated across rate change */
 #define CLK_SET_PARENT_GATE	BIT(1) /* must be gated across re-parent */
 #define CLK_OPS_PARENT_ENABLE	BIT(2) /* parent need enable during re-parent */
+#define CLK_SET_RATE_PARENT	BIT(3) /* propagate rate change up one level */
 
 /**
  * struct clk - Clock structure
