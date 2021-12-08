@@ -6,6 +6,7 @@
 #include <inttypes.h>
 #include <drivers/stm32_shared_io.h>
 #include <drivers/stm32mp1_pwr.h>
+#include <drivers/stm32_shared_io.h>
 #include <kernel/panic.h>
 #include <io.h>
 #include <mm/core_memprot.h>
