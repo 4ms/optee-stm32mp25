@@ -263,6 +263,7 @@ endif
 # Default enable some test facitilites
 CFG_ENABLE_EMBEDDED_TESTS ?= y
 CFG_WITH_STATS ?= y
+CFG_WERROR ?= y
 
 # Enable to allow debug
 CFG_STM32_BSEC_WRITE ?= $(CFG_TEE_CORE_DEBUG)
