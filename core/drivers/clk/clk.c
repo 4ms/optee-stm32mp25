@@ -10,9 +10,13 @@
 #include <libfdt.h>
 #include <malloc.h>
 #include <stddef.h>
+#include <sys/queue.h>
 
 /* Global clock tree lock */
 static unsigned int clk_lock = SPINLOCK_UNLOCK;
+
+static STAILQ_HEAD(, clk) clock_list =
+		STAILQ_HEAD_INITIALIZER(clock_list);
 
 struct clk *clk_alloc(const char *name, const struct clk_ops *ops,
 		      struct clk **parent_clks, size_t parent_count)
@@ -102,6 +106,8 @@ TEE_Result clk_register(struct clk *clk)
 	clk_compute_rate_no_lock(clk);
 
 	DMSG("Registered clock %s, freq %lu", clk->name, clk_get_rate(clk));
+
+	STAILQ_INSERT_TAIL(&clock_list, clk, link);
 
 	return TEE_SUCCESS;
 }
@@ -408,4 +414,59 @@ unsigned long clk_round_rate(struct clk *clk, unsigned long rate)
 		return clk->ops->round_rate(clk, rate, clk->parent->rate);
 
 	return TEE_ERROR_GENERIC;
+}
+
+#include <stdio.h>
+
+static void clk_stm32_display_tree(struct clk *clk, int indent)
+{
+	unsigned long rate;
+	const char *name;
+	int counter = clk->enabled_count.val;
+	int i;
+	int state;
+
+	name = clk_get_name(clk);
+	rate = clk_get_rate(clk);
+
+	state = clk->ops->is_enabled ? clk->ops->is_enabled(clk) : (counter > 0);
+
+	printf("%02d %s ", counter, state ? "Y" : "N");
+
+	for (i = 0; i < indent * 4; i++) {
+		if ((i % 4) != 0)
+			printf("-");
+		else
+			printf("|");
+	}
+
+	if (i != 0)
+		printf(" ");
+
+	printf("%s (%ld)\n", name, rate);
+}
+
+static void clk_stm32_tree(struct clk *clk_root, int indent)
+{
+	struct clk *clk = NULL;
+
+	STAILQ_FOREACH(clk, &clock_list, link) {
+		if (clk_get_parent(clk) == clk_root) {
+			clk_stm32_display_tree(clk, indent + 1);
+			clk_stm32_tree(clk, indent + 1);
+		}
+	}
+}
+
+void clk_summary(void)
+{
+	struct clk *clk = NULL;
+
+	STAILQ_FOREACH(clk, &clock_list, link) {
+		if (clk_get_parent(clk))
+			continue;
+
+		clk_stm32_display_tree(clk, 0);
+		clk_stm32_tree(clk, 0);
+	}
 }

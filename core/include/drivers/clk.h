@@ -8,6 +8,7 @@
 
 #include <kernel/refcount.h>
 #include <stdint.h>
+#include <sys/queue.h>
 #include <tee_api_types.h>
 
 /* Flags for clock */
@@ -30,6 +31,8 @@
  * @parents: Array of possible parents of the clock
  */
 struct clk {
+	STAILQ_ENTRY(clk) link;
+
 	const char *name;
 	void *priv;
 	const struct clk_ops *ops;
@@ -233,5 +236,7 @@ TEE_Result clk_get_duty_cyle(struct clk *clk, struct clk_duty *duty);
  * Returns the closest rate actually supported by the clock.
  */
 unsigned long clk_round_rate(struct clk *clk, unsigned long rate);
+
+void clk_summary(void);
 
 #endif /* __DRIVERS_CLK_H */
