@@ -42,6 +42,23 @@ struct clk {
 };
 
 /**
+ * struct clk_rate_request
+ *
+ * @rate:		Requested clock rate. This field will be adjusted by
+ *			clock drivers according to hardware capabilities.
+ * @best_parent_rate:	The best parent rate a parent can provide to fulfill the
+ *			requested constraints.
+ * @best_parent:	The most appropriate parent clock that fulfills the
+ *			requested constraints.
+ *
+ */
+struct clk_rate_request {
+	unsigned long rate;
+	unsigned long best_parent_rate;
+	struct clk *best_parent;
+};
+
+/**
  * struct clk_ops
  *
  * @is_enabled: Get effective state of the clock (on / off)
@@ -62,6 +79,8 @@ struct clk_ops {
 			       unsigned long parent_rate);
 	unsigned long (*get_rate)(struct clk *clk,
 				  unsigned long parent_rate);
+	TEE_Result (*determine_rate)(struct clk *clk,
+				     struct clk_rate_request *req);
 };
 
 /**

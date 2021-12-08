@@ -201,59 +201,6 @@ unsigned long clk_get_rate(struct clk *clk)
 	return rate;
 }
 
-static TEE_Result clk_set_rate_no_lock(struct clk *clk, unsigned long rate)
-{
-	TEE_Result res = TEE_SUCCESS;
-	unsigned long parent_rate = 0;
-	unsigned long new_rate = rate;
-	struct clk *parent = clk->parent;
-
-	if (parent)
-		parent_rate = parent->rate;
-
-	if (!parent || !(clk->flags & CLK_SET_RATE_PARENT)) {
-		/* pass-through clock without adjustable parent */
-		new_rate  = rate;
-	} else {
-		/* pass-through clock with adjustable parent */
-		res = clk_set_rate_no_lock(parent, rate);
-		if (res)
-			return res;
-		new_rate = parent->rate;
-	}
-
-	if (clk->ops->set_rate) {
-		res = clk->ops->set_rate(clk, new_rate, parent_rate);
-		if (res)
-			return res;
-	}
-
-	clk_compute_rate_no_lock(clk);
-
-	return res;
-}
-
-TEE_Result clk_set_rate(struct clk *clk, unsigned long rate)
-{
-	uint32_t exceptions = 0;
-	TEE_Result res = TEE_ERROR_GENERIC;
-
-	/* bail early if nothing to do */
-	if (rate == clk_get_rate(clk))
-		return TEE_SUCCESS;
-
-	exceptions =  cpu_spin_lock_xsave(&clk_lock);
-
-	if (clk->flags & CLK_SET_RATE_GATE && clk_is_enabled_no_lock(clk))
-		res = TEE_ERROR_BAD_STATE;
-	else
-		res = clk_set_rate_no_lock(clk, rate);
-
-	cpu_spin_unlock_xrestore(&clk_lock, exceptions);
-
-	return res;
-}
-
 struct clk *clk_get_parent(struct clk *clk)
 {
 	return clk->parent;
@@ -341,6 +288,107 @@ TEE_Result clk_set_parent(struct clk *clk, struct clk *parent)
 
 	res = clk_set_parent_no_lock(clk, parent, pidx);
 out:
+	cpu_spin_unlock_xrestore(&clk_lock, exceptions);
+
+	return res;
+}
+
+static void clk_init_rate_req(struct clk *clk,
+			      struct clk_rate_request *req)
+{
+	struct clk *parent = clk->parent;
+
+	if (parent) {
+		req->best_parent = parent;
+		req->best_parent_rate = parent->rate;
+	} else {
+		req->best_parent = NULL;
+		req->best_parent_rate = 0;
+	}
+}
+
+static TEE_Result clk_set_rate_no_lock(struct clk *clk, unsigned long rate)
+{
+	TEE_Result res = TEE_SUCCESS;
+	unsigned long parent_rate = 0;
+	unsigned long new_rate = rate;
+	struct clk *parent = clk->parent;
+
+	if (parent)
+		parent_rate = parent->rate;
+
+	/* find the closest rate and parent clk/rate */
+	if (clk->ops->determine_rate) {
+		struct clk_rate_request req = { };
+		struct clk *old_parent = clk->parent;
+
+		req.rate = rate;
+
+		clk_init_rate_req(clk, &req);
+
+		res = clk->ops->determine_rate(clk, &req);
+		if (res)
+			return res;
+
+		parent_rate = req.best_parent_rate;
+		new_rate = req.rate;
+		parent = req.best_parent;
+
+		res = clk_set_rate_no_lock(parent, parent_rate);
+		if (res)
+			return res;
+
+		if (parent && parent != old_parent) {
+			if (parent && clk->num_parents > 1) {
+				size_t pidx = 0;
+
+				if (clk_get_parent_idx(clk, parent, &pidx))
+					return TEE_ERROR_BAD_PARAMETERS;
+
+				res = clk_set_parent_no_lock(clk, parent, pidx);
+				if (res)
+					return res;
+				clk->parent = parent;
+			}
+		}
+	} else if (!parent || !(clk->flags & CLK_SET_RATE_PARENT)) {
+		/* pass-through clock without adjustable parent */
+		new_rate  = rate;
+	} else {
+		/* pass-through clock with adjustable parent */
+		res = clk_set_rate_no_lock(parent, rate);
+		if (res)
+			return res;
+		new_rate = parent->rate;
+	}
+
+	if (clk->ops->set_rate) {
+		res = clk->ops->set_rate(clk, new_rate, parent_rate);
+		if (res)
+			return res;
+	}
+
+	clk_compute_rate_no_lock(clk);
+
+	return res;
+}
+
+TEE_Result clk_set_rate(struct clk *clk, unsigned long rate)
+{
+	uint32_t exceptions = 0;
+	TEE_Result res = TEE_ERROR_GENERIC;
+
+	/* bail early if nothing to do */
+	if (rate == clk_get_rate(clk))
+		return TEE_SUCCESS;
+
+	exceptions =  cpu_spin_lock_xsave(&clk_lock);
+
+	if (clk->flags & CLK_SET_RATE_GATE && clk_is_enabled_no_lock(clk))
+		res = TEE_ERROR_BAD_STATE;
+	else
+		res = clk_set_rate_no_lock(clk, rate);
+
 	cpu_spin_unlock_xrestore(&clk_lock, exceptions);
 
 	return res;
