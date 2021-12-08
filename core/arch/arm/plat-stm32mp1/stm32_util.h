@@ -32,6 +32,9 @@ vaddr_t stm32mp_bkpsram_base(void);
 /* Platform util for the STGEN driver */
 vaddr_t stm32mp_stgen_base(void);
 
+/* Platform util for the GIC */
+void stm32mp_gic_set_end_of_interrupt(uint32_t it);
+
 /*
  * SYSCFG IO compensation.
  * These functions assume non-secure world is suspended.
