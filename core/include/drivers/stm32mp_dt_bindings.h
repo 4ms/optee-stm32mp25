@@ -23,4 +23,6 @@
 #include <dt-bindings/soc/stm32mp15-tzc400.h>
 #endif
 
+#include <dt-bindings/power/stm32mp1-power.h>
+
 #endif /* STM32MP_DT_BINDINGS_H */
