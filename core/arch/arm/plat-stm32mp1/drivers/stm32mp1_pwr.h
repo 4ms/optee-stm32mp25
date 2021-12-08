@@ -7,6 +7,8 @@
 #define __STM32MP1_PWR_H
 
 #include <drivers/regulator.h>
+#include <kernel/interrupt.h>
+#include <tee_api_types.h>
 #include <types_ext.h>
 #include <util.h>
 
@@ -64,5 +66,28 @@ vaddr_t stm32_pwr_base(void);
 
 void stm32mp1_pwr_regul_lock(const struct regul_desc *desc __unused);
 void stm32mp1_pwr_regul_unlock(const struct regul_desc *desc __unused);
+
+/* wakeup-pins irq chip */
+enum pwr_wkup_pins {
+	PWR_WKUP_PIN1 = 0,
+	PWR_WKUP_PIN2,
+	PWR_WKUP_PIN3,
+	PWR_WKUP_PIN4,
+	PWR_WKUP_PIN5,
+	PWR_WKUP_PIN6,
+	PWR_NB_WAKEUPPINS
+};
+
+enum pwr_wkup_flags {
+	PWR_WKUP_FLAG_RISING = 0,
+	PWR_WKUP_FLAG_FALLING,
+};
+
+TEE_Result
+stm32mp1_pwr_itr_alloc_add(size_t it, itr_handler_t handler, uint32_t flags,
+			   void *data, struct itr_handler **phdl);
+
+void stm32mp1_pwr_itr_enable(size_t it);
+void stm32mp1_pwr_itr_disable(size_t it);
 
 #endif /*__STM32MP1_PWR_H*/
