@@ -320,6 +320,21 @@ void *dt_driver_device_from_node_idx_prop(const char *prop_name,
 	return NULL;
 }
 
+void *dt_driver_device_from_node(int nodeoffset, enum dt_driver_type type,
+				    TEE_Result *res)
+{
+	struct dt_driver_provider *prv = NULL;
+
+	prv = dt_driver_get_provider_by_node(nodeoffset, type);
+	if (!prv) {
+		/* No provider registered yet */
+		*res = TEE_ERROR_DEFER_DRIVER_INIT;
+		return NULL;
+	}
+
+	return prv->get_of_device(NULL, prv->priv_data, res);
+}
+
 static void __maybe_unused print_probe_list(const void *fdt __maybe_unused)
 {
 	struct dt_driver_probe *elt = NULL;

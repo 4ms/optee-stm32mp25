@@ -2,7 +2,6 @@
 /*
  * Copyright (c) 2021, Linaro Limited
  * Copyright (c) 2021, Bootlin
- * Copyright (c) 2021, Linaro Limited
  * Copyright (c) 2021, STMicroelectronics
  */
 
@@ -99,6 +98,23 @@ void dt_driver_crypt_init_complete(void);
 #else
 static inline void dt_driver_crypt_init_complete(void) {}
 #endif
+
+/*
+ * dt_driver_device_from_node - Return a device instance based on a
+ * driver type and FDT information
+ *
+ * @nodeoffset: node offset in the FDT
+ * @type: Driver type
+ * @res: Output result code of the operation: TEE_ERROR_DEFER_DRIVER_INIT
+ *	 is target device is not yet initialized, otherwise any other compliant
+ *	 code.
+ *
+ * Return a device opaque reference, e.g. a struct i2c_handle_s pointer
+ * for an I2C driver, or NULL if not found in which case @res provides
+ * the error code.
+ */
+void *dt_driver_device_from_node(int nodeoffset, enum dt_driver_type type,
+				 TEE_Result *res);
 
 /*
  * Return driver provider reference from its node offset value in the FDT
