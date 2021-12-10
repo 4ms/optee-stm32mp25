@@ -106,6 +106,7 @@ static void assert_type_is_valid(enum dt_driver_type type)
 	case DT_DRIVER_RSTCTRL:
 	case DT_DRIVER_UART:
 	case DT_DRIVER_PINCTRL:
+	case DT_DRIVER_I2C:
 		return;
 	default:
 		assert(0);
