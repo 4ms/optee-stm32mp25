@@ -126,20 +126,39 @@ TEE_Result dt_driver_register_provider(const void *fdt, int nodeoffset,
 	uint32_t phandle = 0;
 
 	assert_type_is_valid(type);
+	switch (type) {
+	case DT_DRIVER_CLK:
+	case DT_DRIVER_RSTCTRL:
+		provider_cells = fdt_get_dt_driver_cells(fdt, nodeoffset, type);
+		if (provider_cells < 0) {
+			DMSG("Failed to find provider cells: %d",
+			     provider_cells);
+			return TEE_ERROR_GENERIC;
+		}
 
-	provider_cells = fdt_get_dt_driver_cells(fdt, nodeoffset, type);
-	if (provider_cells < 0) {
-		DMSG("Failed to find provider cells: %d", provider_cells);
-		return TEE_ERROR_GENERIC;
-	}
+		phandle = fdt_get_phandle(fdt, nodeoffset);
+		if (!phandle)
+			return TEE_SUCCESS;
 
-	phandle = fdt_get_phandle(fdt, nodeoffset);
-	if (!phandle)
-		return TEE_SUCCESS;
+		if (phandle == (uint32_t)-1) {
+			DMSG("Failed to find provide phandle");
+			return TEE_ERROR_GENERIC;
+		}
+		break;
+	case DT_DRIVER_PINCTRL:
+		phandle = fdt_get_phandle(fdt, nodeoffset);
+		if (!phandle)
+			return TEE_SUCCESS;
 
-	if (phandle == (uint32_t)-1) {
-		DMSG("Failed to find provide phandle");
-		return TEE_ERROR_GENERIC;
+		if (phandle == (uint32_t)-1) {
+			DMSG("Failed to find provide phandle");
+			return TEE_ERROR_GENERIC;
+		}
+		break;
+	case DT_DRIVER_I2C:
+		break;
+	default:
+		panic("Trying to register unknown type of provider");
 	}
 
 	prv = calloc(1, sizeof(*prv));
