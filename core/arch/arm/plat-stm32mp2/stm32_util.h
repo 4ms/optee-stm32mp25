@@ -11,6 +11,8 @@
 #include <stdint.h>
 #include <types_ext.h>
 
+#include <drivers/stm32mp2_rcc_util.h>
+
 /*
  * Register resource identified by @base as a secure peripheral
  * @base: IOMEM physical base address of the resource

@@ -145,6 +145,13 @@ static TEE_Result init_console_from_dt(void)
 service_init_late(init_console_from_dt);
 #endif /*STM32_UART*/
 
+vaddr_t stm32_rcc_base(void)
+{
+	static struct io_pa_va base = { .pa = RCC_BASE };
+
+	return io_pa_or_va_secure(&base, 1);
+}
+
 void main_init_gic(void)
 {
 	gic_init(&gic_data, GIC_BASE + GICC_OFFSET, GIC_BASE + GICD_OFFSET);
