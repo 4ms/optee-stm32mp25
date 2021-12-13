@@ -140,6 +140,7 @@
 		compatible = "st,stpmic1";
 		reg = <0x33>;
 		status = "okay";
+		st,wakeup-pin-number = <1>;
 
 		regulators {
 			compatible = "st,stpmic1-regulators";
