@@ -9,6 +9,7 @@
 			opp-hz = /bits/ 64 <800000000>;
 			opp-microvolt = <1350000>;
 			opp-supported-hw = <0x2>;
+			st,opp-default;
 		};
 		opp-400000000 {
 			opp-hz = /bits/ 64 <400000000>;
