@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 /*
- * Copyright (c) 2017-2021, STMicroelectronics
- * Copyright (c) 2016-2021, Linaro Limited
+ * Copyright (c) 2017-2022, STMicroelectronics
+ * Copyright (c) 2016-2022, Linaro Limited
  */
 
 #include <config.h>
@@ -13,8 +13,10 @@
 #include <kernel/boot.h>
 #include <kernel/interrupt.h>
 #include <kernel/misc.h>
+#include <kernel/spinlock.h>
 #include <mm/core_memprot.h>
 #include <platform_config.h>
+#include <stm32_util.h>
 #include <trace.h>
 
 register_phys_mem_pgdir(MEM_AREA_IO_NSEC, APB1_BASE, APB1_SIZE);
@@ -152,4 +154,20 @@ void main_init_gic(void)
 void itr_core_handler(void)
 {
 	gic_it_handle(&gic_data);
+}
+
+uint32_t may_spin_lock(unsigned int *lock)
+{
+	if (!lock || !cpu_mmu_enabled())
+		return 0;
+
+	return cpu_spin_lock_xsave(lock);
+}
+
+void may_spin_unlock(unsigned int *lock, uint32_t exceptions)
+{
+	if (!lock || !cpu_mmu_enabled())
+		return;
+
+	cpu_spin_unlock_xrestore(lock, exceptions);
 }
