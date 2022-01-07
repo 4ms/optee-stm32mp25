@@ -37,6 +37,7 @@ $(call force,CFG_GENERIC_BOOT,y)
 $(call force,CFG_DRIVERS_CLK,y)
 $(call force,CFG_DRIVERS_CLK_DT,y)
 $(call force,CFG_DRIVERS_CLK_EARLY_PROBE,y)
+$(call force,CFG_STM32_FIREWALL,y)
 $(call force,CFG_TEE_CORE_EMBED_INTERNAL_TESTS,n)
 
 ifneq ($(filter $(CFG_EMBED_DTB_SOURCE_FILE),$(flavorlist-1G)),)
@@ -57,6 +58,7 @@ CFG_TEE_CORE_NB_CORE ?= 2
 
 CFG_STM32_GPIO ?= y
 CFG_STM32_RIF ?= y
+CFG_STM32_RIFSC ?= y
 CFG_STM32_SHARED_IO ?= y
 CFG_STM32_UART ?= y
 
