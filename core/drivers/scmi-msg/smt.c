@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 /*
- * Copyright (c) 2015-2019, Arm Limited and Contributors. All rights reserved.
- * Copyright (c) 2019-2022, Linaro Limited
+ * Copyright (c) 2015-2023, Arm Limited and Contributors. All rights reserved.
+ * Copyright (c) 2019-2023, Linaro Limited
  */
 #include <assert.h>
 #include <drivers/scmi-msg.h>
@@ -97,7 +97,7 @@ void scmi_entry_smt(unsigned int channel_id, uint32_t *payload_buf)
 			  sizeof(smt_hdr->message_header);
 
 	if (in_payload_size > SCMI_SEC_PAYLOAD_SIZE) {
-		DMSG("SCMI payload too big %u", in_payload_size);
+		DMSG("SCMI payload too big %zu", in_payload_size);
 		goto out;
 	}
 
