@@ -586,6 +586,9 @@ static void register_non_secure_pmic(void)
 	if (!i2c_handle.base.pa)
 		return;
 
+	if (stm32_pinctrl_set_secure_cfg(i2c_handle.pinctrl, false))
+		panic();
+
 #ifdef CFG_STM32MP1_SHARED_RESOURCES
 	stm32mp_register_non_secure_periph_iomem(i2c_handle.base.pa);
 #endif /* CFG_STM32MP1_SHARED_RESOURCES */

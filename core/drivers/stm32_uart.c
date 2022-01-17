@@ -112,13 +112,15 @@ void stm32_uart_init(struct stm32_uart_pdata *pd, vaddr_t base)
 static void register_secure_uart(struct stm32_uart_pdata *pd)
 {
 	stm32mp_register_secure_periph_iomem(pd->base.pa);
-	stm32_pinctrl_set_secure_cfg(pd->pinctrl, true);
+	if (stm32_pinctrl_set_secure_cfg(pd->pinctrl, true))
+		panic();
 }
 
 static void register_non_secure_uart(struct stm32_uart_pdata *pd)
 {
 	stm32mp_register_non_secure_periph_iomem(pd->base.pa);
-	stm32_pinctrl_set_secure_cfg(pd->pinctrl, false);
+	if (stm32_pinctrl_set_secure_cfg(pd->pinctrl, false))
+		panic();
 }
 
 struct stm32_uart_pdata *stm32_uart_init_from_dt_node(void *fdt, int node)
