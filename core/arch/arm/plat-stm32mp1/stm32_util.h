@@ -214,17 +214,7 @@ static inline int decr_refcnt(unsigned int *refcnt)
  * resource as secure, non-secure or shared and to get the resource
  * assignation state.
  */
-#define STM32MP1_SHRES_GPIOZ(i)		(STM32MP1_SHRES_GPIOZ_0 + i)
-
 enum stm32mp_shres {
-	STM32MP1_SHRES_GPIOZ_0 = 0,
-	STM32MP1_SHRES_GPIOZ_1,
-	STM32MP1_SHRES_GPIOZ_2,
-	STM32MP1_SHRES_GPIOZ_3,
-	STM32MP1_SHRES_GPIOZ_4,
-	STM32MP1_SHRES_GPIOZ_5,
-	STM32MP1_SHRES_GPIOZ_6,
-	STM32MP1_SHRES_GPIOZ_7,
 	STM32MP1_SHRES_IWDG1,
 	STM32MP1_SHRES_USART1,
 	STM32MP1_SHRES_SPI6,
@@ -260,43 +250,8 @@ void stm32mp_register_secure_periph_iomem(vaddr_t base);
  */
 void stm32mp_register_non_secure_periph_iomem(vaddr_t base);
 
-/*
- * Register GPIO resource as a secure peripheral
- * @bank: Bank of the target GPIO
- * @pin: Bit position of the target GPIO in the bank
- */
-void stm32mp_register_secure_gpio(unsigned int bank, unsigned int pin);
-
-/*
- * Register GPIO resource as a non-secure peripheral
- * @bank: Bank of the target GPIO
- * @pin: Bit position of the target GPIO in the bank
- */
-void stm32mp_register_non_secure_gpio(unsigned int bank, unsigned int pin);
-
-/*
- * Register a pinctrl list for non-secure peripheral accesses
- * @list: Reference to pinctrl list
- */
-void stm32mp_register_non_secure_pinctrl(struct stm32_pinctrl_list *list);
-
-/*
- * Register a pinctrl list for secure peripheral accesses
- * @list: Reference to pinctrl list
- */
-void stm32mp_register_secure_pinctrl(struct stm32_pinctrl_list *list);
-
 /* Return true if and only if resource @id is registered as secure */
 bool stm32mp_periph_is_secure(enum stm32mp_shres id);
-
-/* Return true if and only if GPIO bank @bank is registered as secure */
-bool stm32mp_gpio_bank_is_secure(unsigned int bank);
-
-/* Return true if and only if GPIO bank @bank is registered as shared */
-bool stm32mp_gpio_bank_is_shared(unsigned int bank);
-
-/* Return true if and only if GPIO bank @bank is registered as non-secure */
-bool stm32mp_gpio_bank_is_non_secure(unsigned int bank);
 
 /* Register parent clocks of @clock (ID used in clock DT bindings) as secure */
 void stm32mp_register_clock_parents_secure(unsigned long clock_id);

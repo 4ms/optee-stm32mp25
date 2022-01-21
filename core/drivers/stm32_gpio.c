@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 /*
- * Copyright (c) 2017-2021, STMicroelectronics
+ * Copyright (c) 2017-2022, STMicroelectronics
  *
  * STM32 GPIO driver is used as pin controller for stm32mp SoCs.
  * The driver API is defined in header file stm32_gpio.h.
@@ -50,6 +50,8 @@
 
 /* Banks are named "GPIOX" with X upper case letter starting from 'A' */
 #define DT_GPIO_BANK_NAME0	"GPIOA"
+
+#define PROP_NAME_MAX		U(20)
 
 /**
  * struct stm32_gpio_bank describes a GPIO bank instance
@@ -231,13 +233,8 @@ void stm32_pinctrl_set_secure_cfg(struct stm32_pinctrl_list *list, bool secure)
 {
 	struct stm32_pinctrl *p = NULL;
 
-	STAILQ_FOREACH(p, list, link) {
+	STAILQ_FOREACH(p, list, link)
 		stm32_gpio_set_secure_cfg(p->bank, p->pin, secure);
-		if (secure)
-			stm32mp_register_secure_gpio(p->bank, p->pin);
-		else
-			stm32mp_register_non_secure_gpio(p->bank, p->pin);
-	}
 }
 
 /* Count pins described in the DT node and get related data if possible */
@@ -413,32 +410,6 @@ struct stm32_pinctrl_list *stm32_pinctrl_fdt_get_pinctrl(const void *fdt,
 	}
 
 	return list;
-}
-
-int stm32_get_gpio_count(void *fdt, int pinctrl_node, unsigned int bank)
-{
-	int node = 0;
-	const fdt32_t *cuint = NULL;
-
-	fdt_for_each_subnode(node, fdt, pinctrl_node) {
-		if (!fdt_getprop(fdt, node, "gpio-controller", NULL))
-			continue;
-
-		cuint = fdt_getprop(fdt, node, "reg", NULL);
-		if (!cuint)
-			continue;
-
-		if (fdt32_to_cpu(*cuint) != stm32_get_gpio_bank_offset(bank))
-			continue;
-
-		cuint = fdt_getprop(fdt, node, "ngpios", NULL);
-		if (!cuint)
-			panic();
-
-		return (int)fdt32_to_cpu(*cuint);
-	}
-
-	return -1;
 }
 
 /*  Informative unused helper function */

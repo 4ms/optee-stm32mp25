@@ -167,33 +167,6 @@
 #define TARGET_CPU1_GIC_MASK		BIT(1)
 #define TARGET_CPUS_GIC_MASK		GENMASK_32(CFG_TEE_CORE_NB_CORE - 1, 0)
 
-/*
- * GPIO banks: 11 non secure banks (A to K) and 1 secure bank (Z)
- * Bank register's base address is computed from the bank ID listed here.
- */
-#define GPIOS_NSEC_COUNT		11
-#define GPIOS_NSEC_BASE			GPIOA_BASE
-#define GPIOS_NSEC_SIZE			(GPIOS_NSEC_COUNT * SMALL_PAGE_SIZE)
-
-#define STM32MP1_GPIOZ_MAX_COUNT	1
-#define STM32MP1_GPIOZ_PIN_MAX_COUNT	8
-
-#define GPIO_BANK_OFFSET		0x1000U
-
-/* Bank IDs used in GPIO driver API */
-#define GPIO_BANK_A			0U
-#define GPIO_BANK_B			1U
-#define GPIO_BANK_C			2U
-#define GPIO_BANK_D			3U
-#define GPIO_BANK_E			4U
-#define GPIO_BANK_F			5U
-#define GPIO_BANK_G			6U
-#define GPIO_BANK_H			7U
-#define GPIO_BANK_I			8U
-#define GPIO_BANK_J			9U
-#define GPIO_BANK_K			10U
-#define GPIO_BANK_Z			25U
-
 /* TAMP resources */
 #define TAMP_BKP_REGISTER_OFF		0x100
 #define TAMP_BKP_REGISTER_COUNT		U(32)

@@ -586,14 +586,17 @@ static void register_non_secure_pmic(void)
 	if (!i2c_handle.base.pa)
 		return;
 
-	stm32mp_register_non_secure_pinctrl(i2c_handle.pinctrl);
+#ifdef CFG_STM32MP1_SHARED_RESOURCES
 	stm32mp_register_non_secure_periph_iomem(i2c_handle.base.pa);
+#endif /* CFG_STM32MP1_SHARED_RESOURCES */
 }
 
 static void register_secure_pmic(void)
 {
-	stm32mp_register_secure_pinctrl(i2c_handle.pinctrl);
+#ifdef CFG_STM32MP1_SHARED_RESOURCES
 	stm32mp_register_secure_periph_iomem(i2c_handle.base.pa);
+#endif /* CFG_STM32MP1_SHARED_RESOURCES */
+
 	register_pm_driver_cb(pmic_pm, NULL, "stm32mp1-pmic");
 }
 

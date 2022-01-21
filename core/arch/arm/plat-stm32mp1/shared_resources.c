@@ -62,16 +62,6 @@ static uint8_t shres_state[STM32MP1_SHRES_COUNT] = {
 	[STM32MP1_SHRES_I2C4] = SHRES_NON_SECURE,
 	[STM32MP1_SHRES_I2C6] = SHRES_NON_SECURE,
 #endif
-#if !defined(CFG_STM32_GPIO)
-	[STM32MP1_SHRES_GPIOZ(0)] = SHRES_NON_SECURE,
-	[STM32MP1_SHRES_GPIOZ(1)] = SHRES_NON_SECURE,
-	[STM32MP1_SHRES_GPIOZ(2)] = SHRES_NON_SECURE,
-	[STM32MP1_SHRES_GPIOZ(3)] = SHRES_NON_SECURE,
-	[STM32MP1_SHRES_GPIOZ(4)] = SHRES_NON_SECURE,
-	[STM32MP1_SHRES_GPIOZ(5)] = SHRES_NON_SECURE,
-	[STM32MP1_SHRES_GPIOZ(6)] = SHRES_NON_SECURE,
-	[STM32MP1_SHRES_GPIOZ(7)] = SHRES_NON_SECURE,
-#endif
 #if !defined(CFG_STM32_RNG)
 	[STM32MP1_SHRES_RNG1] = SHRES_NON_SECURE,
 #endif
@@ -87,14 +77,6 @@ static uint8_t shres_state[STM32MP1_SHRES_COUNT] = {
 };
 
 static const char __maybe_unused *shres2str_id_tbl[STM32MP1_SHRES_COUNT] = {
-	[STM32MP1_SHRES_GPIOZ(0)] = "GPIOZ0",
-	[STM32MP1_SHRES_GPIOZ(1)] = "GPIOZ1",
-	[STM32MP1_SHRES_GPIOZ(2)] = "GPIOZ2",
-	[STM32MP1_SHRES_GPIOZ(3)] = "GPIOZ3",
-	[STM32MP1_SHRES_GPIOZ(4)] = "GPIOZ4",
-	[STM32MP1_SHRES_GPIOZ(5)] = "GPIOZ5",
-	[STM32MP1_SHRES_GPIOZ(6)] = "GPIOZ6",
-	[STM32MP1_SHRES_GPIOZ(7)] = "GPIOZ7",
 	[STM32MP1_SHRES_IWDG1] = "IWDG1",
 	[STM32MP1_SHRES_USART1] = "USART1",
 	[STM32MP1_SHRES_SPI6] = "SPI6",
@@ -125,41 +107,6 @@ static __maybe_unused const char *shres2str_state(enum shres_state id)
 	return shres2str_state_tbl[id];
 }
 
-/* GPIOZ bank pin count depends on SoC variants */
-#ifdef CFG_EMBED_DTB
-/* A light count routine for unpaged context to not depend on DTB support */
-static int gpioz_nbpin = -1;
-
-static unsigned int get_gpioz_nbpin(void)
-{
-	if (gpioz_nbpin < 0)
-		panic();
-
-	return gpioz_nbpin;
-}
-
-static TEE_Result set_gpioz_nbpin_from_dt(void)
-{
-	void *fdt = get_embedded_dt();
-	int node = fdt_path_offset(fdt, "/soc/pin-controller-z");
-	int count = stm32_get_gpio_count(fdt, node, GPIO_BANK_Z);
-
-	if (count < 0 || count > STM32MP1_GPIOZ_PIN_MAX_COUNT)
-		panic();
-
-	gpioz_nbpin = count;
-
-	return TEE_SUCCESS;
-}
-/* Get GPIOZ pin count before drivers initialization, hence service_init() */
-service_init(set_gpioz_nbpin_from_dt);
-#else
-static unsigned int get_gpioz_nbpin(void)
-{
-	return STM32MP1_GPIOZ_PIN_MAX_COUNT;
-}
-#endif
-
 static void register_periph(enum stm32mp_shres id, enum shres_state state)
 {
 	assert(id < STM32MP1_SHRES_COUNT &&
@@ -181,40 +128,11 @@ static void register_periph(enum stm32mp_shres id, enum shres_state state)
 		DMSG("Register %s as %s",
 		     shres2str_id(id), shres2str_state(state));
 
-	switch (id) {
-	case STM32MP1_SHRES_GPIOZ(0):
-	case STM32MP1_SHRES_GPIOZ(1):
-	case STM32MP1_SHRES_GPIOZ(2):
-	case STM32MP1_SHRES_GPIOZ(3):
-	case STM32MP1_SHRES_GPIOZ(4):
-	case STM32MP1_SHRES_GPIOZ(5):
-	case STM32MP1_SHRES_GPIOZ(6):
-	case STM32MP1_SHRES_GPIOZ(7):
-		if ((id - STM32MP1_SHRES_GPIOZ(0)) >= get_gpioz_nbpin()) {
-			EMSG("Invalid GPIO %u >= %u",
-			     id - STM32MP1_SHRES_GPIOZ(0), get_gpioz_nbpin());
-			panic();
-		}
-		break;
-	default:
-		break;
-	}
-
 	shres_state[id] = state;
 
 	/* Explore clock tree to lock secure clock dependencies */
 	if (state == SHRES_SECURE) {
 		switch (id) {
-		case STM32MP1_SHRES_GPIOZ(0):
-		case STM32MP1_SHRES_GPIOZ(1):
-		case STM32MP1_SHRES_GPIOZ(2):
-		case STM32MP1_SHRES_GPIOZ(3):
-		case STM32MP1_SHRES_GPIOZ(4):
-		case STM32MP1_SHRES_GPIOZ(5):
-		case STM32MP1_SHRES_GPIOZ(6):
-		case STM32MP1_SHRES_GPIOZ(7):
-			stm32mp_register_clock_parents_secure(GPIOZ);
-			break;
 		case STM32MP1_SHRES_IWDG1:
 			stm32mp_register_clock_parents_secure(IWDG1);
 			break;
@@ -294,21 +212,6 @@ static void register_periph_iomem(vaddr_t base, enum shres_state state)
 		id = STM32MP1_SHRES_HASH1;
 		break;
 
-	/* Always non-secure resource cases */
-#ifdef CFG_WITH_NSEC_GPIOS
-	case GPIOA_BASE:
-	case GPIOB_BASE:
-	case GPIOC_BASE:
-	case GPIOD_BASE:
-	case GPIOE_BASE:
-	case GPIOF_BASE:
-	case GPIOG_BASE:
-	case GPIOH_BASE:
-	case GPIOI_BASE:
-	case GPIOJ_BASE:
-	case GPIOK_BASE:
-	/* Fall through */
-#endif
 #ifdef CFG_WITH_NSEC_UARTS
 	case USART2_BASE:
 	case USART3_BASE:
@@ -345,57 +248,6 @@ void stm32mp_register_non_secure_periph_iomem(vaddr_t base)
 	register_periph_iomem(base, SHRES_NON_SECURE);
 }
 
-/* Register GPIO resource */
-void stm32mp_register_secure_gpio(unsigned int bank, unsigned int pin)
-{
-	switch (bank) {
-	case GPIO_BANK_Z:
-		assert(pin < get_gpioz_nbpin());
-		register_periph(STM32MP1_SHRES_GPIOZ(pin), SHRES_SECURE);
-		break;
-	default:
-		EMSG("GPIO bank %u cannot be secured", bank);
-		panic();
-	}
-}
-
-void stm32mp_register_non_secure_gpio(unsigned int bank, unsigned int pin)
-{
-	switch (bank) {
-	case GPIO_BANK_Z:
-		assert(pin < get_gpioz_nbpin());
-		register_periph(STM32MP1_SHRES_GPIOZ(pin), SHRES_NON_SECURE);
-		break;
-	default:
-		break;
-	}
-}
-
-static void register_pinctrl(struct stm32_pinctrl_list *list,
-			     enum shres_state state)
-{
-	enum stm32mp_shres shres = STM32MP1_SHRES_COUNT;
-	struct stm32_pinctrl *pinctrl = NULL;
-
-	STAILQ_FOREACH(pinctrl, list, link) {
-		if (pinctrl->bank == GPIO_BANK_Z) {
-			assert(pinctrl->pin < get_gpioz_nbpin());
-			shres = STM32MP1_SHRES_GPIOZ(pinctrl->pin);
-			register_periph(shres, state);
-		}
-	}
-}
-
-void stm32mp_register_non_secure_pinctrl(struct stm32_pinctrl_list *list)
-{
-	register_pinctrl(list, SHRES_NON_SECURE);
-}
-
-void stm32mp_register_secure_pinctrl(struct stm32_pinctrl_list *list)
-{
-	register_pinctrl(list, SHRES_SECURE);
-}
-
 static void lock_registering(void)
 {
 	registering_locked = true;
@@ -406,57 +258,6 @@ bool stm32mp_periph_is_secure(enum stm32mp_shres id)
 	lock_registering();
 
 	return shres_state[id] == SHRES_SECURE;
-}
-
-bool stm32mp_gpio_bank_is_shared(unsigned int bank)
-{
-	unsigned int not_secure = 0;
-	unsigned int pin = 0;
-
-	lock_registering();
-
-	if (bank != GPIO_BANK_Z)
-		return false;
-
-	for (pin = 0; pin < get_gpioz_nbpin(); pin++)
-		if (!stm32mp_periph_is_secure(STM32MP1_SHRES_GPIOZ(pin)))
-			not_secure++;
-
-	return not_secure > 0 && not_secure < get_gpioz_nbpin();
-}
-
-bool stm32mp_gpio_bank_is_non_secure(unsigned int bank)
-{
-	unsigned int not_secure = 0;
-	unsigned int pin = 0;
-
-	lock_registering();
-
-	if (bank != GPIO_BANK_Z)
-		return true;
-
-	for (pin = 0; pin < get_gpioz_nbpin(); pin++)
-		if (!stm32mp_periph_is_secure(STM32MP1_SHRES_GPIOZ(pin)))
-			not_secure++;
-
-	return not_secure > 0 && not_secure == get_gpioz_nbpin();
-}
-
-bool stm32mp_gpio_bank_is_secure(unsigned int bank)
-{
-	unsigned int secure = 0;
-	unsigned int pin = 0;
-
-	lock_registering();
-
-	if (bank != GPIO_BANK_Z)
-		return false;
-
-	for (pin = 0; pin < get_gpioz_nbpin(); pin++)
-		if (stm32mp_periph_is_secure(STM32MP1_SHRES_GPIOZ(pin)))
-			secure++;
-
-	return secure > 0 && secure == get_gpioz_nbpin();
 }
 
 bool stm32mp_nsec_can_access_clock(unsigned long clock_id)
@@ -490,7 +291,7 @@ bool stm32mp_nsec_can_access_clock(unsigned long clock_id)
 	case BSEC:
 		return true;
 	case GPIOZ:
-		return !stm32mp_gpio_bank_is_secure(GPIO_BANK_Z);
+		return true;
 	case SPI6_K:
 		shres_id = STM32MP1_SHRES_SPI6;
 		break;
@@ -533,8 +334,6 @@ bool stm32mp_nsec_can_access_reset(unsigned int reset_id)
 	enum stm32mp_shres shres_id = STM32MP1_SHRES_COUNT;
 
 	switch (reset_id) {
-	case GPIOZ_R:
-		return stm32mp_gpio_bank_is_non_secure(GPIO_BANK_Z);
 	case SPI6_R:
 		shres_id = STM32MP1_SHRES_SPI6;
 		break;
@@ -608,28 +407,6 @@ static void check_rcc_secure_configuration(void)
 		panic();
 }
 
-static void set_gpio_secure_configuration(void)
-{
-	unsigned int pin = 0;
-
-	for (pin = 0; pin < get_gpioz_nbpin(); pin++) {
-		enum stm32mp_shres shres = STM32MP1_SHRES_GPIOZ(pin);
-		bool secure = stm32mp_periph_is_secure(shres);
-
-		stm32_gpio_set_secure_cfg(GPIO_BANK_Z, pin, secure);
-	}
-}
-
-static TEE_Result gpioz_pm(enum pm_op op, uint32_t pm_hint __unused,
-			   const struct pm_callback_handle *hdl __unused)
-{
-	if (op == PM_OP_RESUME)
-		set_gpio_secure_configuration();
-
-	return TEE_SUCCESS;
-}
-DECLARE_KEEP_PAGER(gpioz_pm);
-
 static TEE_Result stm32mp1_init_final_shres(void)
 {
 	enum stm32mp_shres id = STM32MP1_SHRES_COUNT;
@@ -641,12 +418,6 @@ static TEE_Result stm32mp1_init_final_shres(void)
 
 		DMSG("stm32mp %-8s (%2u): %-14s",
 		     shres2str_id(id), id, shres2str_state(*state));
-	}
-
-	if (IS_ENABLED(CFG_STM32_GPIO)) {
-		set_gpio_secure_configuration();
-		register_pm_driver_cb(gpioz_pm, NULL,
-				      "stm32mp1-shared-resources");
 	}
 
 	check_rcc_secure_configuration();
