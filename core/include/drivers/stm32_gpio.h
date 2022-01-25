@@ -102,14 +102,6 @@ void stm32_pinctrl_load_active_cfg(struct stm32_pinctrl_list *list);
 void stm32_pinctrl_load_standby_cfg(struct stm32_pinctrl_list *list);
 
 /*
- * Save the current pin configuration as the standby state for a pin series
- *
- * @pinctrl: array of pinctrl references
- * @count: Number of entries in @pinctrl
- */
-void stm32_pinctrl_store_standby_cfg(struct stm32_pinctrl_list *list);
-
-/*
  * Save pinctrl instances defined in DT node: identifiers and power states
  *
  * @fdt: device tree

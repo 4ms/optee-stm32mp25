@@ -50,45 +50,6 @@
 
 static unsigned int gpio_lock;
 
-/* Save to output @cfg the current GPIO (@bank/@pin) configuration */
-static void get_gpio_cfg(uint32_t bank, uint32_t pin, struct gpio_cfg *cfg)
-{
-	vaddr_t base = stm32_get_gpio_bank_base(bank);
-	struct clk *clk = stm32_get_gpio_bank_clk(bank);
-
-	clk_enable(clk);
-
-	/*
-	 * Save GPIO configuration bits spread over the few bank registers.
-	 * 1bit fields are accessed at bit position being the pin index.
-	 * 2bit fields are accessed at bit position being twice the pin index.
-	 * 4bit fields are accessed at bit position being fourth the pin index
-	 * but accessed from 2 32bit registers at incremental addresses.
-	 */
-	cfg->mode = (io_read32(base + GPIO_MODER_OFFSET) >> (pin << 1)) &
-		     GPIO_MODE_MASK;
-
-	cfg->otype = (io_read32(base + GPIO_OTYPER_OFFSET) >> pin) & 1;
-
-	cfg->ospeed = (io_read32(base +  GPIO_OSPEEDR_OFFSET) >> (pin << 1)) &
-		       GPIO_OSPEED_MASK;
-
-	cfg->pupd = (io_read32(base +  GPIO_PUPDR_OFFSET) >> (pin << 1)) &
-		     GPIO_PUPD_PULL_MASK;
-
-	cfg->od = (io_read32(base + GPIO_ODR_OFFSET) >> (pin << 1)) & 1;
-
-	if (pin < GPIO_ALT_LOWER_LIMIT)
-		cfg->af = (io_read32(base + GPIO_AFRL_OFFSET) >> (pin << 2)) &
-			   GPIO_ALTERNATE_MASK;
-	else
-		cfg->af = (io_read32(base + GPIO_AFRH_OFFSET) >>
-			    ((pin - GPIO_ALT_LOWER_LIMIT) << 2)) &
-			   GPIO_ALTERNATE_MASK;
-
-	clk_disable(clk);
-}
-
 /* Apply GPIO (@bank/@pin) configuration described by @cfg */
 static void set_gpio_cfg(uint32_t bank, uint32_t pin, struct gpio_cfg *cfg)
 {
@@ -149,14 +110,6 @@ void stm32_pinctrl_load_standby_cfg(struct stm32_pinctrl_list *list)
 
 	STAILQ_FOREACH(p, list, link)
 		set_gpio_cfg(p->bank, p->pin, &p->standby_cfg);
-}
-
-void stm32_pinctrl_store_standby_cfg(struct stm32_pinctrl_list *list)
-{
-	struct stm32_pinctrl *p = NULL;
-
-	STAILQ_FOREACH(p, list, link)
-		get_gpio_cfg(p->bank, p->pin, &p->standby_cfg);
 }
 
 #ifdef CFG_DT
