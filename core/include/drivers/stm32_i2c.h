@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: (GPL-2.0 OR BSD-3-Clause) */
 /*
- * Copyright (c) 2017-2019, STMicroelectronics
+ * Copyright (c) 2017-2022, STMicroelectronics
  */
 
 #ifndef __STM32_I2C_H
@@ -111,8 +111,7 @@ struct i2c_cfg {
  * @saved_timing: Saved timing value if already computed
  * @saved_frequency: Saved frequency value if already computed
  * @sec_cfg: I2C registers configuration storage
- * @pinctrl: PINCTRLs configuration for the I2C PINs
- * @pinctrl_count: Number of PINCTRLs elements
+ * @pinctrl: Reference to PINCTRLs
  */
 struct i2c_handle_s {
 	struct io_pa_va base;
@@ -124,8 +123,7 @@ struct i2c_handle_s {
 	uint32_t saved_timing;
 	unsigned long saved_frequency;
 	struct i2c_cfg sec_cfg;
-	struct stm32_pinctrl *pinctrl;
-	size_t pinctrl_count;
+	struct stm32_pinctrl_list *pinctrl;
 };
 
 /* STM32 specific defines */
@@ -141,14 +139,12 @@ struct i2c_handle_s {
  * @fdt: Reference to DT
  * @node: Target I2C node in the DT
  * @init: Output stm32_i2c_init_s structure
- * @pinctrl: Reference to output pinctrl array
- * @pinctrl_count: Input @pinctrl array size, output expected size upon success
+ * @pinctrl: Reference pinctrl list
  * Return a TEE_Result compliant value
  */
 TEE_Result stm32_i2c_get_setup_from_fdt(void *fdt, int node,
 					struct stm32_i2c_init_s *init,
-					struct stm32_pinctrl **pinctrl,
-					size_t *pinctrl_count);
+					struct stm32_pinctrl_list **pinctrl);
 
 /*
  * Initialize I2C bus handle from input configuration directives

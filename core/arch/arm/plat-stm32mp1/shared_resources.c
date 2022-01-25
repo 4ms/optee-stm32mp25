@@ -371,6 +371,31 @@ void stm32mp_register_non_secure_gpio(unsigned int bank, unsigned int pin)
 	}
 }
 
+static void register_pinctrl(struct stm32_pinctrl_list *list,
+			     enum shres_state state)
+{
+	enum stm32mp_shres shres = STM32MP1_SHRES_COUNT;
+	struct stm32_pinctrl *pinctrl = NULL;
+
+	STAILQ_FOREACH(pinctrl, list, link) {
+		if (pinctrl->bank == GPIO_BANK_Z) {
+			assert(pinctrl->pin < get_gpioz_nbpin());
+			shres = STM32MP1_SHRES_GPIOZ(pinctrl->pin);
+			register_periph(shres, state);
+		}
+	}
+}
+
+void stm32mp_register_non_secure_pinctrl(struct stm32_pinctrl_list *list)
+{
+	register_pinctrl(list, SHRES_NON_SECURE);
+}
+
+void stm32mp_register_secure_pinctrl(struct stm32_pinctrl_list *list)
+{
+	register_pinctrl(list, SHRES_SECURE);
+}
+
 static void lock_registering(void)
 {
 	registering_locked = true;

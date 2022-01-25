@@ -135,36 +135,33 @@ static void set_gpio_cfg(uint32_t bank, uint32_t pin, struct gpio_cfg *cfg)
 	cpu_spin_unlock_xrestore(&gpio_lock, exceptions);
 }
 
-void stm32_pinctrl_load_active_cfg(struct stm32_pinctrl *pinctrl, size_t cnt)
+void stm32_pinctrl_load_active_cfg(struct stm32_pinctrl_list *list)
 {
-	size_t n = 0;
+	struct stm32_pinctrl *p = NULL;
 
-	for (n = 0; n < cnt; n++)
-		set_gpio_cfg(pinctrl[n].bank, pinctrl[n].pin,
-			     &pinctrl[n].active_cfg);
+	STAILQ_FOREACH(p, list, link)
+		set_gpio_cfg(p->bank, p->pin, &p->active_cfg);
 }
 
-void stm32_pinctrl_load_standby_cfg(struct stm32_pinctrl *pinctrl, size_t cnt)
+void stm32_pinctrl_load_standby_cfg(struct stm32_pinctrl_list *list)
 {
-	size_t n = 0;
+	struct stm32_pinctrl *p = NULL;
 
-	for (n = 0; n < cnt; n++)
-		set_gpio_cfg(pinctrl[n].bank, pinctrl[n].pin,
-			     &pinctrl[n].standby_cfg);
+	STAILQ_FOREACH(p, list, link)
+		set_gpio_cfg(p->bank, p->pin, &p->standby_cfg);
 }
 
-void stm32_pinctrl_store_standby_cfg(struct stm32_pinctrl *pinctrl, size_t cnt)
+void stm32_pinctrl_store_standby_cfg(struct stm32_pinctrl_list *list)
 {
-	size_t n = 0;
+	struct stm32_pinctrl *p = NULL;
 
-	for (n = 0; n < cnt; n++)
-		get_gpio_cfg(pinctrl[n].bank, pinctrl[n].pin,
-			     &pinctrl[n].standby_cfg);
+	STAILQ_FOREACH(p, list, link)
+		get_gpio_cfg(p->bank, p->pin, &p->standby_cfg);
 }
 
 #ifdef CFG_DT
 /* Panic if GPIO bank information from platform do not match DTB description */
-static void ckeck_gpio_bank(void *fdt, uint32_t bank, int pinctrl_node)
+static void ckeck_gpio_bank(const void *fdt, uint32_t bank, int pinctrl_node)
 {
 	int pinctrl_subnode = 0;
 
@@ -198,24 +195,24 @@ static void ckeck_gpio_bank(void *fdt, uint32_t bank, int pinctrl_node)
 }
 
 /* Count pins described in the DT node and get related data if possible */
-static int get_pinctrl_from_fdt(void *fdt, int node,
-				struct stm32_pinctrl *pinctrl, size_t count)
+static TEE_Result get_pinctrl_from_fdt(const void *fdt, int node,
+				       struct stm32_pinctrl_list *list)
 {
-	const fdt32_t *cuint, *slewrate;
+	const fdt32_t *cuint = NULL;
+	const fdt32_t *slewrate = NULL;
 	int len = 0;
 	int pinctrl_node = 0;
 	uint32_t i = 0;
 	uint32_t speed = GPIO_OSPEED_LOW;
 	uint32_t pull = GPIO_PUPD_NO_PULL;
-	size_t found = 0;
 
 	cuint = fdt_getprop(fdt, node, "pinmux", &len);
 	if (!cuint)
-		return -FDT_ERR_NOTFOUND;
+		panic();
 
 	pinctrl_node = fdt_parent_offset(fdt, fdt_parent_offset(fdt, node));
 	if (pinctrl_node < 0)
-		return -FDT_ERR_NOTFOUND;
+		panic();
 
 	slewrate = fdt_getprop(fdt, node, "slew-rate", NULL);
 	if (slewrate)
@@ -227,12 +224,17 @@ static int get_pinctrl_from_fdt(void *fdt, int node,
 		pull = GPIO_PUPD_PULL_DOWN;
 
 	for (i = 0; i < ((uint32_t)len / sizeof(uint32_t)); i++) {
+		struct stm32_pinctrl *ref = NULL;
 		uint32_t pincfg = 0;
 		uint32_t bank = 0;
 		uint32_t pin = 0;
 		uint32_t mode = 0;
 		uint32_t alternate = 0;
 		bool opendrain = false;
+
+		ref = calloc(1, sizeof(*ref));
+		if (!ref)
+			return TEE_ERROR_OUT_OF_MEMORY;
 
 		pincfg = fdt32_to_cpu(*cuint);
 		cuint++;
@@ -280,39 +282,42 @@ static int get_pinctrl_from_fdt(void *fdt, int node,
 		/* Check GPIO bank clock/base address against platform */
 		ckeck_gpio_bank(fdt, bank, pinctrl_node);
 
-		if (found < count) {
-			struct stm32_pinctrl *ref = &pinctrl[found];
+		ref->bank = (uint8_t)bank;
+		ref->pin = (uint8_t)pin;
+		ref->active_cfg.mode = mode;
+		ref->active_cfg.otype = opendrain ? 1 : 0;
+		ref->active_cfg.ospeed = speed;
+		ref->active_cfg.pupd = pull;
+		ref->active_cfg.od = 0;
+		ref->active_cfg.af = alternate;
+		/* Default to analog mode for standby state */
+		ref->standby_cfg.mode = GPIO_MODE_ANALOG;
+		ref->standby_cfg.pupd = GPIO_PUPD_NO_PULL;
 
-			ref->bank = (uint8_t)bank;
-			ref->pin = (uint8_t)pin;
-			ref->active_cfg.mode = mode;
-			ref->active_cfg.otype = opendrain ? 1 : 0;
-			ref->active_cfg.ospeed = speed;
-			ref->active_cfg.pupd = pull;
-			ref->active_cfg.od = 0;
-			ref->active_cfg.af = alternate;
-			/* Default to analog mode for standby state */
-			ref->standby_cfg.mode = GPIO_MODE_ANALOG;
-			ref->standby_cfg.pupd = GPIO_PUPD_NO_PULL;
-		}
-
-		found++;
+		STAILQ_INSERT_TAIL(list, ref, link);
 	}
 
-	return (int)found;
+	return TEE_SUCCESS;
 }
 
-int stm32_pinctrl_fdt_get_pinctrl(void *fdt, int device_node,
-				  struct stm32_pinctrl *pinctrl, size_t count)
+struct stm32_pinctrl_list *stm32_pinctrl_fdt_get_pinctrl(const void *fdt,
+							 int device_node)
 {
+	TEE_Result res = TEE_ERROR_GENERIC;
+	struct stm32_pinctrl_list *list = NULL;
 	const fdt32_t *cuint = NULL;
 	int lenp = 0;
 	int i = 0;
-	size_t found = 0;
 
 	cuint = fdt_getprop(fdt, device_node, "pinctrl-0", &lenp);
 	if (!cuint)
-		return -FDT_ERR_NOTFOUND;
+		return NULL;
+
+	list = calloc(1, sizeof(*list));
+	if (!list)
+		panic();
+
+	STAILQ_INIT(list);
 
 	for (i = 0; i < (lenp / 4); i++) {
 		int node = 0;
@@ -320,29 +325,21 @@ int stm32_pinctrl_fdt_get_pinctrl(void *fdt, int device_node,
 
 		node = fdt_node_offset_by_phandle(fdt, fdt32_to_cpu(*cuint));
 		if (node < 0)
-			return -FDT_ERR_NOTFOUND;
+			panic();
 
 		fdt_for_each_subnode(subnode, fdt, node) {
-			size_t n = 0;
-			int rc = 0;
+			res = get_pinctrl_from_fdt(fdt, subnode, list);
+			if (res) {
+				EMSG("Failed to get pinctrl: %#"PRIx32, res);
+				panic();
+			}
 
-			if (count > found)
-				n = count - found;
-			else
-				n = 0;
-
-			rc = get_pinctrl_from_fdt(fdt, subnode,
-						  &pinctrl[found], n);
-			if (rc < 0)
-				return rc;
-
-			found += (size_t)rc;
 		}
 
 		cuint++;
 	}
 
-	return (int)found;
+	return list;
 }
 
 int stm32_get_gpio_count(void *fdt, int pinctrl_node, unsigned int bank)
@@ -438,4 +435,17 @@ void stm32_gpio_set_secure_cfg(unsigned int bank, unsigned int pin, bool secure)
 
 	clk_disable(clk);
 	cpu_spin_unlock_xrestore(&gpio_lock, exceptions);
+}
+
+void stm32_pinctrl_set_secure_cfg(struct stm32_pinctrl_list *list, bool secure)
+{
+	struct stm32_pinctrl *p = NULL;
+
+	STAILQ_FOREACH(p, list, link) {
+		stm32_gpio_set_secure_cfg(p->bank, p->pin, secure);
+		if (secure)
+			stm32mp_register_secure_gpio(p->bank, p->pin);
+		else
+			stm32mp_register_non_secure_gpio(p->bank, p->pin);
+	}
 }

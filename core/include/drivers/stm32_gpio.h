@@ -17,6 +17,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <sys/queue.h>
 
 #define GPIO_MODE_INPUT		0x0
 #define GPIO_MODE_OUTPUT	0x1
@@ -65,13 +66,31 @@ struct gpio_cfg {
  * @pin: Pin number in the GPIO bank
  * @active_cfg: Configuratioh in active state
  * @standby_cfg: Configuratioh in standby state
+ * @link: Link to chain stm32_pinctrl structure in the list
  */
 struct stm32_pinctrl {
 	uint8_t bank;
 	uint8_t pin;
 	struct gpio_cfg active_cfg;
 	struct gpio_cfg standby_cfg;
+
+	STAILQ_ENTRY(stm32_pinctrl) link;
 };
+
+/*
+ * Structure used to define list of stm32_pinctrl
+ *
+ * @stm32_pinctrl_list	Structure name
+ * @stm32_pinctrl	Element of the structure
+ */
+STAILQ_HEAD(stm32_pinctrl_list, stm32_pinctrl);
+
+/*
+ * Apply series of pin muxing configuration
+ *
+ * @list: List of the pinctrl configuration to load
+ */
+void stm32_pinctrl_load_config(struct stm32_pinctrl_list *list);
 
 /*
  * Apply series of pin muxing configuration, active state and standby state
@@ -79,8 +98,8 @@ struct stm32_pinctrl {
  * @pinctrl: array of pinctrl references
  * @count: Number of entries in @pinctrl
  */
-void stm32_pinctrl_load_active_cfg(struct stm32_pinctrl *pinctrl, size_t cnt);
-void stm32_pinctrl_load_standby_cfg(struct stm32_pinctrl *pinctrl, size_t cnt);
+void stm32_pinctrl_load_active_cfg(struct stm32_pinctrl_list *list);
+void stm32_pinctrl_load_standby_cfg(struct stm32_pinctrl_list *list);
 
 /*
  * Save the current pin configuration as the standby state for a pin series
@@ -88,28 +107,18 @@ void stm32_pinctrl_load_standby_cfg(struct stm32_pinctrl *pinctrl, size_t cnt);
  * @pinctrl: array of pinctrl references
  * @count: Number of entries in @pinctrl
  */
-void stm32_pinctrl_store_standby_cfg(struct stm32_pinctrl *pinctrl, size_t cnt);
+void stm32_pinctrl_store_standby_cfg(struct stm32_pinctrl_list *list);
 
 /*
  * Save pinctrl instances defined in DT node: identifiers and power states
  *
  * @fdt: device tree
  * @node: device node in the device tree
- * @pinctrl: NULL or pointer to array of struct stm32_pinctrl
- * @count: number of elements pointed by argument cfg
  *
- * Return the number of pinctrl instances found or a negative value on error.
- *
- * When @count is 0, @pinctrl may be NULL. The function will return only the
- * number of pinctrl instances found in the device tree for the target
- * device node.
- *
- * If more instances than @count are found then the function returns the
- * effective number of pincltr instance found in the node but fills
- * output array @pinctrl only for the input @count first entries.
+ * Return a refernec eto  a pinctrl group (list)) upon success of NULL.
  */
-int stm32_pinctrl_fdt_get_pinctrl(void *fdt, int node,
-				  struct stm32_pinctrl *pinctrl, size_t count);
+struct stm32_pinctrl_list *stm32_pinctrl_fdt_get_pinctrl(const void *fdt,
+							 int node);
 
 /*
  * Set target output GPIO pin to high or low level
@@ -162,6 +171,14 @@ static inline int stm32_pinctrl_get_gpio_level(struct stm32_pinctrl *pinctrl)
  */
 void stm32_gpio_set_secure_cfg(unsigned int bank, unsigned int pin,
 			       bool secure);
+
+/*
+ * Configure pin muxing access permission: can be secure or not
+ *
+ * @list: Pinctrl list reference
+ * @secure: True if referenced pins are secure, false otherwise
+ */
+void stm32_pinctrl_set_secure_cfg(struct stm32_pinctrl_list *list, bool secure);
 #else
 static inline void stm32_gpio_set_secure_cfg(unsigned int bank __unused,
 					     unsigned int pin __unused,

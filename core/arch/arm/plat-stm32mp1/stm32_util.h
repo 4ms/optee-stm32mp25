@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <drivers/clk.h>
 #include <drivers/stm32_bsec.h>
+#include <drivers/stm32_gpio.h>
 #include <kernel/panic.h>
 #include <stdint.h>
 #include <types_ext.h>
@@ -272,6 +273,18 @@ void stm32mp_register_secure_gpio(unsigned int bank, unsigned int pin);
  * @pin: Bit position of the target GPIO in the bank
  */
 void stm32mp_register_non_secure_gpio(unsigned int bank, unsigned int pin);
+
+/*
+ * Register a pinctrl list for non-secure peripheral accesses
+ * @list: Reference to pinctrl list
+ */
+void stm32mp_register_non_secure_pinctrl(struct stm32_pinctrl_list *list);
+
+/*
+ * Register a pinctrl list for secure peripheral accesses
+ * @list: Reference to pinctrl list
+ */
+void stm32mp_register_secure_pinctrl(struct stm32_pinctrl_list *list);
 
 /* Return true if and only if resource @id is registered as secure */
 bool stm32mp_periph_is_secure(enum stm32mp_shres id);
