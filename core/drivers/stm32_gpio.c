@@ -18,6 +18,7 @@
 #include <libfdt.h>
 #include <mm/core_memprot.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stm32_util.h>
 #include <trace.h>
 #include <util.h>
@@ -397,9 +398,8 @@ static TEE_Result add_pinctrl(const void *fdt, const int phandle,
 }
 
 static __unused struct stm32_pinctrl_list
-*stm32_pinctrl_dt_get_pinctrl(struct dt_driver_phandle_args
-			      *args __maybe_unused,
-			      void *data, TEE_Result *res)
+*stm32_pinctrl_dt_get(struct dt_driver_phandle_args *args __maybe_unused,
+		      void *data, TEE_Result *res)
 {
 	struct stm32_pinctrl_list *list = NULL;
 	struct stm32_data_pinctrl *data_pin =
@@ -443,6 +443,92 @@ static __unused void free_banks(void)
 
 	STAILQ_FOREACH_SAFE(bank, &bank_list, link, next)
 		free(bank);
+}
+
+static TEE_Result
+stm32_pinctrl_dt_get_by_idx_prop(const char *prop_name, const void *fdt,
+				 int nodeoffset,
+				 struct stm32_pinctrl_list **plist)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+	int len = 0;
+	unsigned int i = 0;
+	struct stm32_pinctrl_list *glist = NULL;
+	struct stm32_pinctrl_list *list = NULL;
+	struct stm32_pinctrl *pinctrl = NULL;
+
+	fdt_getprop(fdt, nodeoffset, prop_name, &len);
+	if (len <= 0)
+		return TEE_ERROR_ITEM_NOT_FOUND;
+
+	for (i = 0; i < (len / sizeof(uint32_t)); i++) {
+		list = dt_driver_device_from_node_idx_prop(prop_name,
+							   fdt, nodeoffset, i,
+							   DT_DRIVER_PINCTRL,
+							   &res);
+		if (res)
+			goto err;
+
+		if (!glist)
+			glist = list;
+		else
+			STAILQ_CONCAT(glist, list);
+	}
+
+	*plist = glist;
+
+	return TEE_SUCCESS;
+
+err:
+	if (glist) {
+		while (!STAILQ_EMPTY(glist)) {
+			pinctrl = STAILQ_FIRST(glist);
+			STAILQ_REMOVE_HEAD(glist, link);
+			free(pinctrl);
+		}
+		free(glist);
+	}
+
+	return res;
+}
+
+TEE_Result stm32_pinctrl_dt_get_by_index(const void *fdt, int nodeoffset,
+					 unsigned int index,
+					 struct stm32_pinctrl_list **plist)
+{
+	char prop_name[PROP_NAME_MAX] = { };
+	int check = 0;
+
+	check = snprintf(prop_name, sizeof(prop_name), "pinctrl-%d", index);
+	if (check < 0 || check >= (int)sizeof(prop_name)) {
+		DMSG("Wrong property name for pinctrl");
+		return TEE_ERROR_GENERIC;
+	}
+
+	return stm32_pinctrl_dt_get_by_idx_prop(prop_name, fdt,
+						nodeoffset, plist);
+}
+
+TEE_Result stm32_pinctrl_dt_get_by_name(const void *fdt, int nodeoffset,
+					const char *name,
+					struct stm32_pinctrl_list **plist)
+{
+	int idx = 0;
+	int check = 0;
+	char prop_name[PROP_NAME_MAX] = { };
+
+	idx = fdt_stringlist_search(fdt, nodeoffset, "pinctrl-names", name);
+	if (idx < 0)
+		return TEE_ERROR_GENERIC;
+
+	check = snprintf(prop_name, sizeof(prop_name), "pinctrl-%d", idx);
+	if (check < 0 || check >= (int)sizeof(prop_name)) {
+		DMSG("Unexpected name property %s", name);
+		return TEE_ERROR_GENERIC;
+	}
+
+	return stm32_pinctrl_dt_get_by_idx_prop(prop_name, fdt,
+						nodeoffset, plist);
 }
 
 static struct stm32_gpio_bank *_fdt_stm32_gpio_controller(const void *fdt,
@@ -522,6 +608,7 @@ static struct stm32_gpio_bank *_fdt_stm32_gpio_controller(const void *fdt,
 
 static TEE_Result stm32_gpio_parse_pinctrl_node(const void *fdt, int node)
 {
+	get_of_device_func get_func = (get_of_device_func)stm32_pinctrl_dt_get;
 	TEE_Result res = TEE_SUCCESS;
 	const fdt32_t *cuint = NULL;
 	int subnode = 0;
@@ -547,8 +634,24 @@ static TEE_Result stm32_gpio_parse_pinctrl_node(const void *fdt, int node)
 
 		cuint = fdt_getprop(fdt, subnode, "gpio-controller", NULL);
 		if (!cuint) {
-			/* Skip nodes defining the pinctrl DT phandles */
-			continue;
+			struct stm32_data_pinctrl *pdata = NULL;
+			uint32_t phandle = fdt_get_phandle(fdt, subnode);
+
+			if (!phandle) {
+				/* Node without phandles will not be consumed */
+				continue;
+			}
+
+			pdata = calloc(1, sizeof(*pdata));
+			pdata->fdt = fdt;
+			pdata->phandle = phandle;
+
+			res = dt_driver_register_provider(fdt, subnode,
+							  get_func,
+							  (void *)pdata,
+							  DT_DRIVER_PINCTRL);
+			if (res)
+				return res;
 		} else {
 			/* Register "gpio-controller" */
 			if (_fdt_get_status(fdt, subnode) == DT_STATUS_DISABLED)

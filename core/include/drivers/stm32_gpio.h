@@ -18,6 +18,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <sys/queue.h>
+#include <tee_api_types.h>
 
 #define GPIO_MODE_INPUT		0x0
 #define GPIO_MODE_OUTPUT	0x1
@@ -111,6 +112,34 @@ void stm32_pinctrl_load_standby_cfg(struct stm32_pinctrl_list *list);
  */
 struct stm32_pinctrl_list *stm32_pinctrl_fdt_get_pinctrl(const void *fdt,
 							 int node);
+
+/*
+ * Get a pinctrl configuration reference from an indexed DT pinctrl property
+ *
+ * @fdt: device tree
+ * @node: device node in the device tree
+ * @index: Index of the pinctrl property
+ * @plist: Output pinctrl list reference
+ *
+ * Return a TEE_Result compliant code
+ */
+TEE_Result stm32_pinctrl_dt_get_by_index(const void *fdt, int nodeoffset,
+					 unsigned int index,
+					 struct stm32_pinctrl_list **plist);
+
+/*
+ * Get a pinctrl configuration reference from a named DT pinctrl property
+ *
+ * @fdt: device tree
+ * @node: device node in the device tree
+ * @name: Name of the pinctrl
+ * @plist: Output pinctrl list reference
+ *
+ * Return a TEE_Result compliant code
+ */
+TEE_Result stm32_pinctrl_dt_get_by_name(const void *fdt, int nodeoffset,
+					const char *name,
+					struct stm32_pinctrl_list **plist);
 
 /*
  * Set target output GPIO pin to high or low level
