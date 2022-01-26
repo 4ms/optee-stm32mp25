@@ -338,6 +338,37 @@ static TEE_Result get_pinctrl_from_fdt(const void *fdt, int node,
 	return TEE_SUCCESS;
 }
 
+static TEE_Result add_pinctrl(const void *fdt, const int phandle,
+			      struct stm32_pinctrl_list **list)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+	int node = 0;
+	int subnode = 0;
+
+	assert(list);
+	if (!*list) {
+		*list = calloc(1, sizeof(**list));
+		if (!*list)
+			return TEE_ERROR_OUT_OF_MEMORY;
+
+		STAILQ_INIT(*list);
+	}
+
+	node = fdt_node_offset_by_phandle(fdt, phandle);
+	if (node < 0)
+		panic();
+
+	fdt_for_each_subnode(subnode, fdt, node) {
+		res = get_pinctrl_from_fdt(fdt, subnode, *list);
+		if (res) {
+			EMSG("Failed to get pinctrl: %#"PRIx32, res);
+			return res;
+		}
+	}
+
+	return TEE_SUCCESS;
+}
+
 struct stm32_pinctrl_list *stm32_pinctrl_fdt_get_pinctrl(const void *fdt,
 							 int device_node)
 {
@@ -351,28 +382,12 @@ struct stm32_pinctrl_list *stm32_pinctrl_fdt_get_pinctrl(const void *fdt,
 	if (!cuint)
 		return NULL;
 
-	list = calloc(1, sizeof(*list));
-	if (!list)
-		panic();
-
-	STAILQ_INIT(list);
-
 	for (i = 0; i < (lenp / 4); i++) {
-		int node = 0;
-		int subnode = 0;
+		const int phandle = fdt32_to_cpu(*cuint);
 
-		node = fdt_node_offset_by_phandle(fdt, fdt32_to_cpu(*cuint));
-		if (node < 0)
+		res = add_pinctrl(fdt, phandle, &list);
+		if (res)
 			panic();
-
-		fdt_for_each_subnode(subnode, fdt, node) {
-			res = get_pinctrl_from_fdt(fdt, subnode, list);
-			if (res) {
-				EMSG("Failed to get pinctrl: %#"PRIx32, res);
-				panic();
-			}
-
-		}
 
 		cuint++;
 	}
