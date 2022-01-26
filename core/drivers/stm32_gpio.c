@@ -112,6 +112,87 @@ void stm32_pinctrl_load_standby_cfg(struct stm32_pinctrl_list *list)
 		set_gpio_cfg(p->bank, p->pin, &p->standby_cfg);
 }
 
+static __maybe_unused bool valid_gpio_config(unsigned int bank,
+					     unsigned int pin, bool input)
+{
+	vaddr_t base = stm32_get_gpio_bank_base(bank);
+	uint32_t mode = (io_read32(base + GPIO_MODER_OFFSET) >> (pin << 1)) &
+			GPIO_MODE_MASK;
+
+	if (pin > GPIO_PIN_MAX)
+		return false;
+
+	if (input)
+		return mode == GPIO_MODE_INPUT;
+	else
+		return mode == GPIO_MODE_OUTPUT;
+}
+
+int stm32_gpio_get_input_level(unsigned int bank, unsigned int pin)
+{
+	vaddr_t base = stm32_get_gpio_bank_base(bank);
+	struct clk *clk = stm32_get_gpio_bank_clk(bank);
+	int rc = 0;
+
+	assert(valid_gpio_config(bank, pin, true));
+
+	clk_enable(clk);
+
+	if (io_read32(base + GPIO_IDR_OFFSET) == BIT(pin))
+		rc = 1;
+
+	clk_disable(clk);
+
+	return rc;
+}
+
+void stm32_gpio_set_output_level(unsigned int bank, unsigned int pin, int level)
+{
+	vaddr_t base = stm32_get_gpio_bank_base(bank);
+	struct clk *clk = stm32_get_gpio_bank_clk(bank);
+
+	assert(valid_gpio_config(bank, pin, false));
+
+	clk_enable(clk);
+
+	if (level)
+		io_write32(base + GPIO_BSRR_OFFSET, BIT(pin));
+	else
+		io_write32(base + GPIO_BSRR_OFFSET, BIT(pin + 16));
+
+	clk_disable(clk);
+}
+
+void stm32_gpio_set_secure_cfg(unsigned int bank, unsigned int pin, bool secure)
+{
+	vaddr_t base = stm32_get_gpio_bank_base(bank);
+	struct clk *clk = stm32_get_gpio_bank_clk(bank);
+	uint32_t exceptions = cpu_spin_lock_xsave(&gpio_lock);
+
+	clk_enable(clk);
+
+	if (secure)
+		io_setbits32(base + GPIO_SECR_OFFSET, BIT(pin));
+	else
+		io_clrbits32(base + GPIO_SECR_OFFSET, BIT(pin));
+
+	clk_disable(clk);
+	cpu_spin_unlock_xrestore(&gpio_lock, exceptions);
+}
+
+void stm32_pinctrl_set_secure_cfg(struct stm32_pinctrl_list *list, bool secure)
+{
+	struct stm32_pinctrl *p = NULL;
+
+	STAILQ_FOREACH(p, list, link) {
+		stm32_gpio_set_secure_cfg(p->bank, p->pin, secure);
+		if (secure)
+			stm32mp_register_secure_gpio(p->bank, p->pin);
+		else
+			stm32mp_register_non_secure_gpio(p->bank, p->pin);
+	}
+}
+
 #ifdef CFG_DT
 /* Panic if GPIO bank information from platform do not match DTB description */
 static void ckeck_gpio_bank(const void *fdt, uint32_t bank, int pinctrl_node)
@@ -321,84 +402,3 @@ int stm32_get_gpio_count(void *fdt, int pinctrl_node, unsigned int bank)
 	return -1;
 }
 #endif /*CFG_DT*/
-
-static __maybe_unused bool valid_gpio_config(unsigned int bank,
-					     unsigned int pin, bool input)
-{
-	vaddr_t base = stm32_get_gpio_bank_base(bank);
-	uint32_t mode = (io_read32(base + GPIO_MODER_OFFSET) >> (pin << 1)) &
-			GPIO_MODE_MASK;
-
-	if (pin > GPIO_PIN_MAX)
-		return false;
-
-	if (input)
-		return mode == GPIO_MODE_INPUT;
-	else
-		return mode == GPIO_MODE_OUTPUT;
-}
-
-int stm32_gpio_get_input_level(unsigned int bank, unsigned int pin)
-{
-	vaddr_t base = stm32_get_gpio_bank_base(bank);
-	struct clk *clk = stm32_get_gpio_bank_clk(bank);
-	int rc = 0;
-
-	clk_enable(clk);
-
-	assert(valid_gpio_config(bank, pin, true));
-
-	if (io_read32(base + GPIO_IDR_OFFSET) == BIT(pin))
-		rc = 1;
-
-	clk_disable(clk);
-
-	return rc;
-}
-
-void stm32_gpio_set_output_level(unsigned int bank, unsigned int pin, int level)
-{
-	vaddr_t base = stm32_get_gpio_bank_base(bank);
-	struct clk *clk = stm32_get_gpio_bank_clk(bank);
-
-	clk_enable(clk);
-
-	assert(valid_gpio_config(bank, pin, false));
-
-	if (level)
-		io_write32(base + GPIO_BSRR_OFFSET, BIT(pin));
-	else
-		io_write32(base + GPIO_BSRR_OFFSET, BIT(pin + 16));
-
-	clk_disable(clk);
-}
-
-void stm32_gpio_set_secure_cfg(unsigned int bank, unsigned int pin, bool secure)
-{
-	vaddr_t base = stm32_get_gpio_bank_base(bank);
-	struct clk *clk = stm32_get_gpio_bank_clk(bank);
-	uint32_t exceptions = cpu_spin_lock_xsave(&gpio_lock);
-
-	clk_enable(clk);
-
-	if (secure)
-		io_setbits32(base + GPIO_SECR_OFFSET, BIT(pin));
-	else
-		io_clrbits32(base + GPIO_SECR_OFFSET, BIT(pin));
-
-	clk_disable(clk);
-	cpu_spin_unlock_xrestore(&gpio_lock, exceptions);
-}
-
-void stm32_pinctrl_set_secure_cfg(struct stm32_pinctrl_list *list, bool secure)
-{
-	struct stm32_pinctrl *p = NULL;
-
-	STAILQ_FOREACH(p, list, link) {
-		stm32_gpio_set_secure_cfg(p->bank, p->pin, secure);
-		if (secure)
-			stm32mp_register_secure_gpio(p->bank, p->pin);
-		else
-			stm32mp_register_non_secure_gpio(p->bank, p->pin);
-	}
-}
