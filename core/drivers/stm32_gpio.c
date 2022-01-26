@@ -198,7 +198,6 @@ void stm32_pinctrl_set_secure_cfg(struct stm32_pinctrl_list *list, bool secure)
 	}
 }
 
-#ifdef CFG_DT
 /* Panic if GPIO bank information from platform do not match DTB description */
 static void ckeck_gpio_bank(const void *fdt, uint32_t bank, int pinctrl_node)
 {
@@ -406,4 +405,3 @@ int stm32_get_gpio_count(void *fdt, int pinctrl_node, unsigned int bank)
 
 	return -1;
 }
-#endif /*CFG_DT*/
