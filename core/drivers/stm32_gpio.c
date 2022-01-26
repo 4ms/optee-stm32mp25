@@ -198,40 +198,6 @@ void stm32_pinctrl_set_secure_cfg(struct stm32_pinctrl_list *list, bool secure)
 	}
 }
 
-/* Panic if GPIO bank information from platform do not match DTB description */
-static void ckeck_gpio_bank(const void *fdt, uint32_t bank, int pinctrl_node)
-{
-	int pinctrl_subnode = 0;
-
-	fdt_for_each_subnode(pinctrl_subnode, fdt, pinctrl_node) {
-		TEE_Result res = TEE_ERROR_GENERIC;
-		const fdt32_t *cuint = NULL;
-		struct clk *clk = NULL;
-
-		if (fdt_getprop(fdt, pinctrl_subnode,
-				"gpio-controller", NULL) == NULL)
-			continue;
-
-		/* Check bank register offset matches platform assumptions */
-		cuint = fdt_getprop(fdt, pinctrl_subnode, "reg", NULL);
-		if (fdt32_to_cpu(*cuint) != stm32_get_gpio_bank_offset(bank))
-			continue;
-
-		/* Check bank clock matches platform assumptions */
-		res = clk_dt_get_by_index(fdt, pinctrl_subnode, 0, &clk);
-		if (res || clk != stm32_get_gpio_bank_clk(bank))
-			panic();
-
-		/* Check controller is enabled */
-		if (_fdt_get_status(fdt, pinctrl_subnode) == DT_STATUS_DISABLED)
-			panic();
-
-		return;
-	}
-
-	panic();
-}
-
 /* Count pins described in the DT node and get related data if possible */
 static TEE_Result get_pinctrl_from_fdt(const void *fdt, int node,
 				       struct stm32_pinctrl_list *list)
@@ -316,9 +282,6 @@ static TEE_Result get_pinctrl_from_fdt(const void *fdt, int node,
 
 		if (fdt_getprop(fdt, node, "drive-open-drain", NULL))
 			opendrain = true;
-
-		/* Check GPIO bank clock/base address against platform */
-		ckeck_gpio_bank(fdt, bank, pinctrl_node);
 
 		ref->bank = (uint8_t)bank;
 		ref->pin = (uint8_t)pin;
