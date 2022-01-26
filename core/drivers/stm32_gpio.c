@@ -234,6 +234,7 @@ static TEE_Result get_pinctrl_from_fdt(const void *fdt, int node,
 		uint32_t pin = 0;
 		uint32_t mode = 0;
 		uint32_t alternate = 0;
+		uint32_t od = 0;
 		bool opendrain = false;
 
 		ref = calloc(1, sizeof(*ref));
@@ -283,13 +284,27 @@ static TEE_Result get_pinctrl_from_fdt(const void *fdt, int node,
 		if (fdt_getprop(fdt, node, "drive-open-drain", NULL))
 			opendrain = true;
 
+		if (fdt_getprop(fdt, node, "output-high", NULL)) {
+			if (mode == GPIO_MODE_INPUT) {
+				mode = GPIO_MODE_OUTPUT;
+				od = 1;
+			}
+		}
+
+		if (fdt_getprop(fdt, node, "output-low", NULL)) {
+			if (mode == GPIO_MODE_INPUT) {
+				mode = GPIO_MODE_OUTPUT;
+				od = 0;
+			}
+		}
+
 		ref->bank = (uint8_t)bank;
 		ref->pin = (uint8_t)pin;
 		ref->active_cfg.mode = mode;
 		ref->active_cfg.otype = opendrain ? 1 : 0;
 		ref->active_cfg.ospeed = speed;
 		ref->active_cfg.pupd = pull;
-		ref->active_cfg.od = 0;
+		ref->active_cfg.od = od;
 		ref->active_cfg.af = alternate;
 		/* Default to analog mode for standby state */
 		ref->standby_cfg.mode = GPIO_MODE_ANALOG;
