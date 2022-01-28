@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 /*
- * Copyright (c) 2017-2021, STMicroelectronics - All Rights Reserved
+ * Copyright (c) 2017-2022, STMicroelectronics - All Rights Reserved
  */
 
 #include <arm.h>
@@ -462,9 +462,6 @@ static __maybe_unused void reset_other_core(void)
 	uint32_t __maybe_unused reset_mask = 0;
 	uint32_t __maybe_unused target_mask = 0;
 
-	if (IS_ENABLED(CFG_STM32MP13))
-		panic();
-
 	if (!stm32mp_supports_second_core())
 		return;
 
@@ -479,6 +476,20 @@ static __maybe_unused void reset_other_core(void)
 #endif
 
 	itr_raise_sgi(GIC_SEC_SGI_1, target_mask);
+}
+
+/*
+ * Override default plat_panic() function to trap all cores
+ * and let hardware watchdog fire.
+ */
+void __noreturn plat_panic(void)
+{
+	DMSG("Panic on CPU %u", get_core_pos());
+
+	reset_other_core();
+
+	while (true)
+		cpu_idle();
 }
 
 /*
@@ -568,6 +579,8 @@ DECLARE_KEEP_PAGER(rcc_wakeup_handler);
 /* SGI9 (secure SGI 1) informs targeted CPU it shall reset */
 static enum itr_return sgi9_it_handler(struct itr_handler *handler)
 {
+	DMSG("Halting CPU %u", get_core_pos());
+
 	stm32mp_mask_timer();
 
 	stm32mp_dump_core_registers(false);
