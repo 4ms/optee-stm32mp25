@@ -1544,7 +1544,5 @@ void stm32_i2c_suspend(struct i2c_handle_s *hi2c)
 
 	save_cfg(hi2c, &hi2c->sec_cfg);
 
-	stm32_pinctrl_load_standby_cfg(hi2c->pinctrl);
-
 	hi2c->i2c_state = I2C_STATE_SUSPENDED;
 }

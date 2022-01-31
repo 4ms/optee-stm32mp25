@@ -284,14 +284,6 @@ void stm32_pinctrl_load_active_cfg(struct stm32_pinctrl_list *list)
 		set_gpio_cfg(p->bank, p->pin, &p->active_cfg);
 }
 
-void stm32_pinctrl_load_standby_cfg(struct stm32_pinctrl_list *list)
-{
-	struct stm32_pinctrl *p = NULL;
-
-	STAILQ_FOREACH(p, list, link)
-		set_gpio_cfg(p->bank, p->pin, &p->standby_cfg);
-}
-
 TEE_Result stm32_gpio_set_secure_cfg(unsigned int bank_id, unsigned int pin,
 				     bool secure)
 {
@@ -438,9 +430,6 @@ static TEE_Result get_pinctrl_from_fdt(const void *fdt, int node,
 		ref->active_cfg.pupd = pull;
 		ref->active_cfg.od = od;
 		ref->active_cfg.af = alternate;
-		/* Default to analog mode for standby state */
-		ref->standby_cfg.mode = GPIO_MODE_ANALOG;
-		ref->standby_cfg.pupd = GPIO_PUPD_NO_PULL;
 
 		STAILQ_INSERT_TAIL(list, ref, link);
 	}

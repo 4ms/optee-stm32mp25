@@ -67,14 +67,12 @@ struct gpio_cfg {
  * @bank: GPIO bank identifier as assigned by the platform
  * @pin: Pin number in the GPIO bank
  * @active_cfg: Configuratioh in active state
- * @standby_cfg: Configuratioh in standby state
  * @link: Link to chain stm32_pinctrl structure in the list
  */
 struct stm32_pinctrl {
 	uint8_t bank;
 	uint8_t pin;
 	struct gpio_cfg active_cfg;
-	struct gpio_cfg standby_cfg;
 
 	STAILQ_ENTRY(stm32_pinctrl) link;
 };
@@ -95,13 +93,11 @@ STAILQ_HEAD(stm32_pinctrl_list, stm32_pinctrl);
 void stm32_pinctrl_load_config(struct stm32_pinctrl_list *list);
 
 /*
- * Apply series of pin muxing configuration, active state and standby state
+ * Apply series of pin muxing configuration
  *
- * @pinctrl: array of pinctrl references
- * @count: Number of entries in @pinctrl
+ * @pinctrl: Pinctrl list reference
  */
 void stm32_pinctrl_load_active_cfg(struct stm32_pinctrl_list *list);
-void stm32_pinctrl_load_standby_cfg(struct stm32_pinctrl_list *list);
 
 /*
  * Save pinctrl instances defined in DT node: identifiers and power states
