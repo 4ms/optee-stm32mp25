@@ -164,8 +164,6 @@ struct stm32_uart_pdata *stm32_uart_init_from_dt_node(void *fdt, int node)
 	if (!pd->pinctrl)
 		panic();
 
-	stm32_pinctrl_load_active_cfg(pd->pinctrl);
-
 	if (pd->secure)
 		register_secure_uart(pd);
 	else

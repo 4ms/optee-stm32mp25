@@ -1513,8 +1513,6 @@ void stm32_i2c_resume(struct i2c_handle_s *hi2c)
 	    (hi2c->i2c_state != I2C_STATE_SUSPENDED))
 		panic();
 
-	stm32_pinctrl_load_active_cfg(hi2c->pinctrl);
-
 	if (hi2c->i2c_state == I2C_STATE_RESET) {
 		/* There is no valid I2C configuration to be loaded yet */
 		return;

@@ -507,6 +507,7 @@ struct stm32_pinctrl_list *stm32_pinctrl_fdt_get_pinctrl(const void *fdt,
 	STAILQ_FOREACH(pinctrl, list, link)
 		stm32_pinctrl_backup(pinctrl);
 
+	stm32_pinctrl_load_active_cfg(list);
 	return list;
 }
 
@@ -553,6 +554,7 @@ stm32_pinctrl_dt_get_by_idx_prop(const char *prop_name, const void *fdt,
 	STAILQ_FOREACH(pinctrl, glist, link)
 		stm32_pinctrl_backup(pinctrl);
 
+	stm32_pinctrl_load_active_cfg(glist);
 	*plist = glist;
 
 	return TEE_SUCCESS;
