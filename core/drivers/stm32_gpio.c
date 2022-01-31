@@ -269,19 +269,19 @@ static TEE_Result stm32_pinctrl_backup(struct stm32_pinctrl *pinctrl)
 
 	backup->pinctrl.bank = pinctrl->bank;
 	backup->pinctrl.pin = pinctrl->pin;
-	backup->pinctrl.active_cfg = pinctrl->active_cfg;
+	backup->pinctrl.config = pinctrl->config;
 
 	STAILQ_INSERT_TAIL(&bank->backups, backup, link);
 
 	return TEE_SUCCESS;
 }
 
-void stm32_pinctrl_load_active_cfg(struct stm32_pinctrl_list *list)
+void stm32_pinctrl_load_config(struct stm32_pinctrl_list *list)
 {
 	struct stm32_pinctrl *p = NULL;
 
 	STAILQ_FOREACH(p, list, link)
-		set_gpio_cfg(p->bank, p->pin, &p->active_cfg);
+		set_gpio_cfg(p->bank, p->pin, &p->config);
 }
 
 TEE_Result stm32_gpio_set_secure_cfg(unsigned int bank_id, unsigned int pin,
@@ -424,12 +424,12 @@ static TEE_Result get_pinctrl_from_fdt(const void *fdt, int node,
 
 		ref->bank = (uint8_t)bank;
 		ref->pin = (uint8_t)pin;
-		ref->active_cfg.mode = mode;
-		ref->active_cfg.otype = opendrain ? 1 : 0;
-		ref->active_cfg.ospeed = speed;
-		ref->active_cfg.pupd = pull;
-		ref->active_cfg.od = od;
-		ref->active_cfg.af = alternate;
+		ref->config.mode = mode;
+		ref->config.otype = opendrain ? 1 : 0;
+		ref->config.ospeed = speed;
+		ref->config.pupd = pull;
+		ref->config.od = od;
+		ref->config.af = alternate;
 
 		STAILQ_INSERT_TAIL(list, ref, link);
 	}
@@ -507,7 +507,8 @@ struct stm32_pinctrl_list *stm32_pinctrl_fdt_get_pinctrl(const void *fdt,
 	STAILQ_FOREACH(pinctrl, list, link)
 		stm32_pinctrl_backup(pinctrl);
 
-	stm32_pinctrl_load_active_cfg(list);
+	stm32_pinctrl_load_config(list);
+
 	return list;
 }
 
@@ -554,7 +555,8 @@ stm32_pinctrl_dt_get_by_idx_prop(const char *prop_name, const void *fdt,
 	STAILQ_FOREACH(pinctrl, glist, link)
 		stm32_pinctrl_backup(pinctrl);
 
-	stm32_pinctrl_load_active_cfg(glist);
+	stm32_pinctrl_load_config(glist);
+
 	*plist = glist;
 
 	return TEE_SUCCESS;
@@ -793,7 +795,7 @@ static TEE_Result stm32_gpio_pm_resume(void)
 
 		STAILQ_FOREACH(backup, &bank->backups, link)
 			set_gpio_cfg(backup->pinctrl.bank, backup->pinctrl.pin,
-				     &backup->pinctrl.active_cfg);
+				     &backup->pinctrl.config);
 	}
 
 	return TEE_SUCCESS;
