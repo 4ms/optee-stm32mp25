@@ -155,12 +155,8 @@ stm32_gpio_get_level(struct gpio_chip *chip __maybe_unused,
 		return level;
 	}
 
-	clk_enable(bank->clock);
-
 	if (io_read32(bank->base + GPIO_IDR_OFFSET) & BIT(pin))
 		level = GPIO_LEVEL_HIGH;
-
-	clk_disable(bank->clock);
 
 	return level;
 }
@@ -177,14 +173,10 @@ static void stm32_gpio_set_level(struct gpio_chip *chip __maybe_unused,
 		return;
 	}
 
-	clk_enable(bank->clock);
-
 	if (level == GPIO_LEVEL_HIGH)
 		io_write32(bank->base + GPIO_BSRR_OFFSET, BIT(pin));
 	else
 		io_write32(bank->base + GPIO_BSRR_OFFSET, BIT(pin + 16));
-
-	clk_disable(bank->clock);
 }
 
 static const struct gpio_ops stm32_gpio_ops = {
@@ -208,7 +200,6 @@ static void set_gpio_cfg(uint32_t bank_id, uint32_t pin, struct gpio_cfg *cfg)
 		panic();
 	}
 
-	clk_enable(bank->clock);
 	exceptions = cpu_spin_lock_xsave(&bank->lock);
 
 	/* Load GPIO MODE value, 2bit value shifted by twice the pin number */
@@ -247,7 +238,6 @@ static void set_gpio_cfg(uint32_t bank_id, uint32_t pin, struct gpio_cfg *cfg)
 	io_clrsetbits32(bank->base + GPIO_ODR_OFFSET, BIT(pin), cfg->od << pin);
 
 	cpu_spin_unlock_xrestore(&bank->lock, exceptions);
-	clk_disable(bank->clock);
 }
 
 static TEE_Result stm32_pinctrl_backup(struct stm32_pinctrl *pinctrl)
@@ -294,14 +284,12 @@ TEE_Result stm32_gpio_set_secure_cfg(unsigned int bank_id, unsigned int pin,
 	assert(bank);
 
 	exceptions = cpu_spin_lock_xsave(&bank->lock);
-	clk_enable(bank->clock);
 
 	if (secure)
 		io_setbits32(bank->base + GPIO_SECR_OFFSET, BIT(pin));
 	else
 		io_clrbits32(bank->base + GPIO_SECR_OFFSET, BIT(pin));
 
-	clk_disable(bank->clock);
 	cpu_spin_unlock_xrestore(&bank->lock, exceptions);
 
 	return TEE_SUCCESS;
@@ -769,20 +757,14 @@ static TEE_Result stm32_gpio_parse_pinctrl_node(const void *fdt, int node,
 
 static void stm32_gpio_get_conf_sec(struct stm32_gpio_bank *bank)
 {
-	if (bank->sec_support) {
-		clk_enable(bank->clock);
+	if (bank->sec_support)
 		bank->seccfgr = io_read32(bank->base + GPIO_SECR_OFFSET);
-		clk_disable(bank->clock);
-	}
 }
 
 static void stm32_gpio_set_conf_sec(struct stm32_gpio_bank *bank)
 {
-	if (bank->sec_support) {
-		clk_enable(bank->clock);
+	if (bank->sec_support)
 		io_write32(bank->base + GPIO_SECR_OFFSET, bank->seccfgr);
-		clk_disable(bank->clock);
-	}
 }
 
 static TEE_Result stm32_gpio_pm_resume(void)
@@ -843,6 +825,8 @@ static TEE_Result stm32_gpio_probe(const void *fdt, int offs,
 
 	STAILQ_FOREACH(bank, &bank_list, link) {
 		STAILQ_INIT(&bank->backups);
+
+		clk_enable(bank->clock);
 		stm32_gpio_set_conf_sec(bank);
 
 		DMSG("Registered GPIO bank %c (%d pins) @%lx",
