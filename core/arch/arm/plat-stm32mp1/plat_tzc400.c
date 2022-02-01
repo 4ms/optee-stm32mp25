@@ -21,6 +21,8 @@
 #define TZC_FILTERS_MASK	GENMASK_32(0, 0)
 #endif
 
+static struct itr_handler *tzc_itr;
+
 static enum itr_return tzc_it_handler(struct itr_handler *handler __unused)
 {
 	EMSG("TZC permission failure");
@@ -33,12 +35,7 @@ static enum itr_return tzc_it_handler(struct itr_handler *handler __unused)
 
 	return ITRR_HANDLED;
 }
-
-static struct itr_handler tzc_itr_handler = {
-	.it = STM32MP1_IRQ_TZC,
-	.handler = tzc_it_handler,
-};
-DECLARE_KEEP_PAGER(tzc_itr_handler);
+DECLARE_KEEP_PAGER(tzc_it_handler);
 
 static bool tzc_region_is_non_secure(unsigned int i, vaddr_t base, size_t size)
 {
@@ -113,8 +110,10 @@ static TEE_Result init_stm32mp1_tzc(void)
 
 	stm32mp_tzc_check_boot_region();
 
-	itr_add(&tzc_itr_handler);
-	itr_enable(tzc_itr_handler.it);
+	tzc_itr = itr_alloc_add(STM32MP1_IRQ_TZC, tzc_it_handler,
+				ITRF_TRIGGER_LEVEL, NULL);
+
+	itr_enable(tzc_itr->it);
 	tzc_set_action(TZC_ACTION_ERR);
 
 	return TEE_SUCCESS;
