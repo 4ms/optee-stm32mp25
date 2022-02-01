@@ -69,20 +69,14 @@ static bool tzc_region_is_secure(unsigned int i, vaddr_t base, size_t size)
 	       region_cfg.filters == filters_mask;
 }
 
-static TEE_Result init_stm32mp1_tzc(void)
+static void stm32mp_tzc_check_boot_region(void)
 {
-	void *base = phys_to_virt(TZC_BASE, MEM_AREA_IO_SEC, 1);
 	unsigned int region_index = 1;
 	const uint64_t dram_start = DDR_BASE;
 	const uint64_t dram_end = dram_start + CFG_DRAM_SIZE;
 	const uint64_t tzdram_start = CFG_TZDRAM_START;
 	const uint64_t tzdram_size = CFG_TZDRAM_SIZE;
 	const uint64_t tzdram_end = tzdram_start + tzdram_size;
-
-	assert(base);
-
-	tzc_init((vaddr_t)base);
-	tzc_dump_state();
 
 	/*
 	 * Early boot stage is in charge of configuring memory regions
@@ -107,6 +101,17 @@ static TEE_Result init_stm32mp1_tzc(void)
 					      dram_end - tzdram_end))
 			panic("Unexpected TZC area on non-secure region");
 	}
+}
+
+static TEE_Result init_stm32mp1_tzc(void)
+{
+	void *base = phys_to_virt(TZC_BASE, MEM_AREA_IO_SEC, 1);
+
+	assert(base);
+	tzc_init((vaddr_t)base);
+	tzc_dump_state();
+
+	stm32mp_tzc_check_boot_region();
 
 	itr_add(&tzc_itr_handler);
 	itr_enable(tzc_itr_handler.it);
