@@ -12,6 +12,7 @@ vaddr_t stm32_rcc_base(void);
 #ifdef CFG_DRIVERS_CLK
 /* Helper from platform RCC clock driver */
 struct clk *stm32mp_rcc_clock_id_to_clk(unsigned long clock_id);
+unsigned int stm32mp_rcc_clk_to_clock_id(struct clk *clk);
 #endif
 
 #ifdef CFG_STM32MP15_CLK
