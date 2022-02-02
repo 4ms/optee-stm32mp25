@@ -48,6 +48,9 @@ static inline void stm32mp_syscfg_disable_io_comp(void)
 /* Get device ID from SYSCFG registers */
 uint32_t stm32mp_syscfg_get_chip_dev_id(void);
 
+/* Erase ESRAM3 */
+TEE_Result stm32mp_syscfg_erase_sram3(void);
+
 /* Platform util for the GIC */
 vaddr_t get_gicd_base(void);
 

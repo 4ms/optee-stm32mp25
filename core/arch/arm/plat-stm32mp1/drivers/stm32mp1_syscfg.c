@@ -33,6 +33,17 @@
 #define SYSCFG_IOSIZE				U(0x400)
 
 /*
+ * SYSCFG_SRAM3ERASE Register
+ */
+#define SYSCFG_SRAM3KR_KEY1			U(0xCA)
+#define SYSCFG_SRAM3KR_KEY2			U(0x53)
+
+#define SYSCFG_SRAM3ERASER_SRAM3EO		BIT(1)
+#define SYSCFG_SRAM3ERASER_SRAM3ER		BIT(0)
+
+#define SYSCFG_SRAM3ERASE_TIMEOUT_US		U(1000)
+
+/*
  * SYSCFG_CMPCR Register
  */
 #define SYSCFG_CMPCR_SW_CTRL			BIT(1)
@@ -171,3 +182,36 @@ static TEE_Result stm32mp1_iocomp(void)
 	return TEE_SUCCESS;
 }
 driver_init(stm32mp1_iocomp);
+
+TEE_Result stm32mp_syscfg_erase_sram3(void)
+{
+	vaddr_t base = get_syscfg_base();
+	uint64_t timeout_ref = 0;
+
+	if (!IS_ENABLED(CFG_STM32MP13))
+		return TEE_ERROR_NOT_SUPPORTED;
+
+	/* Unlock SYSCFG_SRAM3ERASER_SRAM3ER */
+	io_write32(base + SYSCFG_SRAM3KR, SYSCFG_SRAM3KR_KEY1);
+	io_write32(base + SYSCFG_SRAM3KR, SYSCFG_SRAM3KR_KEY2);
+
+	/* Request SRAM3 erase */
+	io_setbits32(base + SYSCFG_SRAM3ERASER, SYSCFG_SRAM3ERASER_SRAM3ER);
+
+	/* Lock SYSCFG_SRAM3ERASER_SRAM3ER */
+	io_write32(base + SYSCFG_SRAM3KR, 0);
+
+	/* Wait end of SRAM3 erase */
+	timeout_ref = timeout_init_us(SYSCFG_SRAM3ERASE_TIMEOUT_US);
+	while (io_read32(base + SYSCFG_SRAM3ERASER) &
+	       SYSCFG_SRAM3ERASER_SRAM3EO) {
+		if (timeout_elapsed(timeout_ref))
+			break;
+	}
+
+	/* Timeout may append due to a schedule after the while(test) */
+	if (io_read32(base + SYSCFG_SRAM3ERASER) & SYSCFG_SRAM3ERASER_SRAM3EO)
+		return TEE_ERROR_BUSY;
+
+	return TEE_SUCCESS;
+}
