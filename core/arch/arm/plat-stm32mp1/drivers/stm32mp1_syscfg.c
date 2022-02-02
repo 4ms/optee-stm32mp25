@@ -29,6 +29,7 @@
 #define SYSCFG_CMPSD2CR				U(0x40)
 #define SYSCFG_CMPSD2ENSETR			U(0x44)
 #define SYSCFG_CMPSD2ENCLRR			U(0x48)
+#define SYSCFG_IOSIZE				U(0x400)
 
 /*
  * SYSCFG_CMPCR Register
@@ -52,9 +53,9 @@
 
 static vaddr_t get_syscfg_base(void)
 {
-	struct io_pa_va base = { .pa = SYSCFG_BASE };
+	static struct io_pa_va base = { .pa = SYSCFG_BASE };
 
-	return io_pa_or_va(&base, 1);
+	return io_pa_or_va(&base, SYSCFG_IOSIZE);
 }
 
 static void enable_io_compensation(int cmpcr_offset)
