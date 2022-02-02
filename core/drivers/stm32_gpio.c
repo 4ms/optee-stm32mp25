@@ -189,6 +189,12 @@ const struct gpio_ops *stm32_gpio_get_ops(void)
 	return &stm32_gpio_ops;
 }
 
+unsigned int stm32_pinctrl_get_gpio_id(struct stm32_pinctrl *pin)
+{
+	return ((unsigned int)pin->bank << DT_GPIO_BANK_SHIFT) |
+	       ((unsigned int)pin->pin << DT_GPIO_PIN_SHIFT);
+}
+
 /* Apply GPIO (@bank/@pin) configuration described by @cfg */
 static void set_gpio_cfg(uint32_t bank_id, uint32_t pin, struct gpio_cfg *cfg)
 {

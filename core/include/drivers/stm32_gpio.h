@@ -85,6 +85,9 @@ struct stm32_pinctrl {
  */
 STAILQ_HEAD(stm32_pinctrl_list, stm32_pinctrl);
 
+/* Get thr GPIO ID related to the pin referred by @pin */
+unsigned int stm32_pinctrl_get_gpio_id(struct stm32_pinctrl *pin);
+
 /*
  * Apply series of pin muxing configuration
  *
