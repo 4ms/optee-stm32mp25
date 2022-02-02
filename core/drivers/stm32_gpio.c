@@ -116,11 +116,16 @@ static __maybe_unused bool valid_gpio_config(unsigned int bank,
 					     unsigned int pin, bool input)
 {
 	vaddr_t base = stm32_get_gpio_bank_base(bank);
-	uint32_t mode = (io_read32(base + GPIO_MODER_OFFSET) >> (pin << 1)) &
-			GPIO_MODE_MASK;
+	struct clk *clk = stm32_get_gpio_bank_clk(bank);
+	uint32_t mode = 0;
 
 	if (pin > GPIO_PIN_MAX)
 		return false;
+
+	clk_enable(clk);
+	mode = (io_read32(base + GPIO_MODER_OFFSET) >> (pin << 1)) &
+	       GPIO_MODE_MASK;
+	clk_disable(clk);
 
 	if (input)
 		return mode == GPIO_MODE_INPUT;
