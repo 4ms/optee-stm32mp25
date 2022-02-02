@@ -450,3 +450,111 @@ static TEE_Result init_debug(void)
 }
 early_init_late(init_debug);
 #endif
+
+static int get_chip_dev_id(uint32_t *dev_id)
+{
+#ifdef CFG_STM32MP13
+	*dev_id = stm32mp_syscfg_get_chip_dev_id();
+#else /* assume CFG_STM32MP15 */
+	if (stm32mp1_dbgmcu_get_chip_dev_id(dev_id) != TEE_SUCCESS)
+		return -1;
+#endif
+	return 0;
+}
+
+static int get_part_number(uint32_t *part_nb)
+{
+	static uint32_t part_number;
+	uint32_t dev_id = 0;
+	uint32_t otp = 0;
+	size_t bit_len = 0;
+
+	assert(part_nb);
+
+	if (part_number) {
+		*part_nb = part_number;
+		return 0;
+	}
+
+	if (get_chip_dev_id(&dev_id) < 0)
+		return -1;
+
+	if (stm32_bsec_find_otp_in_nvmem_layout("part_number_otp",
+						&otp, &bit_len))
+		return -1;
+
+	if (stm32_bsec_read_otp(&part_number, otp))
+		return -1;
+
+	part_number = (part_number & GENMASK_32(bit_len, 0));
+
+	part_number = part_number | (dev_id << 16);
+
+	*part_nb = part_number;
+
+	return 0;
+}
+
+bool stm32mp_supports_hw_cryp(void)
+{
+	uint32_t part_number = 0;
+
+	if (!IS_ENABLED(CFG_STM32_CRYP))
+		return false;
+
+	if (get_part_number(&part_number)) {
+		DMSG("Cannot get part number\n");
+		panic();
+	}
+
+	switch (part_number) {
+#ifdef CFG_STM32MP13
+	case STM32MP135F_PART_NB:
+	case STM32MP135C_PART_NB:
+	case STM32MP133F_PART_NB:
+	case STM32MP133C_PART_NB:
+	case STM32MP131F_PART_NB:
+	case STM32MP131C_PART_NB:
+		return true;
+#endif
+#ifdef CFG_STM32MP15
+	case STM32MP157F_PART_NB:
+	case STM32MP157C_PART_NB:
+	case STM32MP153F_PART_NB:
+	case STM32MP153C_PART_NB:
+	case STM32MP151F_PART_NB:
+	case STM32MP151C_PART_NB:
+		return true;
+#endif
+	default:
+		return false;
+	}
+}
+
+bool stm32mp_supports_second_core(void)
+{
+	uint32_t __maybe_unused part_number = 0;
+
+	if (IS_ENABLED(CFG_STM32MP13))
+		return false;
+
+	if (CFG_TEE_CORE_NB_CORE == 1)
+		return false;
+
+	if (get_part_number(&part_number)) {
+		DMSG("Cannot get part number\n");
+		panic();
+	}
+
+	switch (part_number) {
+#ifdef CFG_STM32MP15
+	case STM32MP151F_PART_NB:
+	case STM32MP151D_PART_NB:
+	case STM32MP151C_PART_NB:
+	case STM32MP151A_PART_NB:
+		return false;
+#endif
+	default:
+		return true;
+	}
+}
