@@ -852,6 +852,10 @@ static TEE_Result stm32_gpio_probe(const void *fdt, int offs,
 
 static const struct dt_device_match stm32_gpio_match_table[] = {
 	{
+		.compatible = "st,stm32mp135-pinctrl",
+		.compat_data = (void *)&stm32_gpio_secure_capable,
+	},
+	{
 		.compatible = "st,stm32mp157-pinctrl",
 		.compat_data = (void *)&stm32_gpio_non_sec,
 	},
