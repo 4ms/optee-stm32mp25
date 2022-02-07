@@ -11,6 +11,7 @@
 #include <initcall.h>
 #include <io.h>
 #include <kernel/dt.h>
+#include <kernel/notif.h>
 #include <kernel/panic.h>
 #include <libfdt.h>
 #include <platform_config.h>
@@ -43,18 +44,17 @@ struct stm32_pwr_data {
 	vaddr_t base;
 	struct stm32_pinctrl_list *pinctrl_list;
 	struct itr_handler *hdl[PWR_NB_WAKEUPPINS];
+	struct itr_handler *gic_hdl;
 };
 
-struct stm32_pwr_data *pwr_data;
+static struct stm32_pwr_data *pwr_data;
 
-static enum itr_return pwr_it_handler(struct itr_handler *handler)
+static enum itr_return pwr_it_threaded_handler(void)
 {
-	struct stm32_pwr_data  *priv = (struct stm32_pwr_data *)handler->data;
+	struct stm32_pwr_data *priv = pwr_data;
 	uint32_t wkupfr = 0;
 	uint32_t wkupenr = 0;
 	uint32_t i = 0;
-
-	VERBOSE_PWR("pwr irq handler");
 
 	wkupfr = io_read32(priv->base + WKUPFR);
 	wkupenr = io_read32(priv->base + MPUWKUPENR);
@@ -77,6 +77,43 @@ static enum itr_return pwr_it_handler(struct itr_handler *handler)
 			io_setbits32(priv->base + WKUPCR, BIT(i));
 		}
 	}
+
+	itr_enable(priv->gic_hdl->it);
+
+	return ITRR_HANDLED;
+}
+
+static void yielding_stm32_pwr_notif(struct notif_driver *ndrv __unused,
+				     enum notif_event ev)
+{
+	switch (ev) {
+	case NOTIF_EVENT_DO_BOTTOM_HALF:
+		VERBOSE_PWR("PWR Bottom half");
+		pwr_it_threaded_handler();
+		break;
+	case NOTIF_EVENT_STOPPED:
+		VERBOSE_PWR("PWR notif stopped");
+		break;
+	default:
+		EMSG("Unknown event %d", ev);
+		panic();
+	}
+}
+
+struct notif_driver stm32_pwr_notif = {
+	.yielding_cb = yielding_stm32_pwr_notif,
+};
+
+static enum itr_return pwr_it_handler(struct itr_handler *handler)
+{
+	struct stm32_pwr_data *priv = (struct stm32_pwr_data *)handler->data;
+
+	itr_disable(priv->gic_hdl->it);
+
+	if (notif_async_is_started())
+		notif_send_async(NOTIF_VALUE_DO_BOTTOM_HALF);
+	else
+		return pwr_it_threaded_handler();
 
 	return ITRR_HANDLED;
 }
@@ -193,6 +230,8 @@ static TEE_Result stm32mp1_pwr_irt_add(struct itr_handler *hdl)
 	STAILQ_INIT(&pinctrl_list);
 	STAILQ_INSERT_HEAD(&pinctrl_list, pinctrl, link);
 
+	stm32mp1_pwr_itr_disable(it);
+
 	stm32_pinctrl_load_config(&pinctrl_list);
 
 	VERBOSE_PWR("Wake-up pin on bank=%"PRIu8" pin=%"PRIu8,
@@ -251,7 +290,6 @@ stm32mp1_pwr_irq_probe(const void *fdt, int node,
 		       const void *compat_data __unused)
 {
 	TEE_Result res = TEE_ERROR_GENERIC;
-	struct itr_handler *hdl = NULL;
 	struct stm32_pwr_data *priv = NULL;
 	struct stm32_pinctrl *pinctrl = NULL;
 	size_t count = 0;
@@ -278,11 +316,15 @@ stm32mp1_pwr_irq_probe(const void *fdt, int node,
 		goto err;
 	}
 
-	hdl = itr_alloc_add(GIC_MPU_WAKEUP_PIN, pwr_it_handler, 0, priv);
-	if (!hdl)
+	priv->gic_hdl = itr_alloc_add(GIC_MPU_WAKEUP_PIN, pwr_it_handler, 0,
+				      priv);
+	if (!priv->gic_hdl)
 		panic("Could not get wake-up pin IRQ");
 
-	itr_enable(hdl->it);
+	itr_enable(priv->gic_hdl->it);
+
+	if (IS_ENABLED(CFG_CORE_ASYNC_NOTIF))
+		notif_register_driver(&stm32_pwr_notif);
 
 	VERBOSE_PWR("Init pwr irq done");
 
