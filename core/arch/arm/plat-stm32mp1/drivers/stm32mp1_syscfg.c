@@ -7,6 +7,7 @@
 #include <drivers/clk.h>
 #include <drivers/regulator.h>
 #include <drivers/stm32mp_dt_bindings.h>
+#include <drivers/stm32mp1_syscfg.h>
 #include <initcall.h>
 #include <kernel/delay.h>
 #include <kernel/pm.h>
@@ -85,20 +86,6 @@
 /*
  * HSLV definitions
  */
-#define SYSCFG_HSLV_IDX_TPIU			U(0)
-#define SYSCFG_HSLV_IDX_QSPI			U(1)
-#define SYSCFG_HSLV_IDX_ETH1			U(2)
-#define SYSCFG_HSLV_IDX_ETH2			U(3)
-#define SYSCFG_HSLV_IDX_SDMMC1			U(4)
-#define SYSCFG_HSLV_IDX_SDMMC2			U(5)
-#define SYSCFG_HSLV_IDX_SPI1			U(6)
-#define SYSCFG_HSLV_IDX_SPI2			U(7)
-#define SYSCFG_HSLV_IDX_SPI3			U(8)
-#define SYSCFG_HSLV_IDX_SPI4			U(9)
-#define SYSCFG_HSLV_IDX_SPI5			U(10)
-#define SYSCFG_HSLV_IDX_LTDC			U(11)
-#define SYSCFG_HSLV_NB_IDX			U(12)
-
 #define SYSCFG_HSLV_KEY				U(0x1018)
 
 static bool vdd_low_voltage;
@@ -249,20 +236,12 @@ static TEE_Result stm32mp1_iocomp(void)
 }
 driver_init(stm32mp1_iocomp);
 
-static void enable_hslv_by_index(uint32_t index)
+void stm32mp_set_hslv_by_index(uint32_t index, bool state)
 {
 	assert(index < SYSCFG_HSLV_NB_IDX);
 
-	switch (index) {
-	case SYSCFG_HSLV_IDX_SDMMC1:
-	case SYSCFG_HSLV_IDX_SDMMC2:
-		DMSG("Not managing SDMMC HSLV");
-		break;
-	default:
-		io_write32(get_syscfg_base() + SYSCFG_HSLVEN0R +
-			   index * sizeof(uint32_t), SYSCFG_HSLV_KEY);
-		break;
-	}
+	io_write32(get_syscfg_base() + SYSCFG_HSLVEN0R +
+		   index * sizeof(uint32_t), state ? SYSCFG_HSLV_KEY : 0);
 }
 
 static void enable_high_speed_mode_low_voltage(void)
@@ -270,8 +249,11 @@ static void enable_high_speed_mode_low_voltage(void)
 	if (IS_ENABLED(CFG_STM32MP13_CFG)) {
 		unsigned int idx = 0;
 
-		for (idx = 0; idx < SYSCFG_HSLV_NB_IDX; idx++)
-			enable_hslv_by_index(idx);
+		for (idx = 0; idx < SYSCFG_HSLV_NB_IDX; idx++) {
+			if (idx != SYSCFG_HSLV_IDX_SDMMC1 &&
+			    idx != SYSCFG_HSLV_IDX_SDMMC2)
+				stm32mp_set_hslv_by_index(idx, true);
+		}
 	} else {
 		io_write32(get_syscfg_base() + SYSCFG_IOCTRLSETR,
 			   SYSCFG_IOCTRLSETR_HSLVEN_TRACE |
