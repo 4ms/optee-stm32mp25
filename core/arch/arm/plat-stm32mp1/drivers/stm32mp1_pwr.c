@@ -24,14 +24,6 @@
 #define PWR_CR3_VBE		BIT(8)
 #define PWR_CR3_VBRS		BIT(9)
 
-/* STM32MP13x VDDSD1/2 controls */
-#define PWR_CR3_VDDSD1_EN	BIT(13)
-#define PWR_CR3_VDDSD1_RDY	BIT(14)
-#define PWR_CR3_VDDSD2_EN	BIT(15)
-#define PWR_CR3_VDDSD2_RDY	BIT(16)
-#define PWR_CR3_VDDSD1_VALID	BIT(22)
-#define PWR_CR3_VDDSD2_VALID	BIT(23)
-
 #define PWR_CR3_USB33_EN	BIT(24)
 #define PWR_CR3_USB33_RDY	BIT(26)
 #define PWR_CR3_REG18_EN	BIT(28)
@@ -211,10 +203,10 @@ static TEE_Result stm32mp1_pwr_regu_probe(const void *fdt, int node,
 	}
 
 	if (IS_ENABLED(CFG_STM32MP13)) {
-		enable_sd_io(PWR_CR3_VDDSD1_EN, PWR_CR3_VDDSD1_RDY,
-			     PWR_CR3_VDDSD1_VALID);
-		enable_sd_io(PWR_CR3_VDDSD2_EN, PWR_CR3_VDDSD2_RDY,
-			     PWR_CR3_VDDSD2_VALID);
+		enable_sd_io(PWR_CR3_VDDSD1EN, PWR_CR3_VDDSD1RDY,
+			     PWR_CR3_VDDSD1VALID);
+		enable_sd_io(PWR_CR3_VDDSD2EN, PWR_CR3_VDDSD2RDY,
+			     PWR_CR3_VDDSD2VALID);
 	}
 
 	if (fdt_getprop(fdt, node, "st,enable-vbat-charge", NULL)) {
