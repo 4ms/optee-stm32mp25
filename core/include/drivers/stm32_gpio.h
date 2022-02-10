@@ -96,17 +96,6 @@ unsigned int stm32_pinctrl_get_gpio_id(struct stm32_pinctrl *pin);
 void stm32_pinctrl_load_config(struct stm32_pinctrl_list *list);
 
 /*
- * Save pinctrl instances defined in DT node: identifiers and power states
- *
- * @fdt: device tree
- * @node: device node in the device tree
- *
- * Return a refernec eto  a pinctrl group (list)) upon success of NULL.
- */
-struct stm32_pinctrl_list *stm32_pinctrl_fdt_get_pinctrl(const void *fdt,
-							 int node);
-
-/*
  * Get a pinctrl configuration reference from an indexed DT pinctrl property
  *
  * @fdt: device tree

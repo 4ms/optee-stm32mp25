@@ -160,8 +160,8 @@ struct stm32_uart_pdata *stm32_uart_init_from_dt_node(void *fdt, int node)
 					    pd->secure ? MEM_AREA_IO_SEC :
 					    MEM_AREA_IO_NSEC, info.reg_size);
 
-	pd->pinctrl = stm32_pinctrl_fdt_get_pinctrl(fdt, node);
-	if (!pd->pinctrl)
+	res = stm32_pinctrl_dt_get_by_index(fdt, node, 0, &pd->pinctrl);
+	if (res)
 		panic();
 
 	if (pd->secure)

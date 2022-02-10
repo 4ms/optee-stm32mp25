@@ -705,6 +705,10 @@ TEE_Result stm32_i2c_get_setup_from_fdt(void *fdt, int node,
 	if (res)
 		return res;
 
+	res = stm32_pinctrl_dt_get_by_index(fdt, node, 0, pinctrl);
+	if (res)
+		return res;
+
 	cuint = fdt_getprop(fdt, node, "i2c-scl-rising-time-ns", NULL);
 	if (cuint)
 		init->rise_time = fdt32_to_cpu(*cuint);
@@ -730,9 +734,6 @@ TEE_Result stm32_i2c_get_setup_from_fdt(void *fdt, int node,
 		init->bus_rate = I2C_STANDARD_RATE;
 	}
 
-	*pinctrl = stm32_pinctrl_fdt_get_pinctrl(fdt, node);
-	if (!*pinctrl)
-		panic();
 
 	return TEE_SUCCESS;
 }

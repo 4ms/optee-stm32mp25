@@ -474,38 +474,6 @@ static __unused struct stm32_pinctrl_list
 	return list;
 }
 
-struct stm32_pinctrl_list *stm32_pinctrl_fdt_get_pinctrl(const void *fdt,
-							 int device_node)
-{
-	TEE_Result res = TEE_ERROR_GENERIC;
-	struct stm32_pinctrl_list *list = NULL;
-	struct stm32_pinctrl *pinctrl = NULL;
-	const fdt32_t *cuint = NULL;
-	int lenp = 0;
-	int i = 0;
-
-	cuint = fdt_getprop(fdt, device_node, "pinctrl-0", &lenp);
-	if (!cuint)
-		return NULL;
-
-	for (i = 0; i < (lenp / 4); i++) {
-		const int phandle = fdt32_to_cpu(*cuint);
-
-		res = add_pinctrl(fdt, phandle, &list);
-		if (res)
-			panic();
-
-		cuint++;
-	}
-
-	STAILQ_FOREACH(pinctrl, list, link)
-		stm32_pinctrl_backup(pinctrl);
-
-	stm32_pinctrl_load_config(list);
-
-	return list;
-}
-
 /*  Informative unused helper function */
 static __unused void free_banks(void)
 {
