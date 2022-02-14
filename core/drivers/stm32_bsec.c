@@ -33,12 +33,8 @@
 #define BSEC_OTP_BANK_SHIFT		U(5)
 
 /* Permanent lock bitmasks */
-#define ADDR_LOWER_OTP_PERLOCK_SHIFT	U(3)
 #define DATA_LOWER_OTP_PERLOCK_BIT	U(3)
-#define DATA_LOWER_OTP_PERLOCK_MASK	GENMASK_32(2, 0)
-#define ADDR_UPPER_OTP_PERLOCK_SHIFT	U(4)
 #define DATA_UPPER_OTP_PERLOCK_BIT	U(1)
-#define DATA_UPPER_OTP_PERLOCK_MASK	GENMASK_32(3, 0)
 
 /* BSEC register offset */
 #define BSEC_OTP_CONF_OFF		U(0x000)
@@ -416,18 +412,21 @@ TEE_Result stm32_bsec_permanent_lock_otp(uint32_t otp_id)
 	uint32_t exceptions = 0;
 	vaddr_t base = bsec_base();
 	uint64_t timeout_ref = 0;
+	uint32_t upper_base = otp_upper_base();
 
 	if (otp_id > otp_max_id())
 		return TEE_ERROR_BAD_PARAMETERS;
 
-	if (otp_id < otp_upper_base()) {
-		addr = otp_id >> ADDR_LOWER_OTP_PERLOCK_SHIFT;
-		data = DATA_LOWER_OTP_PERLOCK_BIT <<
-		       ((otp_id & DATA_LOWER_OTP_PERLOCK_MASK) << 1U);
+	/*
+	 * 2 bits word for lower OTPs, 1 bit per word for upper OTPs
+	 * and only 16 bits used in WRDATA: lower=8 OTPs by word, upper=16
+	 */
+	if (otp_id < upper_base) {
+		addr = otp_id / 8U;
+		data = DATA_LOWER_OTP_PERLOCK_BIT << ((otp_id * 2U) & 0xF);
 	} else {
-		addr = (otp_id >> ADDR_UPPER_OTP_PERLOCK_SHIFT) + 2U;
-		data = DATA_UPPER_OTP_PERLOCK_BIT <<
-		       (otp_id & DATA_UPPER_OTP_PERLOCK_MASK);
+		addr = upper_base / 8U + (otp_id - upper_base) / 16U;
+		data = DATA_UPPER_OTP_PERLOCK_BIT << (otp_id & 0xF);
 	}
 
 	if (is_invalid_mode())
