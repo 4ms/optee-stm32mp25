@@ -15,6 +15,7 @@
 #include <kernel/dt.h>
 #include <kernel/interrupt.h>
 #include <kernel/panic.h>
+#include <kernel/pm.h>
 #include <kernel/spinlock.h>
 #include <kernel/tee_misc.h>
 #include <libfdt.h>
@@ -433,6 +434,27 @@ static TEE_Result stm32mp_tzc_parse_fdt(struct tzc_device *tzc_dev,
 	return TEE_SUCCESS;
 }
 
+static TEE_Result stm32mp1_tzc_pm(enum pm_op op,
+				  unsigned int pm_hint __unused,
+				  const struct pm_callback_handle *hdl)
+{
+	unsigned int i = 0;
+	struct tzc_device *tzc_dev =
+		(struct tzc_device *)PM_CALLBACK_GET_HANDLE(hdl);
+
+	if (op == PM_OP_RESUME) {
+		stm32mp_tzc_region0(true);
+
+		stm32mp_tzc_reset_region(tzc_dev);
+
+		for (i = 0; i < tzc_dev->nb_reg_used; i++)
+			tzc_configure_region(i + 1, &tzc_dev->reg[i]);
+	}
+
+	return TEE_SUCCESS;
+}
+DECLARE_KEEP_PAGER(stm32mp1_tzc_pm);
+
 static TEE_Result stm32mp1_tzc_probe(const void *fdt, int node,
 				     const void *compt_data __unused)
 {
@@ -496,6 +518,9 @@ static TEE_Result stm32mp1_tzc_probe(const void *fdt, int node,
 
 	itr_enable(tzc_dev->pdata.irq);
 	tzc_set_action(TZC_ACTION_ERR);
+
+	register_pm_core_service_cb(stm32mp1_tzc_pm, tzc_dev,
+				    "stm32mp1-tzc400");
 
 	return TEE_SUCCESS;
 }
