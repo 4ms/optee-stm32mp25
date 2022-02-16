@@ -355,6 +355,12 @@
 	};
 };
 
+&ltdc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&ltdc_pins_a>;
+	status = "okay";
+};
+
 &oem_enc_key {
 	st,non-secure-otp-provisioning;
 };
