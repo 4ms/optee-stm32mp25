@@ -7,6 +7,7 @@
 
 #include <assert.h>
 #include <config.h>
+#include <display.h>
 #include <kernel/boot.h>
 #include <kernel/dt.h>
 #include <kernel/linker.h>
@@ -401,6 +402,20 @@ static int cmp_pmem_by_addr(const void *a, const void *b)
 	return CMP_TRILEAN(pmem_a->addr, pmem_b->addr);
 }
 
+#ifdef CFG_WITH_TUI
+static void carve_out_tui_framebuffer(struct core_mmu_phys_mem **mem,
+				      size_t *nelems)
+{
+	paddr_t fb_pa = 0;
+	size_t fb_sz = 0;
+
+	if (display_get_fb_addr_from_dtb(&fb_pa, &fb_sz) != TEE_SUCCESS)
+		panic();
+
+	carve_out_phys_mem(mem, nelems, fb_pa, fb_sz);
+}
+#endif
+
 void core_mmu_set_discovered_nsec_ddr(struct core_mmu_phys_mem *start,
 				      size_t nelems)
 {
@@ -436,6 +451,10 @@ void core_mmu_set_discovered_nsec_ddr(struct core_mmu_phys_mem *start,
 
 	carve_out_phys_mem(&m, &num_elems, TEE_RAM_START, TEE_RAM_PH_SIZE);
 	carve_out_phys_mem(&m, &num_elems, TA_RAM_START, TA_RAM_SIZE);
+
+#ifdef CFG_WITH_TUI
+	carve_out_tui_framebuffer(&m, &num_elems);
+#endif
 
 	for (map = static_memory_map; !core_mmap_is_end_of_table(map); map++) {
 		switch (map->type) {
