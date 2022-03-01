@@ -379,6 +379,16 @@ void stm32mp_gic_set_end_of_interrupt(uint32_t it)
  */
 void __noreturn stm32_enter_cstop_shutdown(uint32_t mode)
 {
+#ifdef CFG_STM32MP15
+	if (stm32mp_supports_second_core() && (get_core_pos() == 0)) {
+		/* Prepare CPU reset */
+		io_setbits32(stm32_rcc_base() + RCC_MP_GRSTCSETR,
+			     RCC_MP_GRSTCSETR_MPUP1RST);
+
+		itr_raise_sgi(GIC_SEC_SGI_1, TARGET_CPU1_GIC_MASK);
+	}
+#endif
+
 	switch (mode) {
 	case STM32_PM_SHUTDOWN:
 		if (stm32mp_with_pmic()) {
