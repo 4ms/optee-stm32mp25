@@ -194,9 +194,9 @@ void gic_cpu_init(struct gic_data *gd)
 #endif
 }
 
-void gic_init_setup(struct gic_data *gd)
+static void gic_setup_clear_it(struct gic_data *gd)
 {
-	size_t n;
+	size_t n = 0;
 
 	for (n = 0; n <= gd->max_it / NUM_INTS_PER_REG; n++) {
 		/* Disable interrupts */
@@ -204,7 +204,14 @@ void gic_init_setup(struct gic_data *gd)
 
 		/* Make interrupts non-pending */
 		io_write32(gd->gicd_base + GICD_ICPENDR(n), 0xffffffff);
+	};
+}
 
+void gic_init_setup(struct gic_data *gd)
+{
+	size_t n = 0;
+
+	for (n = 0; n <= gd->max_it / NUM_INTS_PER_REG; n++) {
 		/* Mark interrupts non-secure */
 		if (n == 0) {
 			/* per-CPU inerrupts config:
@@ -301,6 +308,7 @@ void gic_init_base_addr(struct gic_data *gd,
 void gic_init(struct gic_data *gd, paddr_t gicc_base_pa, paddr_t gicd_base_pa)
 {
 	gic_init_base_addr(gd, gicc_base_pa, gicd_base_pa);
+	gic_setup_clear_it(gd);
 	gic_init_setup(gd);
 }
 
