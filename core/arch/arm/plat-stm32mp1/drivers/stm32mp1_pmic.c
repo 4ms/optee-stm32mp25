@@ -18,6 +18,7 @@
 #include <kernel/boot.h>
 #include <kernel/delay.h>
 #include <kernel/dt.h>
+#include <kernel/notif.h>
 #include <kernel/panic.h>
 #include <kernel/pm.h>
 #include <kernel/thread.h>
@@ -473,10 +474,11 @@ static void register_non_secure_pmic(void)
 	}
 }
 
-static enum itr_return stpmic1_irq_handler(struct itr_handler *handler __unused)
+static enum itr_return stpmic1_irq_handler(struct itr_handler *handler)
 {
 	uint8_t read_val = 0U;
 	unsigned int i = 0U;
+	uint32_t *it_id = handler->data;
 
 	FMSG("Stpmic1 irq handler");
 
@@ -492,6 +494,10 @@ static enum itr_return stpmic1_irq_handler(struct itr_handler *handler __unused)
 			if (stpmic1_register_write(ITCLEARLATCH1_REG + i,
 						   read_val))
 				panic();
+
+			/* Forward falling interrupt to non-secure */
+			if (i == 0 && (read_val & BIT(IT_PONKEY_F)) && it_id)
+				notif_send_it(*it_id);
 		}
 	}
 
@@ -553,6 +559,7 @@ static TEE_Result stm32_pmic_probe(const void *fdt, int node,
 	const fdt32_t *cuint = NULL;
 	struct itr_handler *hdl = NULL;
 	size_t it = 0;
+	uint32_t *it_id = NULL;
 
 	res = i2c_dt_get_by_subnode(fdt, node, &i2c_pmic_handle);
 	if (res)
@@ -569,8 +576,17 @@ static TEE_Result stm32_pmic_probe(const void *fdt, int node,
 
 		it = fdt32_to_cpu(*cuint) - 1U;
 
+		cuint = fdt_getprop(fdt, node, "st,notif-it-id", NULL);
+		if (cuint) {
+			it_id = calloc(1, sizeof(*it_id));
+			if (!it_id)
+				return TEE_ERROR_OUT_OF_MEMORY;
+
+			*it_id = fdt32_to_cpu(*cuint);
+		}
+
 		res = stm32mp1_pwr_itr_alloc_add(it, stpmic1_irq_handler,
-						 PWR_WKUP_FLAG_FALLING, NULL,
+						 PWR_WKUP_FLAG_FALLING, it_id,
 						 &hdl);
 		if (res)
 			panic("pmic: Couldn't allocate itr");
