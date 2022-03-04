@@ -346,9 +346,14 @@ DEFINE_DT_DRIVER(stm32mp1_pwr_irq_dt_driver) = {
 	.probe = &stm32mp1_pwr_irq_probe,
 };
 
-static enum itr_return pwr_it_user_handler(struct itr_handler *handler __unused)
+static enum itr_return pwr_it_user_handler(struct itr_handler *handler)
 {
+	uint32_t *it_id = handler->data;
+
 	VERBOSE_PWR("pwr irq tester handler");
+
+	if (it_id)
+		notif_send_it(*it_id);
 
 	return ITRR_HANDLED;
 }
@@ -361,6 +366,7 @@ stm32mp1_pwr_irq_user_dt_probe(const void *fdt, int node,
 	struct itr_handler *hdl = NULL;
 	const fdt32_t *cuint = NULL;
 	size_t it = 0;
+	uint32_t *it_id = NULL;
 
 	VERBOSE_PWR("Init pwr irq user");
 
@@ -370,10 +376,21 @@ stm32mp1_pwr_irq_user_dt_probe(const void *fdt, int node,
 
 	it = fdt32_to_cpu(*cuint) - 1U;
 
+	cuint = fdt_getprop(fdt, node, "st,notif-it-id", NULL);
+	if (cuint) {
+		it_id = calloc(1, sizeof(*it_id));
+		if (!it_id)
+			return TEE_ERROR_OUT_OF_MEMORY;
+
+		*it_id = fdt32_to_cpu(*cuint);
+	}
+
 	res = stm32mp1_pwr_itr_alloc_add(it, pwr_it_user_handler,
-					 PWR_WKUP_FLAG_FALLING, NULL, &hdl);
-	if (res != TEE_SUCCESS)
+					 PWR_WKUP_FLAG_FALLING, it_id, &hdl);
+	if (res) {
+		free(it_id);
 		return res;
+	}
 
 	stm32mp1_pwr_itr_enable(hdl->it);
 
