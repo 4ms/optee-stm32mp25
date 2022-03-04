@@ -11,7 +11,13 @@
 #include <kernel/spinlock.h>
 #include <kernel/thread.h>
 #include <optee_rpc_cmd.h>
+#include <sm/optee_smc.h>
 #include <types_ext.h>
+
+/* Async notif ID related to interrupt event trigged in non-secure world */
+#define NOTIF_VALUE_DO_IT		1
+
+static_assert(NOTIF_VALUE_DO_IT == OPTEE_SMC_ASYNC_NOTIF_VALUE_DO_IT);
 
 #if defined(CFG_CORE_ASYNC_NOTIF)
 static struct mutex notif_mutex = MUTEX_INITIALIZER;
@@ -25,6 +31,10 @@ static bitstr_t bit_decl(notif_values, NOTIF_ASYNC_VALUE_MAX + 1);
 static bitstr_t bit_decl(notif_alloc_values, NOTIF_ASYNC_VALUE_MAX + 1);
 static bool notif_started;
 
+static bitstr_t bit_decl(it_pending, NOTIF_IT_VALUE_MAX + 1);
+static bitstr_t bit_decl(it_masked, NOTIF_IT_VALUE_MAX + 1);
+static unsigned int it_lock = SPINLOCK_UNLOCK;
+
 TEE_Result notif_alloc_async_value(uint32_t *val)
 {
 	static bool alloc_values_inited;
@@ -35,6 +45,7 @@ TEE_Result notif_alloc_async_value(uint32_t *val)
 
 	if (!alloc_values_inited) {
 		bit_set(notif_alloc_values, NOTIF_VALUE_DO_BOTTOM_HALF);
+		bit_set(notif_alloc_values, NOTIF_VALUE_DO_IT);
 		alloc_values_inited = true;
 	}
 
@@ -104,6 +115,75 @@ void notif_send_async(uint32_t value)
 	cpu_spin_unlock_xrestore(&notif_lock, old_itr_status);
 }
 
+uint32_t it_get_value(bool *value_valid, bool *value_pending)
+{
+	uint32_t old_itr_status = 0;
+	uint32_t res = 0;
+	int bit = 0;
+
+	old_itr_status = cpu_spin_lock_xsave(&it_lock);
+
+	bit_ffs(it_pending, (int)NOTIF_IT_VALUE_MAX, &bit);
+
+	*value_valid = (bit >= 0);
+	if (!*value_valid) {
+		*value_pending = false;
+		goto out;
+	}
+
+	res = bit;
+	bit_clear(it_pending, res);
+	bit_ffs(it_pending, (int)NOTIF_IT_VALUE_MAX, &bit);
+	*value_pending = (bit >= 0);
+out:
+	cpu_spin_unlock_xrestore(&it_lock, old_itr_status);
+
+	return res;
+}
+
+uint32_t it_set_mask(uint32_t it_number, bool masked)
+{
+	uint32_t old_itr_status = 0;
+	uint32_t res = 0;
+
+	old_itr_status = cpu_spin_lock_xsave(&it_lock);
+
+	DMSG("it_number=%"PRIu32" masked=%u", it_number, masked);
+
+	if (it_number >= NOTIF_IT_VALUE_MAX)
+		goto out;
+
+	if (masked) {
+		bit_set(it_masked, it_number);
+	} else {
+		bit_clear(it_masked, it_number);
+
+		if (bit_test(it_pending, it_number))
+			notif_send_async(NOTIF_VALUE_DO_IT);
+	}
+
+out:
+	cpu_spin_unlock_xrestore(&it_lock, old_itr_status);
+
+	return res;
+}
+
+void notif_send_it(uint32_t it_number)
+{
+	uint32_t old_itr_status = 0;
+
+	assert(it_number <= NOTIF_IT_VALUE_MAX);
+	old_itr_status = cpu_spin_lock_xsave(&it_lock);
+
+	DMSG("0x%"PRIx32, it_number);
+	bit_set(it_pending, it_number);
+
+	if (!bit_test(it_masked, it_number))
+		notif_send_async(NOTIF_VALUE_DO_IT);
+
+	cpu_spin_unlock_xrestore(&it_lock, old_itr_status);
+}
+
 bool notif_async_is_started(void)
 {
 	uint32_t old_itr_status = 0;
@@ -125,6 +205,12 @@ void notif_register_driver(struct notif_driver *ndrv)
 	SLIST_INSERT_HEAD(&notif_driver_head, ndrv, link);
 
 	cpu_spin_unlock_xrestore(&notif_lock, old_itr_status);
+
+	old_itr_status = cpu_spin_lock_xsave(&it_lock);
+
+	bit_nset(it_masked, 0, (int)NOTIF_IT_VALUE_MAX);
+
+	cpu_spin_unlock_xrestore(&it_lock, old_itr_status);
 }
 
 void notif_unregister_driver(struct notif_driver *ndrv)
