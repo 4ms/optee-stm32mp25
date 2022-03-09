@@ -4,6 +4,7 @@
  */
 
 #include <drivers/stm32_firewall.h>
+#include <drivers/stm32_rif.h>
 #include <drivers/stm32_rifsc.h>
 #include <dt-bindings/soc/stm32mp25-rifsc.h>
 #include <io.h>
@@ -20,6 +21,7 @@
 #define _RIFSC_RISC_SECCFGR0		U(0x10)
 #define _RIFSC_RISC_PRIVCFGR0		U(0x30)
 #define _RIFSC_RISC_PER0_CIDCFGR	U(0x100)
+#define _RIFSC_RIMC_CR			U(0xC00)
 #define _RIFSC_RIMC_ATTR0		U(0xC10)
 
 #define _RIFSC_HWCFGR3			U(0xFE8)
@@ -29,34 +31,39 @@
 
 /* RIFSC_HWCFGR2 register fields */
 #define _RIFSC_HWCFGR2_CFG1_MASK	GENMASK_32(15, 0)
-#define _RIFSC_HWCFGR2_CFG1_SHIFT	0
+#define _RIFSC_HWCFGR2_CFG1_SHIFT	U(0)
 #define _RIFSC_HWCFGR2_CFG2_MASK	GENMASK_32(23, 16)
-#define _RIFSC_HWCFGR2_CFG2_SHIFT	16
+#define _RIFSC_HWCFGR2_CFG2_SHIFT	U(16)
 #define _RIFSC_HWCFGR2_CFG3_MASK	GENMASK_32(31, 24)
-#define _RIFSC_HWCFGR2_CFG3_SHIFT	24
+#define _RIFSC_HWCFGR2_CFG3_SHIFT	U(24)
 
 /* RIFSC_HWCFGR1 register fields */
 #define _RIFSC_HWCFGR1_CFG1_MASK	GENMASK_32(3, 0)
-#define _RIFSC_HWCFGR1_CFG1_SHIFT	0
+#define _RIFSC_HWCFGR1_CFG1_SHIFT	U(0)
 #define _RIFSC_HWCFGR1_CFG2_MASK	GENMASK_32(7, 4)
-#define _RIFSC_HWCFGR1_CFG2_SHIFT	4
+#define _RIFSC_HWCFGR1_CFG2_SHIFT	U(4)
 #define _RIFSC_HWCFGR1_CFG3_MASK	GENMASK_32(11, 8)
-#define _RIFSC_HWCFGR1_CFG3_SHIFT	8
+#define _RIFSC_HWCFGR1_CFG3_SHIFT	U(8)
 #define _RIFSC_HWCFGR1_CFG4_MASK	GENMASK_32(15, 12)
-#define _RIFSC_HWCFGR1_CFG4_SHIFT	12
+#define _RIFSC_HWCFGR1_CFG4_SHIFT	U(12)
 #define _RIFSC_HWCFGR1_CFG5_MASK	GENMASK_32(19, 16)
-#define _RIFSC_HWCFGR1_CFG5_SHIFT	16
+#define _RIFSC_HWCFGR1_CFG5_SHIFT	U(16)
 #define _RIFSC_HWCFGR1_CFG6_MASK	GENMASK_32(23, 20)
-#define _RIFSC_HWCFGR1_CFG6_SHIFT	20
+#define _RIFSC_HWCFGR1_CFG6_SHIFT	U(20)
+
+/*
+ * RIMC_CR register fields
+ */
+#define _RIFSC_RIMC_CR_TDCID_MASK	GENMASK_32(6, 4)
 
 /* RIFSC_VERR register fields */
 #define _RIFSC_VERR_MINREV_MASK		GENMASK_32(3, 0)
-#define _RIFSC_VERR_MINREV_SHIFT	0
+#define _RIFSC_VERR_MINREV_SHIFT	U(0)
 #define _RIFSC_VERR_MAJREV_MASK		GENMASK_32(7, 4)
-#define _RIFSC_VERR_MAJREV_SHIFT	4
+#define _RIFSC_VERR_MAJREV_SHIFT	U(4)
 
 /* Periph id per register */
-#define _PERIPH_IDS_PER_REG		32
+#define _PERIPH_IDS_PER_REG		U(32)
 #define _OFST_PERX_CIDCFGR		U(0x8)
 
 #define RIFSC_RISC_CFEN_MASK		BIT(0)
@@ -85,8 +92,8 @@
 					 RIFSC_RIMC_MPRIV_MASK)
 
 /* max entries */
-#define MAX_RIMU	16
-#define MAX_RISUP	128
+#define MAX_RIMU			U(16)
+#define MAX_RISUP			U(128)
 
 #define _RIF_FLD_PREP(field, value)	(((uint32_t)(value) << (field ## _SHIFT)) & (field ## _MASK))
 #define _RIF_FLD_GET(field, value)	(((uint32_t)(value) & (field ## _MASK)) >> (field ## _SHIFT))
@@ -420,6 +427,20 @@ static TEE_Result stm32_rimu_setup(struct rifsc_platdata *pdata)
 	}
 
 	return 0;
+}
+
+TEE_Result stm32_rifsc_check_tdcid(bool *tdcid_state)
+{
+	if (!rifsc_pdata.base)
+		return TEE_ERROR_DEFER_DRIVER_INIT;
+
+	*tdcid_state = false;
+
+	if (((io_read32(rifsc_pdata.base + _RIFSC_RIMC_CR) &
+	     _RIFSC_RIMC_CR_TDCID_MASK)) == (RIF_CID1 << SCID_SHIFT))
+		*tdcid_state = true;
+
+	return TEE_SUCCESS;
 }
 
 static TEE_Result

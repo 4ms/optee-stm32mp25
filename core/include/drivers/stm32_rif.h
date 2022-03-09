@@ -79,6 +79,23 @@ struct rif_conf_data {
 	uint32_t *lock_conf;
 };
 
+/* This function checks if execution context is TDCID or not.
+ * @tdcid_state: [out] Set to true if TDCID, false otherwise.
+ * Returns TEE_ERROR_DEFER_DRIVER_INIT if RIFSC driver isn't probed, TEE_SUCCESS
+ * otherwise.
+ */
+#ifdef CFG_STM32_RIF
+TEE_Result stm32_rifsc_check_tdcid(bool *tdcid_state);
+#else
+static inline TEE_Result stm32_rifsc_check_tdcid(bool *tdcid_state)
+{
+	/* Without CFG_STM32_RIF every CPU can behave as TDCID */
+	*tdcid_state = true;
+
+	return TEE_SUCCESS;
+}
+#endif
+
 /*
  * Check every possible configuration where accessing RIF
  * is possible :
