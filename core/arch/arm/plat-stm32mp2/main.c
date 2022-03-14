@@ -44,6 +44,9 @@ register_phys_mem_pgdir(MEM_AREA_IO_SEC, GIC_BASE, GIC_SIZE);
 
 register_ddr(DDR_BASE, CFG_DRAM_SIZE);
 
+/* Map beginning SRAM1 as read write for BSEC shadow */
+register_phys_mem_pgdir(MEM_AREA_RAM_SEC, SRAM1_BASE, SIZE_4K);
+
 static struct gic_data gic_data;
 
 #define _ID2STR(id)		(#id)

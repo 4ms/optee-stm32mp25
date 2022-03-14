@@ -85,6 +85,8 @@
 
 #define SYSRAM_BASE			0x0e000000
 
+#define SRAM1_BASE			0x0e040000
+
 /* GIC resources */
 #define GIC_SIZE			0x80000
 #define GICC_OFFSET			0x20000
