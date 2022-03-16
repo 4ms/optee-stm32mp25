@@ -92,6 +92,14 @@
 		};
 	};
 
+	remoteproc_m33: remoteproc {
+		compatible = "st,stm32mp25-rproc";
+		st,trustzone = <0>;
+		resets = <&rcc C2_R>, <&rcc HOLD_BOOT_C2_R>;
+		reset-names = "mcu_rst", "hold_boot";
+		status = "disabled";
+	};
+
 	scmi_regu: scmi-regu {
 		compatible = "st,scmi-regulator-consumer";
 		#address-cells = <1>;
