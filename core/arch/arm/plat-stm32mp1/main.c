@@ -445,7 +445,6 @@ void __noreturn plat_panic(void)
 		cpu_idle();
 }
 
-#ifdef CFG_TEE_CORE_DEBUG
 static TEE_Result init_debug(void)
 {
 	TEE_Result res = TEE_SUCCESS;
@@ -458,10 +457,14 @@ static TEE_Result init_debug(void)
 		return res;
 
 	if (state != BSEC_STATE_SEC_CLOSED && conf) {
+#ifdef CFG_TEE_CORE_DEBUG
 		if (IS_ENABLED(CFG_WARN_INSECURE))
 			IMSG("WARNING: All debug access are allowed");
 
 		res = stm32_bsec_write_debug_conf(conf | BSEC_DEBUG_ALL);
+#else
+		res = stm32_bsec_write_debug_conf(conf | BSEC_DBGSWGEN);
+#endif
 
 		/* Enable DBG as used to access coprocessor debug registers */
 		clk_enable(dbg_clk);
@@ -470,7 +473,6 @@ static TEE_Result init_debug(void)
 	return res;
 }
 early_init_late(init_debug);
-#endif
 
 static int get_chip_dev_id(uint32_t *dev_id)
 {
