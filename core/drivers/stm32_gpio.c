@@ -246,6 +246,36 @@ static void set_gpio_cfg(uint32_t bank_id, uint32_t pin, struct gpio_cfg *cfg)
 	cpu_spin_unlock_xrestore(&bank->lock, exceptions);
 }
 
+/* Read current GPIO pin configuration and save it to 16bit formatted @cfg */
+static void get_gpio_cfg(struct stm32_gpio_bank *bank, unsigned int pin,
+			 struct gpio_cfg *cfg)
+{
+	cfg->mode = (io_read32(bank->base + GPIO_MODER_OFFSET) >> (pin << 1)) &
+		    GPIO_MODE_MASK;
+
+	cfg->otype = (io_read32(bank->base + GPIO_OTYPER_OFFSET) >> pin) & 1;
+
+	cfg->ospeed = (io_read32(bank->base + GPIO_OSPEEDR_OFFSET) >>
+		       (pin << 1)) & GPIO_OSPEED_MASK;
+
+	cfg->pupd = (io_read32(bank->base + GPIO_PUPDR_OFFSET) >> (pin << 1)) &
+		    GPIO_PUPD_PULL_MASK;
+
+	if (pin < GPIO_ALT_LOWER_LIMIT) {
+		size_t shift = pin << 2;
+
+		cfg->af = (io_read32(bank->base + GPIO_AFRL_OFFSET) >> shift) &
+			  GPIO_ALTERNATE_MASK;
+	} else {
+		size_t shift = (pin - GPIO_ALT_LOWER_LIMIT) << 2;
+
+		cfg->af = (io_read32(bank->base + GPIO_AFRH_OFFSET) >> shift) &
+			  GPIO_ALTERNATE_MASK;
+	}
+
+	cfg->od = (io_read32(bank->base + GPIO_ODR_OFFSET) >> pin) & 1;
+}
+
 static TEE_Result stm32_pinctrl_backup(struct stm32_pinctrl *pinctrl)
 {
 	struct stm32_pinctrl_backup *backup = NULL;
@@ -280,21 +310,72 @@ void stm32_pinctrl_load_config(struct stm32_pinctrl_list *list)
 		set_gpio_cfg(p->bank, p->pin, &p->config);
 }
 
+static TEE_Result add_pm_pin(struct stm32_gpio_bank *bank, unsigned int pin)
+{
+	struct stm32_pinctrl pinctrl = {
+		.bank = bank->bank_id,
+		.pin = pin,
+	};
+	struct stm32_pinctrl_backup *backup = NULL;
+
+	STAILQ_FOREACH(backup, &bank->backups, link)
+		if (backup->pinctrl.bank == bank->bank_id &&
+		    backup->pinctrl.pin == pin)
+			return TEE_SUCCESS;
+
+	DMSG("Add PM on pin %c%d", bank->bank_id + 'A', pin);
+
+	return stm32_pinctrl_backup(&pinctrl);
+}
+
+static void remove_pm_pin(struct stm32_gpio_bank *bank, unsigned int pin)
+{
+	struct stm32_pinctrl_backup *backup = NULL;
+	struct stm32_pinctrl_backup *next = NULL;
+
+	STAILQ_FOREACH_SAFE(backup, &bank->backups, link, next) {
+		if (backup->pinctrl.bank == bank->bank_id &&
+		    backup->pinctrl.pin == pin) {
+			DMSG("Remove PM on pin %c%d", bank->bank_id + 'A', pin);
+			STAILQ_REMOVE(&bank->backups, backup,
+				      stm32_pinctrl_backup, link);
+			free(backup);
+			break;
+		}
+	}
+}
+
+/*
+ * Load GPIO pin secure state and ensure pin configuration of secure pins is
+ * restored on PM resume transition.
+ */
 TEE_Result stm32_gpio_set_secure_cfg(unsigned int bank_id, unsigned int pin,
 				     bool secure)
 {
+	TEE_Result res = TEE_ERROR_GENERIC;
 	struct stm32_gpio_bank *bank = NULL;
 	uint32_t exceptions = 0;
 
 	bank = stm32_gpio_get_bank(bank_id);
 	assert(bank);
 
+	if (!bank->sec_support) {
+		assert(!secure);
+		return TEE_SUCCESS;
+	}
+
 	exceptions = cpu_spin_lock_xsave(&bank->lock);
 
-	if (secure)
+	if (secure) {
+		res = add_pm_pin(bank, pin);
+		if (res)
+			return res;
+
 		io_setbits32(bank->base + GPIO_SECR_OFFSET, BIT(pin));
-	else
+	} else {
+		remove_pm_pin(bank, pin);
 		io_clrbits32(bank->base + GPIO_SECR_OFFSET, BIT(pin));
+	}
 
 	cpu_spin_unlock_xrestore(&bank->lock, exceptions);
 
@@ -513,9 +594,6 @@ stm32_pinctrl_dt_get_by_idx_prop(const char *prop_name, const void *fdt,
 		else
 			STAILQ_CONCAT(glist, list);
 	}
-
-	STAILQ_FOREACH(pinctrl, glist, link)
-		stm32_pinctrl_backup(pinctrl);
 
 	stm32_pinctrl_load_config(glist);
 
@@ -760,9 +838,15 @@ static TEE_Result stm32_gpio_pm_resume(void)
 static TEE_Result stm32_gpio_pm_suspend(void)
 {
 	struct stm32_gpio_bank *bank = NULL;
+	struct stm32_pinctrl_backup *backup = NULL;
 
-	STAILQ_FOREACH(bank, &bank_list, link)
+	STAILQ_FOREACH(bank, &bank_list, link) {
 		stm32_gpio_get_conf_sec(bank);
+
+		STAILQ_FOREACH(backup, &bank->backups, link)
+			get_gpio_cfg(bank, backup->pinctrl.pin,
+				     &backup->pinctrl.config);
+	}
 
 	return TEE_SUCCESS;
 }
@@ -781,6 +865,19 @@ stm32_gpio_pm(enum pm_op op, unsigned int pm_hint __unused,
 	return ret;
 }
 DECLARE_KEEP_PAGER(stm32_gpio_pm);
+
+static void init_secure_gpio_bank_pins(struct stm32_gpio_bank *bank)
+{
+	unsigned int pin = 0;
+
+	if (!bank->sec_support)
+		return;
+
+	for (pin = 0; pin < bank->ngpios; pin++)
+		if (stm32_gpio_set_secure_cfg(bank->bank_id, pin,
+					      bank->seccfgr & BIT(pin)))
+			panic();
+}
 
 static TEE_Result stm32_gpio_probe(const void *fdt, int offs,
 				   const void *compat_data)
@@ -801,7 +898,7 @@ static TEE_Result stm32_gpio_probe(const void *fdt, int offs,
 		STAILQ_INIT(&bank->backups);
 
 		clk_enable(bank->clock);
-		stm32_gpio_set_conf_sec(bank);
+		init_secure_gpio_bank_pins(bank);
 
 		DMSG("Registered GPIO bank %c (%d pins) @%lx",
 		     bank->bank_id + 'A', bank->ngpios, bank->base);
