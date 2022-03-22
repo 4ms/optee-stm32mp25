@@ -156,6 +156,7 @@ TEE_Result dt_driver_register_provider(const void *fdt, int nodeoffset,
 		}
 		break;
 	case DT_DRIVER_I2C:
+	case DT_DRIVER_NOTYPE:
 		break;
 	default:
 		panic("Trying to register unknown type of provider");
