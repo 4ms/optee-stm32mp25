@@ -18,7 +18,8 @@ static LIST_HEAD(fw_dev_list_head, stm32_firewall_device) fw_dev_list =
 static unsigned int list_lock = SPINLOCK_UNLOCK;
 
 static const char firewall_compatible_exceptions[][MAX_COMPAT_LENGTH] = {
-	"st,stm32mp15-i2c-non-secure"
+	"st,stm32mp15-i2c-non-secure",
+	"st,stm32-ltdc"
 };
 
 static struct stm32_firewall_device *find_device(paddr_t base, size_t size,
