@@ -135,7 +135,6 @@ static TEE_Result stm32_ltdc_init(void *device)
 {
 	struct ltdc_device *ldev = device;
 	TEE_Result ret = TEE_SUCCESS;
-	struct stm32_pinctrl *pinctrl = NULL;
 	uint32_t gcr = 0;
 	const struct stm32_firewall_cfg sec_cfg[] = {
 		{ FWLL_SEC_RW | FWLL_NSEC_READ | FWLL_MASTER(0) },
@@ -151,8 +150,14 @@ static TEE_Result stm32_ltdc_init(void *device)
 		goto err;
 	}
 
-	STAILQ_FOREACH(pinctrl, ldev->pinctrl_list, link)
-		stm32_gpio_set_secure_cfg(pinctrl->bank, pinctrl->pin, true);
+	ret = stm32_pinctrl_set_secure_cfg(ldev->pinctrl_list, true);
+	if (ret) {
+		/* Restore pins to non-secure state, should not fail */
+		if (stm32_pinctrl_set_secure_cfg(ldev->pinctrl_list, false))
+			panic();
+
+		goto err;
+	}
 
 	/* LTDC goes non-secure read, secure write */
 	ret = stm32_firewall_set_config(virt_to_phys((void *)ldev->regs),
@@ -171,7 +176,6 @@ static TEE_Result stm32_ltdc_final(void *device)
 {
 	TEE_Result ret = TEE_ERROR_GENERIC;
 	struct ltdc_device *ldev = device;
-	struct stm32_pinctrl *pinctrl = NULL;
 	const struct stm32_firewall_cfg sec_cfg[] = {
 		{ FWLL_NSEC_RW | FWLL_MASTER(0) },
 		{ }, /* Null terminated */
@@ -188,13 +192,14 @@ static TEE_Result stm32_ltdc_final(void *device)
 	if (ret)
 		goto out;
 
-	STAILQ_FOREACH(pinctrl, ldev->pinctrl_list, link)
-		stm32_gpio_set_secure_cfg(pinctrl->bank, pinctrl->pin, false);
+	ret = stm32_pinctrl_set_secure_cfg(ldev->pinctrl_list, false);
+	/* Restoring non-secure state for pins should not fail */
+	assert(ret == TEE_SUCCESS);
 
 out:
 	clk_disable(ldev->clock);
 
-	return TEE_SUCCESS;
+	return ret;
 }
 
 static TEE_Result stm32_ltdc_activate(void *device,
