@@ -356,6 +356,21 @@ const struct regul_ops pmic_ops = {
 	.enable_ramp_delay_us = 1000, \
 }
 
+static const struct regul_ops pmic_sw_ops = {
+	.set_state = pmic_set_state,
+	.get_state = pmic_get_state,
+	.set_flag = pmic_set_flag,
+	.lock = driver_lock,
+	.unlock = driver_unlock,
+	.suspend = driver_suspend,
+};
+
+#define DEFINE_SWITCH(name) { \
+	.node_name = name, \
+	.ops = &pmic_sw_ops, \
+	.enable_ramp_delay_us = 1000, \
+}
+
 static const struct regul_desc pmic_reguls[] = {
 	DEFINE_REGU("buck1"),
 	DEFINE_REGU("buck2"),
@@ -369,8 +384,8 @@ static const struct regul_desc pmic_reguls[] = {
 	DEFINE_REGU("ldo6"),
 	DEFINE_REGU("vref_ddr"),
 	DEFINE_REGU("boost"),
-	DEFINE_REGU("pwr_sw1"),
-	DEFINE_REGU("pwr_sw2"),
+	DEFINE_SWITCH("pwr_sw1"),
+	DEFINE_SWITCH("pwr_sw2"),
 };
 DECLARE_KEEP_PAGER(pmic_reguls);
 
