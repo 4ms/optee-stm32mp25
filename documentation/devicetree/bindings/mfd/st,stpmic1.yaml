@@ -256,6 +256,12 @@ properties:
 
     additionalProperties: false
 
+  st,wakeup-pin-number:
+    description: Pin used as wake-up source when for MP13
+    $ref: /schemas/types.yaml#/definitions/uint32
+    minItems: 1
+    maxItems: 1
+
 additionalProperties: false
 
 required:
@@ -268,6 +274,7 @@ required:
 examples:
   - |
     #include <dt-bindings/mfd/st,stpmic1.h>
+    #include <dt-bindings/power/stm32mp1-power.h>
     #include <dt-bindings/interrupt-controller/arm-gic.h>
     i2c {
       #address-cells = <1>;
@@ -280,6 +287,8 @@ examples:
 
         interrupt-controller;
         #interrupt-cells = <2>;
+
+        st,wakeup-pin-number = <1>;
 
         onkey {
           compatible = "st,stpmic1-onkey";
@@ -304,6 +313,20 @@ examples:
             regulator-boot-on;
             regulator-min-microvolt = <700000>;
             regulator-max-microvolt = <1200000>;
+            lp-stop {
+              regulator-suspend-microvolt = <1250000>;
+            };
+            lplv-stop {
+              regulator-suspend-microvolt = <900000>;
+            };
+            lplv-stop2 {
+              regulator-off-in-suspend;
+            };
+            standby-ddr-sr {
+              regulator-off-in-suspend;
+            };
+            standby-ddr-off {
+              regulator-off-in-suspend;
           };
 
           buck3 {
@@ -319,6 +342,21 @@ examples:
             interrupts = <IT_CURLIM_BUCK4 0>;
             regulator-min-microvolt = <3300000>;
             regulator-max-microvolt = <3300000>;
+            regulator-always-on;
+            regulator-over-current-protection;
+
+            lplv-stop {
+              regulator-suspend-microvolt = <900000>;
+            };
+            lplv-stop2 {
+              regulator-suspend-microvolt = <900000>;
+            };
+            standby-ddr-sr {
+              regulator-off-in-suspend;
+            };
+            standby-ddr-off {
+              regulator-off-in-suspend;
+            };
           };
 
           ldo6 {
@@ -326,9 +364,14 @@ examples:
             regulator-min-microvolt = <1800000>;
             regulator-max-microvolt = <1800000>;
             regulator-over-current-protection;
+            standby-ddr-sr {
+              regulator-off-in-suspend;
+            };
+            standby-ddr-off {
+              regulator-off-in-suspend;
+            };
           };
         };
       };
     };
-
 ...

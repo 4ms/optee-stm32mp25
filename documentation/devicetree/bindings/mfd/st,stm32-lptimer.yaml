@@ -42,6 +42,9 @@ properties:
   "#size-cells":
     const: 0
 
+  resets:
+    maxItems: 1
+
   wakeup-source: true
 
   power-domains:

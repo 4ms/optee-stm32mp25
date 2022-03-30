@@ -7,7 +7,8 @@ $schema: http://devicetree.org/meta-schemas/core.yaml#
 title: STMicroelectronics STM32 HASH bindings
 
 maintainers:
-  - Lionel Debieve <lionel.debieve@st.com>
+  - Lionel Debieve <lionel.debieve@foss.st.com>
+  - Nicolas Toromanoff <nicolas.toromanoff@foss.st.com>
 
 properties:
   compatible:
@@ -64,6 +65,15 @@ examples:
       dmas = <&mdma1 31 0x10 0x1000A02 0x0 0x0>;
       dma-names = "in";
       dma-maxburst = <2>;
+    };
+
+    //MP13 example
+    hash: hash@54003000 {
+      compatible = "st,stm32mp13-hash";
+      reg = <0x54003000 0x400>;
+      clocks = <&rcc HASH1>;
+      resets = <&rcc HASH1_R>;
+      status = "disabled";
     };
 
 ...

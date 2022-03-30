@@ -16,8 +16,10 @@ maintainers:
 properties:
   compatible:
     oneOf:
-            - const: st,stm32-rng
-            - const: st,stm32mp13-rng
+      - items:
+        - enum:
+            - st,stm32mp13-rng
+        - const: st,stm32-rng
 
   reg:
     maxItems: 1
@@ -41,10 +43,12 @@ additionalProperties: false
 examples:
   - |
     #include <dt-bindings/clock/stm32mp1-clks.h>
+    #include <dt-bindings/reset/stm32mp1-resets.h>
     rng@54003000 {
       compatible = "st,stm32-rng";
       reg = <0x54003000 0x400>;
       clocks = <&rcc RNG1_K>;
+      resets = <&rcc RNG1_R>;
     };
 
 ...

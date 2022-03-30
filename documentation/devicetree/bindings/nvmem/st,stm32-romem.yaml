@@ -42,6 +42,7 @@ patternProperties:
           This property explicits a factory programmed area that both secure
           and non-secure worlds can access. It is needed when, by default, the
           related area can only be reached by the secure world.
+          It requires to be 32 bits word aligned to allow non-secure sharing.
         type: boolean
 
 required:

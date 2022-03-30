@@ -36,6 +36,13 @@ properties:
     minItems: 1
     maxItems: 2
 
+  interrupts:
+      maxItems: 1
+
+  secure-timeout-sec:
+    description: Timeout in second used to specify the early watchdog interrupt timeout.
+      When defined, the watchdog is automatically started.
+
 required:
   - compatible
   - reg
@@ -50,9 +57,11 @@ examples:
     watchdog@5a002000 {
       compatible = "st,stm32mp1-iwdg";
       reg = <0x5a002000 0x400>;
+      interrupts = <GIC_SPI 127 IRQ_TYPE_LEVEL_HIGH>;
       clocks = <&rcc IWDG2>, <&rcc CK_LSI>;
       clock-names = "pclk", "lsi";
       timeout-sec = <32>;
+      secure-timeout = <10>;
     };
 
 ...

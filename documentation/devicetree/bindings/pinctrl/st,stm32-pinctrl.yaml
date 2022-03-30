@@ -104,6 +104,14 @@ patternProperties:
         minimum: 0
         maximum: 11
 
+      st,protreg:
+        description:
+          Defines the secure and access pin configuration to apply to the bank
+          It can use the TZPROT macro to define the associated bit.
+        $ref: "/schemas/types.yaml#/definitions/uint32"
+        minItems: 1
+        maxItems: 1
+
     required:
       - gpio-controller
       - '#gpio-cells'
@@ -274,4 +282,24 @@ examples:
                 pinctrl-names = "default";
     };
 
+    //Example 4 (Set gpio bank B with PIN 0 and 4 secure)
+      #include <dt-bindings/gpio/stm32mp_gpio.h>
+      pinctrl@50020000 {
+              #address-cells = <1>;
+              #size-cells = <1>;
+              compatible = "st,stm32mp135-pinctrl";
+              ranges = <0 0x50002000 0x8400>;
+              pins-are-numbered;
+
+              gpiob: gpio@1000 {
+                      gpio-controller;
+                      #gpio-cells = <2>;
+                      reg = <0x1000 0x400>;
+                      resets = <&reset_ahb1 0>;
+                      clocks = <&rcc 0 STM32F4_AHB1_CLOCK(GPIOB)>;
+                      st,bank-name = "GPIOB";
+                      gpio-ranges = <&pinctrl 0 0 16>;
+                      st,protreg = <(TZPROT(0) | TZPROT(4))>;
+              };
+      };
 ...
