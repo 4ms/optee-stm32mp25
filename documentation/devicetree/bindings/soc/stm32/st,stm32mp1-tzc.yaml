@@ -10,7 +10,7 @@ description: |
   The STM32MP1 TZC is an ARM TZC400 based DDR access controller. It uses filters
   to control read/write access to the DDR.
   TZC node specifies a list of phandles to specific reserved memory regions.
-  It uses the defined bindings in reserved-memory.txt and adding a specific property
+  It uses the defined bindings in rmem.yaml and adding a specific property
   for the access right management.
 
 maintainers:
@@ -75,7 +75,7 @@ examples:
                 /* Secure read/write access with no non secure access */
                 st,protreg = <TZC_REGION_S_RDWR 0>;
               };
-    };      
+    };
 
     tzc@5c006000 {
       compatible = "st,stm32mp1-tzc";
