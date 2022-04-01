@@ -12,6 +12,7 @@
 #include <kernel/boot.h>
 #include <kernel/delay.h>
 #include <kernel/dt.h>
+#include <kernel/dt_driver.h>
 #include <kernel/panic.h>
 #include <kernel/thread.h>
 #include <libfdt.h>
@@ -196,15 +197,16 @@ static TEE_Result stm32mp1_pwr_regu_probe(const void *fdt, int node,
 
 		for (i = 0; i < ARRAY_SIZE(stm32mp1_pwr_regs); i++) {
 			desc = &stm32mp1_pwr_regs[i];
-			if (!strcmp(stm32mp1_pwr_regs[i].node_name, reg_name))
-				break;
-		}
-		assert(i != ARRAY_SIZE(stm32mp1_pwr_regs));
+			if (!strcmp(stm32mp1_pwr_regs[i].node_name, reg_name)) {
+				res = regulator_register(desc, subnode);
+				if (res) {
+					EMSG("Can't register %s: %#"PRIx32,
+					     reg_name, res);
+					panic();
+				}
 
-		res = regulator_register(desc, subnode);
-		if (res) {
-			EMSG("Can't register %s: %#"PRIx32, reg_name, res);
-			panic();
+				break;
+			}
 		}
 	}
 
@@ -222,6 +224,15 @@ static TEE_Result stm32mp1_pwr_regu_probe(const void *fdt, int node,
 
 		if (fdt_getprop(fdt, node, "st,vbat-charge-1K5", NULL))
 			io_setbits32(cr3, PWR_CR3_VBRS);
+	}
+
+	fdt_for_each_subnode(subnode, fdt, node) {
+		res = dt_driver_maybe_add_probe_node(fdt, subnode);
+		if (res) {
+			EMSG("Failed on node %s with %#"PRIx32,
+			     fdt_get_name(fdt, subnode, NULL), res);
+			panic();
+		}
 	}
 
 	return TEE_SUCCESS;
