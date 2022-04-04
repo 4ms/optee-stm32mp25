@@ -125,6 +125,7 @@ struct i2c_handle_s {
 	unsigned long saved_frequency;
 	struct i2c_cfg sec_cfg;
 	struct stm32_pinctrl_list *pinctrl_list;
+	bool secure_i2c;
 };
 
 /* STM32 specific defines */

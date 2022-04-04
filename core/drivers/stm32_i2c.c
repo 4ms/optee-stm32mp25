@@ -293,6 +293,9 @@ struct i2c_request {
 	unsigned int timeout_ms;
 };
 
+/* Non-null reference for compat data */
+static const bool secure_i2c_r;
+
 static vaddr_t get_base(struct i2c_handle_s *hi2c)
 {
 	return io_pa_or_va_secure(&hi2c->base, hi2c->reg_size);
@@ -1507,7 +1510,7 @@ void stm32_i2c_resume(struct i2c_handle_s *hi2c)
 		return;
 	}
 
-	if (IS_ENABLED(CFG_STM32MP15))
+	if (!hi2c->secure_i2c)
 		stm32_pinctrl_load_config(hi2c->pinctrl_list);
 
 	restore_cfg(hi2c, &hi2c->sec_cfg);
@@ -1583,6 +1586,9 @@ static TEE_Result stm32_i2c_probe(const void *fdt, int node,
 	i2c_pdata.analog_filter = true;
 	i2c_pdata.digital_filter_coef = 0;
 
+	if (compat_data == &secure_i2c_r)
+		i2c_handle_p->secure_i2c = true;
+
 	res = stm32_i2c_init(i2c_handle_p, &i2c_pdata);
 	if (res)
 		panic("Couldn't initialise I2C");
@@ -1605,9 +1611,18 @@ static TEE_Result stm32_i2c_probe(const void *fdt, int node,
 }
 
 static const struct dt_device_match stm32_i2c_match_table[] = {
-	{ .compatible = "st,stm32mp15-i2c" },
-	{ .compatible = "st,stm32mp13-i2c" },
-	{ .compatible = "st,stm32mp15-i2c-non-secure" },
+	{
+		.compatible = "st,stm32mp15-i2c",
+		.compat_data = &secure_i2c_r
+	},
+	{
+		.compatible = "st,stm32mp13-i2c",
+		.compat_data = &secure_i2c_r
+	},
+	{
+		.compatible = "st,stm32mp15-i2c-non-secure",
+		.compat_data = NULL
+	},
 	{ }
 };
 
