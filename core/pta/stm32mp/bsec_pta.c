@@ -302,7 +302,7 @@ static TEE_Result pta_bsec_open_session(uint32_t ptypes __unused,
 	uint32_t state = BSEC_STATE_INVALID;
 	TEE_Result res = TEE_ERROR_GENERIC;
 
-	if (!IS_ENABLED(CFG_STM32_BSEC))
+	if (!IS_ENABLED(CFG_STM32_BSEC) && !IS_ENABLED(CFG_STM32_BSEC3))
 		return TEE_ERROR_NOT_SUPPORTED;
 
 	if (login == TEE_LOGIN_TRUSTED_APP &&
@@ -311,7 +311,7 @@ static TEE_Result pta_bsec_open_session(uint32_t ptypes __unused,
 		assert(is_user_ta_ctx(caller_ts->ctx));
 
 		res = stm32_bsec_get_state(&state);
-		if (res || state != BSEC_STATE_SEC_OPEN)
+		if (res || (state & BSEC_STATE_MASK) != BSEC_STATE_SEC_OPEN)
 			return TEE_ERROR_ACCESS_DENIED;
 
 		return TEE_SUCCESS;
