@@ -45,6 +45,7 @@
 #define _TAMP_COUNT2R			0x44U
 #define _TAMP_OR			0x50U
 #define _TAMP_ERCFGR			0X54U
+#define _TAMP_CIDCFGR(x)		(0x80U + 0x4U * (x))
 #define _TAMP_HWCFGR2			0x3ECU
 #define _TAMP_HWCFGR1			0x3F0U
 #define _TAMP_VERR			0x3F4U
@@ -114,13 +115,19 @@
 #define _TAMP_SECCFGR_BKPRWSEC_MASK	GENMASK_32(7, 0)
 #define _TAMP_SECCFGR_BKPRWSEC_SHIFT	0U
 #define _TAMP_SECCFGR_CNT2SEC		BIT(14)
+#define _TAMP_SECCFGR_CNT2SEC_SHIFT	14U
 #define _TAMP_SECCFGR_CNT1SEC		BIT(15)
+#define _TAMP_SECCFGR_CNT1SEC_SHIFT	15U
 #define _TAMP_SECCFGR_BKPWSEC_MASK	GENMASK_32(23, 16)
 #define _TAMP_SECCFGR_BKPWSEC_SHIFT	16U
 #define _TAMP_SECCFGR_BHKLOCK		BIT(30)
 #define _TAMP_SECCFGR_TAMPSEC		BIT(31)
+#define _TAMP_SECCFGR_TAMPSEC_SHIFT	31U
 #define _TAMP_SECCFGR_BUT_BKP_MASK	(GENMASK_32(31, 30) | \
 					 GENMASK_32(15, 14))
+#define _TAMP_SECCFGR_RIF_TAMP_SEC	BIT(0)
+#define _TAMP_SECCFGR_RIF_COUNT_1	BIT(1)
+#define _TAMP_SECCFGR_RIF_COUNT_2	BIT(2)
 
 /* _TAMP_SMCR bit fields */
 #define _TAMP_SMCR_BKPRWDPROT_MASK	GENMASK_32(7, 0)
@@ -139,6 +146,9 @@
 #define _TAMP_PRIVCFG_TAMPPRIV		BIT(31)
 #define _TAMP_PRIVCFGR_MASK		(GENMASK_32(31, 29) | \
 					 GENMASK_32(15, 14))
+#define _TAMP_PRIVCFGR_RIF_TAMP_PRIV	BIT(0)
+#define _TAMP_PRIVCFGR_RIF_R1		BIT(1)
+#define _TAMP_PRIVCFGR_RIF_R2		BIT(2)
 
 /* _TAMP_ATCR2 bit fields */
 #define _TAMP_ATCR2_ATOSEL_MASK(id)	GENMASK_32(((id) - EXT_TAMP1 + 1) *    \
@@ -167,6 +177,9 @@
 /* _TAMP_HWCFGR2 bit fields */
 #define _TAMP_HWCFGR2_OR		GENMASK_32(7, 0)
 #define _TAMP_HWCFGR2_TZ		GENMASK_32(11, 8)
+#define _TAMP_HWCFGR2_RIF		GENMASK_32(19, 16)
+#define _TAMP_HWCFGR2_CID_WIDTH		GENMASK_32(23, 20)
+#define _TAMP_HWCFGR2_NDEV_SECRETS	GENMASK_32(31, 24)
 
 /* _TAMP_HWCFGR1 bit fields */
 #define _TAMP_HWCFGR1_BKPREG		GENMASK_32(7, 0)
@@ -180,6 +193,14 @@
 #define _TAMP_VERR_MINREV		GENMASK_32(3, 0)
 #define _TAMP_VERR_MAJREV		GENMASK_32(7, 4)
 
+/*
+ * CIDCFGR register bitfields
+ */
+#define _TAMP_CIDCFGR_SCID_MASK		GENMASK_32(6, 4)
+#define _TAMP_CIDCFGR_CONF_MASK		(_CIDCFGR_CFEN |	 \
+					 _CIDCFGR_SEMEN |	 \
+					 _TAMP_CIDCFGR_SCID_MASK)
+
 #define SEED_TIMEOUT_US			1000U
 
 /* Define TAMPER modes from DT */
@@ -188,6 +209,12 @@
 #define TAMP_IN_DT			BIT(18)
 
 #define TAMP_EXTI_WKUP			18U
+
+/*
+ * RIF miscellaneous
+ */
+#define TAMP_RIF_RESOURCES		3U
+#define TAMP_NB_MAX_CID_SUPPORTED	7U
 
 enum stm32_tamp_out_id {
 	OUT_TAMP1 = LAST_TAMP,
@@ -278,6 +305,91 @@ static const struct stm32_tamp_pin_map pin_map_mp15[] = {
 static struct stm32_tamp_instance stm32_tamp;
 
 static enum itr_return stm32_tamp_it_handler(struct itr_handler *h);
+
+static void apply_rif_config(void)
+{
+	vaddr_t base = io_pa_or_va(&stm32_tamp.pdata.base, 1);
+	bool is_tdcid = false;
+	uint32_t seccfgr = 0;
+	uint32_t privcfgr = 0;
+	uint32_t access_mask_sec_reg = 0;
+	uint32_t access_mask_priv_reg = 0;
+	unsigned int i = 0;
+
+	if (stm32_rifsc_check_tdcid(&is_tdcid))
+		panic();
+
+	/* Build access masks for _TAMP_PRIVCFGR and _TAMP_SECCFGR */
+	for (i = 0; i < TAMP_RIF_RESOURCES; i++) {
+		if (BIT(i) & stm32_tamp.pdata.conf_data.access_mask[0]) {
+			switch (i) {
+			case 0:
+				access_mask_sec_reg |= _TAMP_SECCFGR_TAMPSEC;
+				access_mask_priv_reg |= _TAMP_PRIVCFG_TAMPPRIV;
+				break;
+			case 1:
+				access_mask_sec_reg |= _TAMP_SECCFGR_CNT1SEC;
+				access_mask_priv_reg |= _TAMP_PRIVCFG_CNT1PRIV;
+				access_mask_priv_reg |= _TAMP_PRIVCFG_BKPRWPRIV;
+				break;
+			case 2:
+				access_mask_sec_reg |= _TAMP_SECCFGR_CNT2SEC;
+				access_mask_priv_reg |= _TAMP_PRIVCFG_CNT2PRIV;
+				access_mask_priv_reg |= _TAMP_PRIVCFG_BKPWPRIV;
+				break;
+			default:
+				panic();
+			}
+		}
+	}
+
+	/*
+	 * When TDCID, OP-TEE should be the one to set the CID filtering
+	 * configuration. Clearing previous configuration prevents
+	 * undesired events during the only legitimate configuration.
+	 */
+	if (is_tdcid) {
+		for (i = 0; i < TAMP_RIF_RESOURCES; i++)
+			if (BIT(i) & stm32_tamp.pdata.conf_data.access_mask[0])
+				io_clrbits32(base + _TAMP_CIDCFGR(i),
+					     _TAMP_CIDCFGR_CONF_MASK);
+	}
+
+	seccfgr = stm32_tamp.pdata.conf_data.sec_conf[0];
+	seccfgr = (seccfgr & _TAMP_SECCFGR_RIF_TAMP_SEC ?
+		   _TAMP_SECCFGR_TAMPSEC : 0) |
+		  (seccfgr & _TAMP_SECCFGR_RIF_COUNT_1 ?
+		   _TAMP_SECCFGR_CNT1SEC : 0) |
+		  (seccfgr & _TAMP_SECCFGR_RIF_COUNT_2 ?
+		   _TAMP_SECCFGR_CNT2SEC : 0);
+
+	privcfgr = stm32_tamp.pdata.conf_data.priv_conf[0];
+	privcfgr = (privcfgr & _TAMP_PRIVCFGR_RIF_TAMP_PRIV ?
+		    _TAMP_PRIVCFG_TAMPPRIV : 0) |
+		   (privcfgr & _TAMP_PRIVCFGR_RIF_R1 ?
+		    (_TAMP_PRIVCFG_CNT1PRIV | _TAMP_PRIVCFG_BKPRWPRIV) : 0) |
+		   (privcfgr & _TAMP_PRIVCFGR_RIF_R2 ?
+		    (_TAMP_PRIVCFG_CNT2PRIV | _TAMP_PRIVCFG_BKPWPRIV) : 0);
+
+	/* Security and privilege RIF configuration */
+	io_clrsetbits32(base + _TAMP_PRIVCFGR,
+			_TAMP_PRIVCFGR_MASK & access_mask_sec_reg, privcfgr);
+	io_clrsetbits32(base + _TAMP_SECCFGR,
+			_TAMP_SECCFGR_BUT_BKP_MASK & access_mask_priv_reg,
+			seccfgr);
+
+	if (!is_tdcid)
+		return;
+
+	for (i = 0; i < TAMP_RIF_RESOURCES; i++) {
+		if (!(BIT(i) & stm32_tamp.pdata.conf_data.access_mask[0]))
+			continue;
+
+		io_clrsetbits32(base + _TAMP_CIDCFGR(i),
+				_TAMP_CIDCFGR_CONF_MASK,
+				stm32_tamp.pdata.conf_data.cid_confs[i]);
+	}
+}
 
 static void stm32_tamp_set_secret_list(struct stm32_tamp_instance *tamp,
 				       uint32_t secret_list_conf)
@@ -913,8 +1025,10 @@ static enum itr_return stm32_tamp_it_handler(struct itr_handler *h)
 				io_setbits32(base + _TAMP_SCR,
 					     _TAMP_SCR_ITAMP(id));
 
+#ifndef CFG_STM32MP25
 			if (ret & TAMP_CB_RESET)
 				psci_system_reset();
+#endif
 		}
 		i++;
 	}
@@ -936,8 +1050,10 @@ static enum itr_return stm32_tamp_it_handler(struct itr_handler *h)
 				io_setbits32(base + _TAMP_SCR,
 					     _TAMP_SCR_ETAMP(id));
 
+#ifndef CFG_STM32MP25
 			if (ret & TAMP_CB_RESET)
 				psci_system_reset();
+#endif
 		}
 		i++;
 	}
@@ -1262,6 +1378,7 @@ TEE_Result stm32_tamp_parse_fdt(struct stm32_tamp_platdata *pdata,
 	TEE_Result res = TEE_ERROR_GENERIC;
 	int pinnode = -1;
 	struct dt_node_info dt_tamp = { };
+	bool __unused is_tdcid = false;
 
 	_fdt_fill_device_info(fdt, &dt_tamp, node);
 
@@ -1272,6 +1389,13 @@ TEE_Result stm32_tamp_parse_fdt(struct stm32_tamp_platdata *pdata,
 	}
 
 	pdata->compat = (struct stm32_tamp_compat *)compat;
+
+	if (stm32_tamp.pdata.compat->tags & TAMP_HAS_RIF_SUPPORT) {
+		res = stm32_rifsc_check_tdcid(&is_tdcid);
+		if (res)
+			return res;
+	}
+
 	pdata->it = dt_tamp.interrupt;
 	pdata->base.pa = dt_tamp.reg;
 	io_pa_or_va_secure(&pdata->base, dt_tamp.reg_size);
@@ -1296,6 +1420,38 @@ TEE_Result stm32_tamp_parse_fdt(struct stm32_tamp_platdata *pdata,
 
 	if (fdt_getprop(fdt, node, "wakeup-source", NULL))
 		pdata->is_wakeup_source = true;
+
+	if (pdata->compat->tags & TAMP_HAS_RIF_SUPPORT) {
+		const fdt32_t *cuint = NULL;
+		uint32_t rif_conf = 0;
+		unsigned int i = 0;
+		int lenp = 0;
+
+		cuint = fdt_getprop(fdt, node, "st,protreg", &lenp);
+		if (!cuint)
+			panic("No RIF configuration available");
+
+		pdata->nb_resources = (unsigned int)(lenp / sizeof(uint32_t));
+		assert(pdata->nb_resources <= TAMP_RIF_RESOURCES);
+
+		pdata->conf_data.cid_confs = calloc(TAMP_RIF_RESOURCES,
+						    sizeof(uint32_t));
+		pdata->conf_data.sec_conf = calloc(1, sizeof(uint32_t));
+		pdata->conf_data.priv_conf = calloc(1, sizeof(uint32_t));
+		pdata->conf_data.access_mask = calloc(1, sizeof(uint32_t));
+		if (!pdata->conf_data.cid_confs || !pdata->conf_data.sec_conf ||
+		    !pdata->conf_data.priv_conf ||
+		    !pdata->conf_data.access_mask)
+			panic("Not enough memory capacity for TAMP RIF config");
+
+		for (i = 0; i < pdata->nb_resources; i++) {
+			rif_conf = fdt32_to_cpu(cuint[i]);
+
+			stm32_rif_parse_cfg(rif_conf, &pdata->conf_data,
+					    TAMP_NB_MAX_CID_SUPPORTED,
+					    TAMP_RIF_RESOURCES);
+		}
+	}
 
 	return TEE_SUCCESS;
 }
@@ -1365,25 +1521,29 @@ static TEE_Result stm32_tamp_probe(const void *fdt, int node,
 	 */
 	stm32_tamp_set_secret_list(&stm32_tamp, 0);
 
-	/*
-	 * Select access in secure or unsecure
-	 *
-	 * IP is always SECURE, on mp13 both counter can be access from
-	 * secure and unsecure world.
-	 */
-	stm32_tamp_set_secure(&stm32_tamp, _TAMP_SECCFGR_TAMPSEC);
+	if (stm32_tamp.pdata.compat->tags & TAMP_HAS_RIF_SUPPORT) {
+		apply_rif_config();
+	} else {
+		/*
+		 * Select access in secure or unsecure
+		 *
+		 * IP is always SECURE, on mp13 both counter can be accessed
+		 * from secure and unsecure world.
+		 */
+		stm32_tamp_set_secure(&stm32_tamp, _TAMP_SECCFGR_TAMPSEC);
 
-	/*
-	 * Select access in privileged mode or unprivileged mode
-	 *
-	 * TAMP ip need secure access,
-	 * backup register zone 1 can be read/written only from secure
-	 * backup register zone 2 can be written only from secure.
-	 * monotonic counters can be read/written from secure and unsecure.
-	 */
-	stm32_tamp_set_privilege(&stm32_tamp, _TAMP_PRIVCFG_TAMPPRIV |
-				 _TAMP_PRIVCFG_BKPRWPRIV |
-				 _TAMP_PRIVCFG_BKPWPRIV);
+		/*
+		 * Select access in privileged mode or unprivileged mode
+		 *
+		 * TAMP ip need secure access,
+		 * backup register zone 1 can be read/written only from secure
+		 * backup register zone 2 can be written only from secure.
+		 * monotic counter can be read/written from secure and unsecure.
+		 */
+		stm32_tamp_set_privilege(&stm32_tamp, _TAMP_PRIVCFG_TAMPPRIV |
+					 _TAMP_PRIVCFG_BKPRWPRIV |
+					 _TAMP_PRIVCFG_BKPWPRIV);
+	}
 
 	stm32_tamp.itr = itr_alloc_add(stm32_tamp.pdata.it,
 				       stm32_tamp_it_handler,
@@ -1431,7 +1591,18 @@ static const struct stm32_tamp_compat mp15_compat = {
 		.pin_map_size = ARRAY_SIZE(pin_map_mp15),
 };
 
+static const struct stm32_tamp_compat mp25_compat = {
+		.tags = TAMP_HAS_REGISTER_SECCFGR |
+			TAMP_HAS_REGISTER_PRIVCFGR |
+			TAMP_HAS_RIF_SUPPORT |
+			TAMP_HAS_REGISTER_ERCFGR |
+			TAMP_HAS_REGISTER_CR3 |
+			TAMP_HAS_REGISTER_ATCR2 |
+			TAMP_HAS_CR2_SECRET_STATUS,
+};
+
 static const struct dt_device_match stm32_tamp_match_table[] = {
+	{ .compatible = "st,stm32mp25-tamp", .compat_data = &mp25_compat },
 	{ .compatible = "st,stm32mp13-tamp", .compat_data = &mp13_compat },
 	{ .compatible = "st,stm32-tamp", .compat_data = &mp15_compat },
 	{ }

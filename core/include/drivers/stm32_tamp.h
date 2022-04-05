@@ -8,6 +8,7 @@
 
 #include <compiler.h>
 #include <drivers/clk.h>
+#include <drivers/stm32_rif.h>
 #include <mm/core_memprot.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -170,6 +171,7 @@ TEE_Result stm32_tamp_set_config(void);
 #define TAMP_HAS_REGISTER_CR3		BIT(4)
 #define TAMP_HAS_CR2_SECRET_STATUS	BIT(5)
 #define TAMP_SIZE_ATCR1_ATCKSEL_IS_4	BIT(7)
+#define TAMP_HAS_RIF_SUPPORT		BIT(31)
 
 struct stm32_tamp_compat {
 	int nb_monotonic_counter;
@@ -192,6 +194,8 @@ struct stm32_tamp_platdata {
 	uint32_t out_pins;
 	bool is_wakeup_source;
 	struct stm32_tamp_compat *compat;
+	struct rif_conf_data conf_data;
+	unsigned int nb_resources;
 };
 
 TEE_Result stm32_tamp_get_platdata(struct stm32_tamp_platdata *pdata);
