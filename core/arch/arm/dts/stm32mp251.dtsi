@@ -500,8 +500,10 @@
 		};
 
 		tamp: tamp@46010000 {
+			compatible = "st,stm32mp25-tamp";
 			reg = <0x46010000 0x400>;
-			status = "disabled";
+			clocks = <&rcc CK_BUS_RTC>;
+			interrupts = <GIC_SPI 14 IRQ_TYPE_LEVEL_HIGH>;
 		};
 
 		pinctrl_z: pinctrl-z@46200000 {
