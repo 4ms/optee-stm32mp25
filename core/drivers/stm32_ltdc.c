@@ -27,7 +27,8 @@ struct ltdc_device {
 	struct io_pa_va io_base;
 	struct clk *clock;
 	struct stm32_pinctrl_list *pinctrl_list;
-	struct itr_handler *itr;
+	struct itr_handler *itr0;
+	struct itr_handler *itr1;
 	int pinctrl_count;
 };
 
@@ -371,6 +372,10 @@ static TEE_Result stm32_ltdc_probe(const void *fdt, int node,
 	struct ltdc_device *ldev = NULL;
 	struct dt_node_info dt_info = { };
 	uint32_t hwid = 0;
+	const uint32_t *cuint = NULL;
+	uint32_t interrupt0 = 0;
+	uint32_t interrupt1 = 0;
+	int len = 0;
 
 	ldev = calloc(1, sizeof(*ldev));
 	if (!ldev)
@@ -382,7 +387,7 @@ static TEE_Result stm32_ltdc_probe(const void *fdt, int node,
 	    dt_info.reg_size == DT_INFO_INVALID_REG_SIZE ||
 	    dt_info.clock == DT_INFO_INVALID_CLOCK ||
 	    dt_info.interrupt == DT_INFO_INVALID_INTERRUPT)
-		return TEE_ERROR_GENERIC;
+		goto err;
 
 	ldev->io_base.pa = dt_info.reg;
 	if (ldev->io_base.pa == 0)
@@ -391,8 +396,8 @@ static TEE_Result stm32_ltdc_probe(const void *fdt, int node,
 	ldev->regs = io_pa_or_va_secure(&ldev->io_base, dt_info.reg_size);
 
 	res = clk_dt_get_by_index(fdt, node, 0, &ldev->clock);
-	if (!ldev->clock)
-		return res;
+	if (res)
+		goto err;
 
 	clk_enable(ldev->clock);
 
@@ -400,21 +405,40 @@ static TEE_Result stm32_ltdc_probe(const void *fdt, int node,
 
 	if (hwid != ID_HWVER_40100) {
 		EMSG("LTDC hardware version not supported: 0x%x", hwid);
-		return TEE_ERROR_NOT_SUPPORTED;
+		res = TEE_ERROR_NOT_SUPPORTED;
+		goto err;
 	}
 
-	ldev->itr = itr_alloc_add((size_t)dt_info.interrupt,
+	cuint = fdt_getprop(fdt, node, "interrupts", &len);
+	if (cuint) {
+		interrupt0 = (uint32_t)fdt32_to_cpu(*(cuint+1)) + 32;
+		interrupt1 = (uint32_t)fdt32_to_cpu(*(cuint+4)) + 32;
+	}
+
+	ldev->itr0 = itr_alloc_add((size_t)interrupt0,
 				  stm32_ltdc_it_handler,
 				  ITRF_TRIGGER_LEVEL,
 				  (void *)ldev);
-	if (!ldev->itr)
-		return TEE_ERROR_OUT_OF_MEMORY;
+	if (!ldev->itr0) {
+		res = TEE_ERROR_OUT_OF_MEMORY;
+		goto err;
+	}
 
-	itr_enable(ldev->itr->it);
+	ldev->itr1 = itr_alloc_add((size_t)interrupt1,
+				  stm32_ltdc_it_handler,
+				  ITRF_TRIGGER_LEVEL,
+				  (void *)ldev);
+	if (!ldev->itr1) {
+		res = TEE_ERROR_OUT_OF_MEMORY;
+		goto err;
+	}
+
+	itr_enable(ldev->itr0->it);
+	itr_enable(ldev->itr1->it);
 
 	res = stm32_pinctrl_dt_get_by_index(fdt, node, 0, &ldev->pinctrl_list);
 	if (res)
-		return res;
+		goto err;
 
 	stm32_pinctrl_load_config(ldev->pinctrl_list);
 
@@ -425,6 +449,10 @@ static TEE_Result stm32_ltdc_probe(const void *fdt, int node,
 	stm32_ltdc_final(ldev);
 
 	return TEE_SUCCESS;
+err:
+	free(ldev);
+
+	return res;
 }
 
 static const struct dt_device_match ltdc_match_table[] = {
