@@ -4,9 +4,11 @@
  */
 
 #include <drivers/rstctrl.h>
+#include <drivers/stm32_risaf.h>
 #include <drivers/stm32_rstctrl.h>
 #include <dt-bindings/reset/stm32mp25-resets.h>
 #include <kernel/dt.h>
+#include <platform_config.h>
 
 static TEE_Result reset_assert_setr(struct rstctrl *rstctrl,
 				    unsigned int to_us __unused)
@@ -41,6 +43,25 @@ static struct rstctrl_ops stm32_rstctrl_do_nothing_ops = {
 	.assert_level = reset_assert_do_nothing,
 	.deassert_level = reset_deassert_do_nothing,
 };
+
+#ifdef CFG_STM32MP25x_REVA
+static TEE_Result stm32_reset_deassert_pcie_workaround(struct rstctrl *rstctrl,
+						       unsigned int to_us)
+{
+	TEE_Result res = TEE_SUCCESS;
+
+	res = stm32_reset_deassert(rstctrl, to_us);
+	if (res)
+		return res;
+
+	return stm32_risaf_reconfigure(RISAF5_BASE);
+}
+
+static struct rstctrl_ops stm32_rstctrl_pcie_workaround_ops = {
+	.assert_level = stm32_reset_assert,
+	.deassert_level = stm32_reset_deassert_pcie_workaround,
+};
+#endif /* CFG_STM32MP25x_REVA */
 
 static unsigned int rif_aware_reset[] = {
 	DDRCP_R, DDRCAPB_R, DDRPHYCAPB_R, DDRCFG_R, DDR_R,
@@ -80,6 +101,10 @@ static struct rstctrl_ops *stm32_reset_mp25_find_ops(unsigned int id)
 	case HOLD_BOOT_C1_R:
 	case HOLD_BOOT_C2_R:
 		return &stm32_rstctrl_inverted_ops;
+#ifdef CFG_STM32MP25x_REVA
+	case PCIE_R:
+		return &stm32_rstctrl_pcie_workaround_ops;
+#endif /* CFG_STM32MP25x_REVA */
 	default:
 		return &stm32_rstctrl_ops;
 	}
