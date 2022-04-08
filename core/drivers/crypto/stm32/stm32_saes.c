@@ -1180,8 +1180,9 @@ static TEE_Result stm32_saes_probe(const void *fdt, int node,
 	if (stm32_saes_get_platdata(&saes_pdata))
 		return TEE_ERROR_NOT_SUPPORTED;
 
-	if (stm32_saes_parse_fdt(&saes_pdata, fdt, node))
-		return TEE_ERROR_NOT_SUPPORTED;
+	res = stm32_saes_parse_fdt(&saes_pdata, fdt, node);
+	if (res)
+		return res;
 
 	clk_enable(saes_pdata.clk);
 
