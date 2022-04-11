@@ -8,6 +8,7 @@
 #include <drivers/clk.h>
 #include <drivers/clk_dt.h>
 #include <drivers/stm32_rif.h>
+#include <drivers/stm32mp25_pwr.h>
 #include <io.h>
 #include <kernel/boot.h>
 #include <kernel/delay.h>
@@ -73,6 +74,14 @@ struct pwr_pdata {
 };
 
 static struct pwr_pdata *pwr_d;
+
+vaddr_t stm32_pwr_base(void)
+{
+	if (!pwr_d->base)
+		panic();
+
+	return pwr_d->base;
+}
 
 static TEE_Result apply_rif_config(void)
 {
@@ -257,6 +266,9 @@ static TEE_Result stm32mp_pwr_probe(const void *fdt, int node,
 				    const void *compat_data __unused)
 {
 	TEE_Result res = TEE_ERROR_GENERIC;
+	int subnode = 0;
+
+	FMSG("PWR probe");
 
 	pwr_d = calloc(1, sizeof(*pwr_d));
 	if (!pwr_d)
@@ -267,6 +279,15 @@ static TEE_Result stm32mp_pwr_probe(const void *fdt, int node,
 	res = apply_rif_config();
 	if (res)
 		panic("Failed to apply rif_config");
+
+	fdt_for_each_subnode(subnode, fdt, node) {
+		res = dt_driver_maybe_add_probe_node(fdt, subnode);
+		if (res) {
+			EMSG("Failed on node %s with %#"PRIx32,
+			     fdt_get_name(fdt, subnode, NULL), res);
+			panic();
+		}
+	}
 
 	return TEE_SUCCESS;
 }
