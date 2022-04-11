@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <drivers/clk.h>
 #include <drivers/clk_dt.h>
+#include <drivers/stm32_risaf.h>
 #include <dt-bindings/soc/stm32mp25-risaf.h>
 #include <io.h>
 #include <kernel/boot.h>
@@ -330,6 +331,41 @@ static TEE_Result stm32_risaf_init_ddata(struct stm32_risaf_instance *risaf)
 	risaf->ddata->mask_regions = GENMASK_32(mask_msb, mask_lsb);
 	risaf->ddata->max_base_regions = (hwcfgr & _RISAF_HWCFGR_CFG1_MASK) >>
 					 _RISAF_HWCFGR_CFG1_SHIFT;
+
+	return TEE_SUCCESS;
+}
+
+TEE_Result stm32_risaf_reconfigure(paddr_t base)
+{
+	struct stm32_risaf_instance *risaf = NULL;
+
+	SLIST_FOREACH(risaf, &risaf_list, link) {
+		struct stm32_risaf_region *regions = risaf->pdata.regions;
+		TEE_Result res = TEE_ERROR_GENERIC;
+		unsigned int i = 0;
+
+		if (base != risaf->pdata.base.pa)
+			continue;
+
+		res = clk_enable(risaf->pdata.clock);
+		if (res)
+			return res;
+
+		for (i = 0; i < risaf->pdata.nregions; i++) {
+			uint32_t id = _RISAF_GET_REGION_ID(regions[i].cfg);
+			uint32_t cfg = _RISAF_GET_REGION_CFG(regions[i].cfg);
+			uint32_t cid_cfg =
+				_RISAF_GET_REGION_CID_CFG(regions[i].cfg);
+			uint32_t start_addr = regions[i].addr;
+			uint32_t end_addr = start_addr + regions[i].len - 1U;
+
+			if (risaf_configure_region(risaf, id, cfg, cid_cfg,
+						   start_addr, end_addr))
+				panic();
+		}
+
+		clk_disable(risaf->pdata.clock);
+	}
 
 	return TEE_SUCCESS;
 }
