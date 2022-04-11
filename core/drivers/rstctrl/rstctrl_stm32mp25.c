@@ -77,6 +77,9 @@ static struct rstctrl_ops *stm32_reset_mp25_find_ops(unsigned int id)
 	case C1P1_R:
 	case C2_R:
 		return &stm32_rstctrl_setr_without_assert_ops;
+	case HOLD_BOOT_C1_R:
+	case HOLD_BOOT_C2_R:
+		return &stm32_rstctrl_inverted_ops;
 	default:
 		return &stm32_rstctrl_ops;
 	}
