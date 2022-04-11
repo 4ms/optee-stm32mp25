@@ -9,10 +9,12 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <tee_api_types.h>
 #include <types_ext.h>
 
 /* syscon banks */
 enum syscon_banks {
+	SYSCON_SYSCFG,
 	SYSCON_A35SSC,
 	SYSCON_NB_BANKS
 };
@@ -41,5 +43,18 @@ enum syscon_banks {
 
 void stm32mp_syscfg_write(uint32_t id, uint32_t value, uint32_t bitmsk);
 uint32_t stm32mp_syscfg_read(uint32_t id);
+
+/* IO comp identifiers */
+enum syscfg_io_ids {
+	SYSFG_VDDIO1_ID,
+	SYSFG_VDDIO2_ID,
+	SYSFG_VDDIO3_ID,
+	SYSFG_VDDIO4_ID,
+	SYSFG_VDD_IO_ID,
+	SYSFG_NB_IO_ID
+};
+
+TEE_Result stm32mp25_syscfg_enable_io_compensation(enum syscfg_io_ids id);
+TEE_Result stm32mp25_syscfg_disable_io_compensation(enum syscfg_io_ids id);
 
 #endif /*__STM32_SYSCONF_H__*/
