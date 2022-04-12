@@ -2425,6 +2425,8 @@ static  STM32_GATE(ck_tim17_k, &ck_timg3, 0, GATE_TIM17);
 static  STM32_GATE(ck_ltdc_px, &ck_pll4q, 0, GATE_LTDC);
 static  STM32_GATE(ck_dma1, &ck_mlahb, 0, GATE_DMA1);
 static  STM32_GATE(ck_dma2, &ck_mlahb, 0, GATE_DMA2);
+static  STM32_GATE(ck_adc1, &ck_mlahb, 0, GATE_ADC1);
+static  STM32_GATE(ck_adc2, &ck_mlahb, 0, GATE_ADC2);
 static  STM32_GATE(ck_mdma, &ck_axi, 0, GATE_MDMA);
 static  STM32_GATE(ck_eth1mac, &ck_axi, 0, GATE_ETH1MAC);
 static  STM32_GATE(ck_usbh, &ck_axi, 0, GATE_USBH);
@@ -2739,6 +2741,8 @@ static struct clk *stm32mp13_clk_provided[STM32MP13_ALL_CLK_NB] = {
 	[LTDC_PX]	= &ck_ltdc_px,
 	[DMA1]		= &ck_dma1,
 	[DMA2]		= &ck_dma2,
+	[ADC1]		= &ck_adc1,
+	[ADC2]		= &ck_adc2,
 	[MDMA]		= &ck_mdma,
 	[ETH1MAC]	= &ck_eth1mac,
 	[USBH]		= &ck_usbh,
