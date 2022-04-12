@@ -45,7 +45,9 @@
 #define _TAMP_COUNT2R			0x44U
 #define _TAMP_OR			0x50U
 #define _TAMP_ERCFGR			0X54U
+#define _TAMP_BKPRIFR(x)		(0x70U + 0x4U * ((x) - 1))
 #define _TAMP_CIDCFGR(x)		(0x80U + 0x4U * (x))
+#define _TAMP_BKPxR(x)			(0x100U + 0x4U * ((x) - 1))
 #define _TAMP_HWCFGR2			0x3ECU
 #define _TAMP_HWCFGR1			0x3F0U
 #define _TAMP_VERR			0x3F4U
@@ -200,6 +202,12 @@
 #define _TAMP_CIDCFGR_CONF_MASK		(_CIDCFGR_CFEN |	 \
 					 _CIDCFGR_SEMEN |	 \
 					 _TAMP_CIDCFGR_SCID_MASK)
+
+/* _TAMP_BKPRIFR */
+#define _TAMP_BKPRIFR_1_MASK		GENMASK_32(7, 0)
+#define _TAMP_BKPRIFR_2_MASK		GENMASK_32(7, 0)
+#define _TAMP_BKPRIFR_3_MASK		(GENMASK_32(23, 16) | GENMASK_32(7, 0))
+#define _TAMP_BKPRIFR_ZONE3_RIF2_SHIFT	16U
 
 #define SEED_TIMEOUT_US			1000U
 
@@ -389,6 +397,24 @@ static void apply_rif_config(void)
 				_TAMP_CIDCFGR_CONF_MASK,
 				stm32_tamp.pdata.conf_data.cid_confs[i]);
 	}
+}
+
+void stm32_tamp_apply_bkpr_rif_conf(struct stm32_bkpregs_conf *bkr_conf)
+{
+	vaddr_t base = io_pa_or_va(&stm32_tamp.pdata.base, 1);
+
+	if (!bkr_conf)
+		panic("No backup register configuration");
+
+	/* Fill the 3 TAMP_BKPRIFRx registers */
+	io_clrsetbits32(base + _TAMP_BKPRIFR(1), _TAMP_BKPRIFR_1_MASK,
+			bkr_conf->bkprs_rif_offsets[0]);
+	io_clrsetbits32(base + _TAMP_BKPRIFR(2), _TAMP_BKPRIFR_2_MASK,
+			bkr_conf->bkprs_rif_offsets[1]);
+	io_clrsetbits32(base + _TAMP_BKPRIFR(3), _TAMP_BKPRIFR_3_MASK,
+			bkr_conf->bkprs_rif_offsets[2] |
+			(bkr_conf->bkprs_rif_offsets[3] <<
+			 _TAMP_BKPRIFR_ZONE3_RIF2_SHIFT));
 }
 
 static void stm32_tamp_set_secret_list(struct stm32_tamp_instance *tamp,

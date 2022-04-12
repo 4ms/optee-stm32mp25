@@ -80,6 +80,7 @@ enum stm32_tamp_id {
 struct stm32_bkpregs_conf {
 	uint32_t nb_zone1_regs;
 	uint32_t nb_zone2_regs;
+	uint32_t *bkprs_rif_offsets;
 };
 
 /* Define TAMPER modes */
@@ -199,5 +200,12 @@ struct stm32_tamp_platdata {
 };
 
 TEE_Result stm32_tamp_get_platdata(struct stm32_tamp_platdata *pdata);
+
+/*
+ * This function applies the offsets for back-up registers RIF protection
+ * zones.
+ * @bkr_conf: Offsets to apply
+ */
+void stm32_tamp_apply_bkpr_rif_conf(struct stm32_bkpregs_conf *bkr_conf);
 
 #endif /* __DRIVERS_STM32_TAMP_H__ */
