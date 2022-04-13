@@ -366,7 +366,6 @@ int32_t plat_scmi_clock_set_rate(unsigned int channel_id, unsigned int scmi_id,
 				 unsigned long rate)
 {
 	struct stm32_scmi_clk *clock = find_clock(channel_id, scmi_id);
-	int ret __maybe_unused = SCMI_DENIED;
 
 	if (!clock)
 		return SCMI_NOT_FOUND;
@@ -377,15 +376,13 @@ int32_t plat_scmi_clock_set_rate(unsigned int channel_id, unsigned int scmi_id,
 	switch (scmi_id) {
 #ifdef CFG_STM32MP15
 	case CK_SCMI_MPU:
-		ret = stm32mp1_set_opp_khz(rate / 1000);
-		if (ret)
+		if (stm32mp1_set_opp_khz(rate / 1000))
 			return SCMI_INVALID_PARAMETERS;
 		break;
 #endif
 #ifdef CFG_STM32MP13
 	case CK_SCMI_PLL4_Q:
-		ret = clk_set_rate(clock->clk, rate);
-		if (ret)
+		if (clk_set_rate(clock->clk, rate))
 			return SCMI_INVALID_PARAMETERS;
 		break;
 #endif
