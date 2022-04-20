@@ -165,8 +165,9 @@
 		};
 
 		ipcc1: mailbox@40490000 {
+			compatible = "st,stm32mp25-ipcc";
 			reg = <0x40490000 0x400>;
-			status = "disabled";
+			clocks = <&rcc CK_BUS_IPCC1>;
 		};
 
 		ommanager: ommanager@40500000 {
@@ -661,8 +662,9 @@
 		};
 
 		ipcc2: mailbox@46250000 {
+			compatible = "st,stm32mp25-ipcc";
 			reg = <0x46250000 0x400>;
-			status = "disabled";
+			clocks = <&rcc CK_BUS_IPCC2>;
 		};
 
 		stgenc: stgen@48080000 {
