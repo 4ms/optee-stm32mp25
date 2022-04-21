@@ -158,6 +158,7 @@
 		reg = <0x33>;
 		status = "okay";
 		st,wakeup-pin-number = <1>;
+		st,notif-it-id = <0>;
 
 		regulators {
 			compatible = "st,stpmic1-regulators";
