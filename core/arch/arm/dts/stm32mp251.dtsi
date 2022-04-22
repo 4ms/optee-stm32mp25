@@ -654,8 +654,10 @@
 		};
 
 		hsem: hwspinlock@46240000 {
+			compatible = "st,stm32mp25-hsem";
 			reg = <0x46240000 0x400>;
-			status = "disabled";
+			interrupts = <GIC_SPI 200 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rcc CK_BUS_HSEM>;
 		};
 
 		ipcc2: mailbox@46250000 {
