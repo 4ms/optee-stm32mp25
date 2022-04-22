@@ -37,6 +37,7 @@ srcs-$(CFG_STM32_CPU_OPP) += stm32_cpu_opp.c
 srcs-$(CFG_STM32_EXTI) += stm32_exti.c
 srcs-$(CFG_STM32_GPIO) += stm32_gpio.c
 srcs-$(CFG_STM32_HPDMA) += stm32_hpdma.c
+srcs-$(CFG_STM32_HSEM) += stm32_hsem.c
 srcs-$(CFG_STM32_IWDG) += stm32_iwdg.c
 srcs-$(CFG_STM32_I2C) += stm32_i2c.c
 srcs-$(CFG_STM32_RNG) += stm32_rng.c
