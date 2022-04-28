@@ -3,10 +3,16 @@
  * Copyright (c) 2018-2022, STMicroelectronics - All Rights Reserved
  *
  */
+#ifdef CFG_ARM64_core
+#include <arm64.h>
+#else
 #include <arm32.h>
+#endif /* CFG_ARM64_core */
+#include <config.h>
 #include <drivers/clk.h>
 #include <drivers/clk_dt.h>
 #include <drivers/stm32_rtc.h>
+#include <drivers/stm32_rif.h>
 #include <initcall.h>
 #include <io.h>
 #include <kernel/boot.h>
@@ -42,6 +48,7 @@
 #define RTC_SR				U(0x50)
 #define RTC_SCR				U(0x5C)
 #define RTC_OR				U(0x60)
+#define RTC_CIDCFGR(x)			(U(0x80) + U(0x4) * (x))
 
 #define RTC_TR_SU_MASK			GENMASK_32(3, 0)
 #define RTC_TR_ST_MASK			GENMASK_32(6, 4)
@@ -97,6 +104,11 @@
 #define RTC_WPR_KEY2			U(0x53)
 #define RTC_WPR_KEY_LOCK		U(0xFF)
 
+#define RTC_CIDCFGR_SCID_MASK		GENMASK_32(6, 4)
+#define RTC_CIDCFGR_SCID_MASK_SHIFT	U(4)
+#define RTC_CIDCFGR_CONF_MASK		(_CIDCFGR_CFEN |	 \
+					 RTC_CIDCFGR_SCID_MASK)
+
 #define RTC_PRIVCFGR_FULL_PRIV		BIT(15)
 #define RTC_PRIVCFGR_VALUES		GENMASK_32(3, 0)
 #define RTC_PRIVCFGR_VALUES_TO_SHIFT	GENMASK_32(5, 4)
@@ -110,14 +122,30 @@
 #define RTC_SECCFGR_TS_SEC		BIT(3)
 #define RTC_SECCFGR_MASK		(GENMASK_32(14, 13) | GENMASK_32(3, 0))
 
+#define RTC_RES_TIMESTAMP		U(3)
+
 #define RTC_FLAGS_READ_TWICE		BIT(0)
 #define RTC_FLAGS_SECURE		BIT(1)
 
 #define TIMEOUT_US_RTC_SHADOW		U(10000)
 #define MS_PER_SEC			U(1000)
 
+/*
+ * RIF miscellaneous
+ */
+
+#define RTC_NB_RIF_RESOURCES		U(6)
+
+#define RTC_RIF_FULL_PRIVILEGED		U(0x3F)
+#define RTC_RIF_FULL_SECURED		U(0x3F)
+
+#define RTC_NB_MAX_CID_SUPPORTED	U(7)
+
+#define RTC_CID_1			U(1)
+
 struct rtc_compat {
 	bool has_seccfgr;
+	bool has_rif_support;
 };
 
 struct rtc_device {
@@ -125,6 +153,8 @@ struct rtc_device {
 	struct rtc_compat compat;
 	struct clk *pclk;
 	struct clk *rtc_ck;
+	struct rif_conf_data conf_data;
+	unsigned int nb_res;
 	uint8_t flags;
 };
 
@@ -497,11 +527,116 @@ TEE_Result stm32_rtc_is_timestamp_enable(bool *ret)
 	return TEE_SUCCESS;
 }
 
-static TEE_Result parse_dt(const void *fdt, int node,
-			   const void *compat_data)
+static TEE_Result check_rif_config(void)
+{
+	uint32_t rxcidcfgr = io_read32(get_base() +
+				       RTC_CIDCFGR(RTC_RES_TIMESTAMP));
+	uint32_t cid = (rxcidcfgr & RTC_CIDCFGR_SCID_MASK) >>
+		       RTC_CIDCFGR_SCID_MASK_SHIFT;
+
+	/* Check if TAMPTS is available for our CID */
+	if ((rxcidcfgr & _CIDCFGR_CFEN) && (cid != RTC_CID_1))
+		return TEE_ERROR_ACCESS_DENIED;
+
+	return TEE_SUCCESS;
+}
+
+static void apply_rif_config(bool is_tdcid)
+{
+	vaddr_t base = get_base();
+	unsigned int shifted_values = 0;
+	uint32_t seccfgr = 0;
+	uint32_t privcfgr = 0;
+	uint32_t access_mask_reg = 0;
+	unsigned int i = 0;
+
+	/* Build access mask for RTC_SECCFGR and RTC_PRIVCFGR */
+	for (i = 0; i < RTC_NB_RIF_RESOURCES; i++) {
+		if (rtc_dev.conf_data.access_mask[0] & BIT(i)) {
+			if (i <= RTC_RES_TIMESTAMP)
+				access_mask_reg |= BIT(i);
+			else
+				access_mask_reg |= BIT(i) << RTC_SECCFGR_SHIFT;
+		}
+	}
+
+	for (i = 0; i < RTC_NB_RIF_RESOURCES; i++) {
+		if (!(BIT(i) & rtc_dev.conf_data.access_mask[0]))
+			continue;
+
+		/*
+		 * When TDCID, OP-TEE should be the one to set the CID filtering
+		 * configuration. Clearing previous configuration prevents
+		 * undesired events during the only legitimate configuration.
+		 */
+		if (is_tdcid)
+			io_clrbits32(base + RTC_CIDCFGR(i),
+				     RTC_CIDCFGR_CONF_MASK);
+	}
+
+	/* Security RIF configuration */
+	seccfgr = rtc_dev.conf_data.sec_conf[0];
+
+	/* Check if all resources must be secured */
+	if (seccfgr == RTC_RIF_FULL_SECURED) {
+		io_setbits32(base + RTC_SECCFGR, RTC_SECCFGR_FULL_SEC);
+
+		if (!(io_read32(base + RTC_SECCFGR) & RTC_SECCFGR_FULL_SEC))
+			panic("Bad RTC seccfgr configuration");
+	}
+
+	/* Shift some values to align with the register */
+	shifted_values = (seccfgr & RTC_SECCFGR_VALUES_TO_SHIFT) <<
+			 RTC_SECCFGR_SHIFT;
+	seccfgr = (seccfgr & RTC_SECCFGR_VALUES) + shifted_values;
+
+	io_clrsetbits32(base + RTC_SECCFGR,
+			RTC_SECCFGR_MASK & access_mask_reg, seccfgr);
+
+	/* Privilege RIF configuration */
+	privcfgr = rtc_dev.conf_data.priv_conf[0];
+
+	/* Check if all resources must be privileged */
+	if (privcfgr == RTC_RIF_FULL_PRIVILEGED) {
+		io_setbits32(base + RTC_PRIVCFGR, RTC_PRIVCFGR_FULL_PRIV);
+
+		if (!(io_read32(base + RTC_PRIVCFGR) & RTC_PRIVCFGR_FULL_PRIV))
+			panic("Bad RTC privcfgr configuration");
+	}
+
+	/* Shift some values to align with the register */
+	shifted_values = (privcfgr & RTC_PRIVCFGR_VALUES_TO_SHIFT) <<
+			 RTC_PRIVCFGR_SHIFT;
+	privcfgr = (privcfgr & RTC_PRIVCFGR_VALUES) + shifted_values;
+
+	io_clrsetbits32(base + RTC_PRIVCFGR,
+			RTC_PRIVCFGR_MASK & access_mask_reg, privcfgr);
+
+	if (!is_tdcid)
+		return;
+
+	for (i = 0; i < RTC_NB_RIF_RESOURCES; i++) {
+		if (!(BIT(i) & rtc_dev.conf_data.access_mask[0]))
+			continue;
+		/*
+		 * When at least one resource has CID filtering enabled,
+		 * the RTC_PRIVCFGR_FULL_PRIV and RTC_SECCFGR_FULL_SEC bits are
+		 * cleared.
+		 */
+		io_clrsetbits32(base + RTC_CIDCFGR(i),
+				RTC_CIDCFGR_CONF_MASK,
+				rtc_dev.conf_data.cid_confs[i]);
+	}
+}
+
+static TEE_Result parse_dt(const void *fdt, int node, const void *compat_data)
 {
 	TEE_Result res = TEE_ERROR_GENERIC;
 	struct dt_node_info dt_info = { };
+	const fdt32_t *cuint = NULL;
+	uint32_t rif_conf = 0;
+	unsigned int i = 0;
+	int lenp = 0;
 
 	_fdt_fill_device_info(fdt, &dt_info, node);
 
@@ -520,6 +655,35 @@ static TEE_Result parse_dt(const void *fdt, int node,
 
 	rtc_dev.compat = *(struct rtc_compat *)compat_data;
 
+	if (!rtc_dev.compat.has_rif_support)
+		return res;
+
+	cuint = fdt_getprop(fdt, node, "st,protreg", &lenp);
+	if (!cuint)
+		panic("No RIF configuration available");
+
+	rtc_dev.nb_res = (unsigned int)(lenp / sizeof(uint32_t));
+	assert(rtc_dev.nb_res <= RTC_NB_RIF_RESOURCES);
+
+	rtc_dev.conf_data.cid_confs = calloc(RTC_NB_RIF_RESOURCES,
+					     sizeof(uint32_t));
+	rtc_dev.conf_data.sec_conf = calloc(1, sizeof(uint32_t));
+	rtc_dev.conf_data.priv_conf = calloc(1, sizeof(uint32_t));
+	rtc_dev.conf_data.access_mask = calloc(1, sizeof(uint32_t));
+	if (!rtc_dev.conf_data.cid_confs ||
+	    !rtc_dev.conf_data.sec_conf ||
+	    !rtc_dev.conf_data.priv_conf ||
+	    !rtc_dev.conf_data.access_mask)
+		panic("Not enough memory capacity for RTC RIF config");
+
+	for (i = 0; i < rtc_dev.nb_res; i++) {
+		rif_conf = fdt32_to_cpu(cuint[i]);
+
+		stm32_rif_parse_cfg(rif_conf, &rtc_dev.conf_data,
+				    RTC_NB_MAX_CID_SUPPORTED,
+				    RTC_NB_RIF_RESOURCES);
+	}
+
 	return TEE_SUCCESS;
 }
 
@@ -527,6 +691,13 @@ static TEE_Result stm32_rtc_probe(const void *fdt, int node,
 				  const void *compat_data)
 {
 	TEE_Result res = TEE_ERROR_GENERIC;
+	bool is_tdcid = false;
+
+	if (rtc_dev.compat.has_rif_support) {
+		res = stm32_rifsc_check_tdcid(&is_tdcid);
+		if (res)
+			return res;
+	}
 
 	res = parse_dt(fdt, node, compat_data);
 	if (res) {
@@ -542,18 +713,41 @@ static TEE_Result stm32_rtc_probe(const void *fdt, int node,
 	if (clk_get_rate(rtc_dev.pclk) < (clk_get_rate(rtc_dev.rtc_ck) * 7))
 		rtc_dev.flags |= RTC_FLAGS_READ_TWICE;
 
+	if (rtc_dev.compat.has_rif_support) {
+		apply_rif_config(is_tdcid);
+
+		/*
+		 * Verify if applied RIF config will not disable
+		 * other functionnalities of this driver.
+		 */
+		res = check_rif_config();
+		if (res)
+			panic("Incompatible RTC RIF configuration");
+	}
+
 	return res;
 }
 
+static struct rtc_compat mp25_compat = {
+	.has_seccfgr = true,
+	.has_rif_support = true,
+};
+
 static struct rtc_compat mp15_compat = {
 	.has_seccfgr = false,
+	.has_rif_support = false,
 };
 
 static struct rtc_compat mp13_compat = {
 	.has_seccfgr = true,
+	.has_rif_support = false,
 };
 
 static const struct dt_device_match stm32_rtc_match_table[] = {
+	{
+		.compatible = "st,stm32mp25-rtc",
+		.compat_data = &mp25_compat,
+	},
 	{
 		.compatible = "st,stm32mp1-rtc",
 		.compat_data = &mp15_compat,
