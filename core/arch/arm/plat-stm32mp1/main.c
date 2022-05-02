@@ -734,15 +734,6 @@ DECLARE_KEEP_PAGER(stm32mp1_etamper_action);
 static TEE_Result stm32_configure_tamp(void)
 {
 	TEE_Result res __maybe_unused = TEE_SUCCESS;
-	struct stm32_bkpregs_conf bkpregs_conf = {
-		.nb_zone1_regs = 10, /* 10 registers in zone 1 */
-		.nb_zone2_regs = 5   /* 5 registers in zone 2 */
-				     /* Zone3 all remaining */
-	};
-
-	/* Enable BKP Register protection */
-	if (stm32_tamp_set_secure_bkpregs(&bkpregs_conf))
-		panic();
 
 	/*
 	 * The stm32_tamp_activate_tamp() for INT_TAMPx returns an error code

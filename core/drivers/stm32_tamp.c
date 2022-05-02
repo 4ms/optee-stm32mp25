@@ -399,22 +399,60 @@ static void apply_rif_config(void)
 	}
 }
 
-void stm32_tamp_apply_bkpr_rif_conf(struct stm32_bkpregs_conf *bkr_conf)
+static TEE_Result stm32_tamp_apply_bkpr_rif_conf(void)
 {
+	struct stm32_bkpregs_conf *bkpregs_conf =
+			stm32_tamp.pdata.bkpregs_conf;
 	vaddr_t base = io_pa_or_va(&stm32_tamp.pdata.base, 1);
+	int i = 0;
 
-	if (!bkr_conf)
+	if (!bkpregs_conf)
 		panic("No backup register configuration");
+
+	for (i = 0; i < 4; i++) {
+		if (bkpregs_conf->rif_offsets[i] >
+		    (stm32_tamp.hwconf1 & _TAMP_HWCFGR1_BKPREG))
+			return TEE_ERROR_NOT_SUPPORTED;
+	}
 
 	/* Fill the 3 TAMP_BKPRIFRx registers */
 	io_clrsetbits32(base + _TAMP_BKPRIFR(1), _TAMP_BKPRIFR_1_MASK,
-			bkr_conf->bkprs_rif_offsets[0]);
+			bkpregs_conf->rif_offsets[0]);
 	io_clrsetbits32(base + _TAMP_BKPRIFR(2), _TAMP_BKPRIFR_2_MASK,
-			bkr_conf->bkprs_rif_offsets[1]);
+			bkpregs_conf->rif_offsets[1]);
 	io_clrsetbits32(base + _TAMP_BKPRIFR(3), _TAMP_BKPRIFR_3_MASK,
-			bkr_conf->bkprs_rif_offsets[2] |
-			(bkr_conf->bkprs_rif_offsets[3] <<
+			bkpregs_conf->rif_offsets[2] |
+			(bkpregs_conf->rif_offsets[3] <<
 			 _TAMP_BKPRIFR_ZONE3_RIF2_SHIFT));
+
+	DMSG("Backup registers mapping :");
+	DMSG("********START of zone 1********");
+	DMSG("Protection Zone 1-RIF1 begins at register: 0");
+	DMSG("Protection Zone 1-RIF2 begins at register: %"PRIu32,
+	     bkpregs_conf->rif_offsets[0]);
+	DMSG("Protection Zone 1-RIF2 ends at register: %"PRIu32,
+	     bkpregs_conf->nb_zone1_regs ? bkpregs_conf->nb_zone1_regs - 1 : 0);
+	DMSG("********END of zone 1********");
+	DMSG("********START of zone 2********");
+	DMSG("Protection Zone 2-RIF1 begins at register: %"PRIu32,
+	     bkpregs_conf->nb_zone1_regs);
+	DMSG("Protection Zone 2-RIF2 begins at register: %"PRIu32,
+	     bkpregs_conf->rif_offsets[1]);
+	DMSG("Protection Zone 2-RIF2 ends at register: %"PRIu32,
+	     bkpregs_conf->rif_offsets[1] > bkpregs_conf->nb_zone1_regs ?
+	     bkpregs_conf->nb_zone2_regs - 1 : 0);
+	DMSG("********END of zone 2********");
+	DMSG("********START of zone 3********");
+	DMSG("Protection Zone 3-RIF1 begins at register: %"PRIu32,
+	     bkpregs_conf->nb_zone2_regs);
+	DMSG("Protection Zone 3-RIF0 begins at register: %"PRIu32,
+	     bkpregs_conf->rif_offsets[2]);
+	DMSG("Protection Zone 3-RIF2 begins at register: %"PRIu32,
+	     bkpregs_conf->rif_offsets[3]);
+	DMSG("Protection Zone 3-RIF2 ends at the last register: 128");
+	DMSG("********END of zone 3********");
+
+	return TEE_SUCCESS;
 }
 
 static void stm32_tamp_set_secret_list(struct stm32_tamp_instance *tamp,
@@ -661,17 +699,130 @@ static TEE_Result stm32_tamp_set_ext_config(struct stm32_tamp_compat *tcompat,
 	return TEE_SUCCESS;
 }
 
-TEE_Result stm32_tamp_set_secure_bkpregs(struct stm32_bkpregs_conf *bkr_conf)
+static void parse_bkpregs_dt_conf(struct stm32_tamp_platdata *pdata,
+				  const void *fdt, int node)
 {
+	const fdt32_t *cuint = NULL;
+	unsigned int bkpregs_count = 0;
+	int lenp = 0;
+
+	cuint = fdt_getprop(fdt, node, "st,backup-zones", &lenp);
+	if (!cuint) {
+		IMSG("Default configuration for backup registers");
+		return;
+	}
+
+	pdata->bkpregs_conf = calloc(1, sizeof(*pdata->bkpregs_conf));
+	if (!pdata->bkpregs_conf)
+		panic("No memory available for backup registers RIF config");
+
+	/*
+	 * When TAMP does not support RIF, the backup registers can
+	 * be splited in 3 zones. These zones have specific read/write
+	 * access permissions based on the secure status of the accesser.
+	 * When RIF is supported, these zones can additionally be splited
+	 * in subzones that have CID filtering. Zones/Subzones can be empty and
+	 * are contiguous.
+	 */
+	if (!(pdata->compat->tags & TAMP_HAS_RIF_SUPPORT)) {
+		/* 3 zones, 2 offsets to apply */
+		if (lenp != sizeof(uint32_t) * 3)
+			panic("Incorrect bkpregs configuration");
+
+		pdata->bkpregs_conf->nb_zone1_regs = fdt32_to_cpu(cuint[0]);
+		bkpregs_count = fdt32_to_cpu(cuint[0]);
+
+		pdata->bkpregs_conf->nb_zone2_regs = bkpregs_count +
+						     fdt32_to_cpu(cuint[1]);
+	} else {
+		/*
+		 * Zone 3
+		 * ----------------------|
+		 * Protection Zone 3-RIF2|Read non-
+		 * ----------------------|secure
+		 * Protection Zone 3-RIF0|Write non-
+		 * ----------------------|secure
+		 * Protection Zone 3-RIF1|
+		 * ----------------------|
+		 *
+		 * Zone 2
+		 * ----------------------|
+		 * Protection Zone 2-RIF2|Read non-
+		 * ----------------------|secure
+		 * Protection Zone 2-RIF1|Write secure
+		 * ----------------------|
+		 *
+		 * Zone 1
+		 * ----------------------|
+		 * Protection Zone 1-RIF2|Read secure
+		 * ----------------------|Write secure
+		 * Protection Zone 1-RIF1|
+		 * ----------------------|
+		 *
+		 * (BHK => First 8 registers)
+		 */
+		pdata->bkpregs_conf->rif_offsets = calloc(4, sizeof(uint32_t));
+		if (!pdata->bkpregs_conf->rif_offsets)
+			panic();
+
+		/*
+		 * 3 zones with 7 subzones in total(6 offsets):
+		 * - 2 zone offsets
+		 * - 4 subzones offsets
+		 */
+		if (lenp != sizeof(uint32_t) * 7)
+			panic("Incorrect bkpregs configuration");
+
+		/* Backup registers zone 1 */
+		pdata->bkpregs_conf->rif_offsets[0] = fdt32_to_cpu(cuint[0]);
+		pdata->bkpregs_conf->nb_zone1_regs = fdt32_to_cpu(cuint[0]) +
+						     fdt32_to_cpu(cuint[1]);
+
+		bkpregs_count = pdata->bkpregs_conf->nb_zone1_regs;
+
+		/* Backup registers zone 2 */
+		pdata->bkpregs_conf->rif_offsets[1] = bkpregs_count +
+						      fdt32_to_cpu(cuint[2]);
+		pdata->bkpregs_conf->nb_zone2_regs = bkpregs_count +
+						     fdt32_to_cpu(cuint[2]) +
+						     fdt32_to_cpu(cuint[3]);
+
+		bkpregs_count = pdata->bkpregs_conf->nb_zone2_regs;
+
+		/* Backup registers zone 3 */
+		pdata->bkpregs_conf->rif_offsets[2] = bkpregs_count +
+						      fdt32_to_cpu(cuint[4]);
+		pdata->bkpregs_conf->rif_offsets[3] = bkpregs_count +
+						      fdt32_to_cpu(cuint[4]) +
+						      fdt32_to_cpu(cuint[5]);
+	}
+}
+
+/*
+ * stm32_tamp_set_secure_bkprwregs: Configure backup registers zone.
+ * registers in zone 1: read/write only in secure mode
+ *              zone 2: write only in secure mode, read in secure and
+ *                       non-secure mode
+ *              zone 3: read/write in secure and non-secure mode
+ *
+ * return TEE_ERROR_NOT_SUPPORTED:  if zone 1 and/or zone 2 definition are out
+ *                                  of range.
+ *        TEE_ERROR_BAD_PARAMETERS: if bkpregs_cond is NULL.
+ *        TEE_SUCCESS             : if OK.
+ */
+static TEE_Result stm32_tamp_set_secure_bkpregs(void)
+{
+	struct stm32_bkpregs_conf *bkpregs_conf =
+			stm32_tamp.pdata.bkpregs_conf;
 	uint32_t first_z2 = 0;
 	uint32_t first_z3 = 0;
 	vaddr_t base = io_pa_or_va(&stm32_tamp.pdata.base, 1);
 
-	if (!bkr_conf)
+	if (!bkpregs_conf)
 		return TEE_ERROR_BAD_PARAMETERS;
 
-	first_z2 = bkr_conf->nb_zone1_regs;
-	first_z3 = bkr_conf->nb_zone1_regs + bkr_conf->nb_zone2_regs;
+	first_z2 = bkpregs_conf->nb_zone1_regs;
+	first_z3 = bkpregs_conf->nb_zone2_regs;
 
 	if ((first_z2 > (stm32_tamp.hwconf1 & _TAMP_HWCFGR1_BKPREG)) ||
 	    (first_z3 > (stm32_tamp.hwconf1 & _TAMP_HWCFGR1_BKPREG)))
@@ -1479,6 +1630,8 @@ TEE_Result stm32_tamp_parse_fdt(struct stm32_tamp_platdata *pdata,
 		}
 	}
 
+	parse_bkpregs_dt_conf(pdata, fdt, node);
+
 	return TEE_SUCCESS;
 }
 
@@ -1549,6 +1702,12 @@ static TEE_Result stm32_tamp_probe(const void *fdt, int node,
 
 	if (stm32_tamp.pdata.compat->tags & TAMP_HAS_RIF_SUPPORT) {
 		apply_rif_config();
+
+		if (stm32_tamp.pdata.bkpregs_conf) {
+			res = stm32_tamp_apply_bkpr_rif_conf();
+			if (res)
+				return res;
+		}
 	} else {
 		/*
 		 * Select access in secure or unsecure
@@ -1569,6 +1728,12 @@ static TEE_Result stm32_tamp_probe(const void *fdt, int node,
 		stm32_tamp_set_privilege(&stm32_tamp, _TAMP_PRIVCFG_TAMPPRIV |
 					 _TAMP_PRIVCFG_BKPRWPRIV |
 					 _TAMP_PRIVCFG_BKPWPRIV);
+	}
+
+	if (stm32_tamp.pdata.bkpregs_conf) {
+		res = stm32_tamp_set_secure_bkpregs();
+		if (res)
+			return res;
 	}
 
 	stm32_tamp.itr = itr_alloc_add(stm32_tamp.pdata.it,
