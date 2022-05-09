@@ -20,6 +20,11 @@
 /* RISAF general registers (base relative) */
 #define _RISAF_CR			U(0x00)
 #define _RISAF_SR			U(0x04)
+#define _RISAF_IASR			U(0x08)
+#define _RISAF_IAESR0			U(0x20)
+#define _RISAF_IADDR0			U(0x24)
+#define _RISAF_IAESR1			U(0x28)
+#define _RISAF_IADDR1			U(0x2C)
 #define _RISAF_KEYR			U(0x30)
 #define _RISAF_HWCFGR			U(0xFF0)
 #define _RISAF_VERR			U(0xFF4)
@@ -122,6 +127,9 @@ struct stm32_risaf_pdata {
 	struct io_pa_va base;
 	struct clk *clock;
 	struct stm32_risaf_region *regions;
+#if TRACE_LEVEL >= TRACE_INFO
+	char risaf_name[20];
+#endif
 	unsigned int nregions;
 	uint32_t mem_base;
 	uint32_t mem_size;
@@ -174,6 +182,51 @@ static vaddr_t risaf_base(struct stm32_risaf_instance *risaf)
 {
 	return io_pa_or_va_secure(&risaf->pdata.base, 1);
 }
+
+#if TRACE_LEVEL >= TRACE_INFO
+void stm32_risaf_dump_erroneous_data(void)
+{
+	struct stm32_risaf_instance *risaf = NULL;
+
+	SLIST_FOREACH(risaf, &risaf_list, link) {
+		vaddr_t base = io_pa_or_va_secure(&risaf->pdata.base, 1);
+
+		if (clk_enable(risaf->pdata.clock))
+			panic("Can't enable RISAF clock");
+
+		/* Check if faulty address on this RISAF */
+		if (!io_read32(base + _RISAF_IASR)) {
+			clk_disable(risaf->pdata.clock);
+			continue;
+		}
+
+		EMSG("\n\nDUMPING DATA FOR %s\n\n", risaf->pdata.risaf_name);
+		EMSG("=====================================================");
+		EMSG("Status register (IAESR0): %#"PRIx32,
+		     io_read32(base + _RISAF_IAESR0));
+
+		/* Reserved if dual port feature not available */
+		if (io_read32(base + _RISAF_IAESR1))
+			EMSG("Status register Dual Port (IAESR1) %#"PRIx32,
+			     io_read32(base + _RISAF_IAESR1));
+
+		EMSG("-----------------------------------------------------");
+		EMSG("Faulty address (IADDR0): %#"PRIxPA,
+		     risaf->pdata.mem_base +
+		     (paddr_t)io_read32(base + _RISAF_IADDR0));
+
+		/* Reserved if dual port feature not available */
+		if (io_read32(base + _RISAF_IADDR1))
+			EMSG("Dual port faulty address (IADDR1): %#"PRIxPA,
+			     risaf->pdata.mem_base +
+			     (paddr_t)io_read32(base + _RISAF_IADDR1));
+
+		EMSG("=====================================================\n");
+
+		clk_disable(risaf->pdata.clock);
+	};
+}
+#endif
 
 static __maybe_unused
 bool risaf_is_hw_encryption_enabled(struct stm32_risaf_instance *risaf)
@@ -419,6 +472,10 @@ static TEE_Result stm32_risaf_probe(const void *fdt, int node,
 		free(risaf);
 		return TEE_SUCCESS;
 	}
+
+#if TRACE_LEVEL >= TRACE_INFO
+	strncpy(risaf->pdata.risaf_name, fdt_get_name(fdt, node, NULL), 19);
+#endif
 
 	res = clk_enable(risaf->pdata.clock);
 	if (res)
