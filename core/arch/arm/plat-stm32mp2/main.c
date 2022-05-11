@@ -7,6 +7,8 @@
 #include <config.h>
 #include <console.h>
 #include <drivers/gic.h>
+#include <drivers/stm32_iac.h>
+#include <drivers/stm32_risaf.h>
 #include <drivers/stm32_uart.h>
 #include <initcall.h>
 #include <kernel/dt.h>
@@ -178,3 +180,12 @@ void may_spin_unlock(unsigned int *lock, uint32_t exceptions)
 
 	cpu_spin_unlock_xrestore(lock, exceptions);
 }
+
+#if TRACE_LEVEL >= TRACE_INFO
+__noreturn void access_violation_action(void)
+{
+	stm32_risaf_dump_erroneous_data();
+
+	panic();
+}
+#endif
