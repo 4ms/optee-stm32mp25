@@ -13,6 +13,7 @@
 #include <drivers/stm32mp_dt_bindings.h>
 #include <io.h>
 #include <kernel/boot.h>
+#include <kernel/delay.h>
 #include <kernel/dt.h>
 #include <kernel/interrupt.h>
 #include <kernel/panic.h>
@@ -30,6 +31,8 @@ struct ltdc_device {
 	struct itr_handler *itr0;
 	struct itr_handler *itr1;
 	int pinctrl_count;
+	bool end_of_frame;
+	bool activate;
 };
 
 #define LTDC_IDR	0x0000
@@ -43,12 +46,20 @@ struct ltdc_device {
 #define LTDC_IER2	0x0064
 #define LTDC_ISR2	0x0068
 #define LTDC_ICR2	0x006C
-#define IER_LIE		BIT(0)
-#define IER_FUIE	BIT(1)
-#define IER_TERRIE	BIT(2)
-#define ISR_LIF		BIT(0)
-#define ISR_FUIF	BIT(1)
-#define ISR_TERRIF	BIT(2)
+#define IER_LIE		BIT(0)		/* Line Interrupt Enable */
+#define IER_FUWIE	BIT(1)		/* Fifo Underrun Warning Interrupt Enable */
+#define IER_TERRIE	BIT(2)		/* Transfer ERRor Interrupt Enable */
+#define IER_RRIE	BIT(3)		/* Register Reload Interrupt Enable */
+#define IER_FUKIE	BIT(6)		/* Fifo Underrun Killing Interrupt Enable */
+#define IER_CRCIE	BIT(7)		/* CRC Error Interrupt Enable */
+#define IER_FURIE	BIT(8)		/* Fifo Underrun at Rotation Interrupt Enable */
+#define ISR_LIF		BIT(0)		/* Line Interrupt Flag */
+#define ISR_FUWIF	BIT(1)		/* Fifo Underrun Warning Interrupt Flag */
+#define ISR_TERRIF	BIT(2)		/* Transfer ERRor Interrupt Flag */
+#define ISR_RRIF	BIT(3)		/* Register Reload Interrupt Flag */
+#define ISR_FUKIF	BIT(6)		/* Fifo Underrun Killing Interrupt Flag */
+#define ISR_CRCIF	BIT(7)		/* CRC Error Interrupt Flag */
+#define ISR_FURIF	BIT(8)		/* Fifo Underrun at Rotation Interrupt Flag */
 
 #define ID_HWVER_40100		0x040100
 #define GCR_LTDCEN		BIT(0)
@@ -103,6 +114,9 @@ enum ltdc_pix_fmt {
 #define LTDC_L2CFBAR	LAY_OFS(0x134)
 #define LTDC_L2CFBLR	LAY_OFS(0x138)
 #define LTDC_L2CFBLNR	LAY_OFS(0x13c)
+
+/* Timeout when polling on status */
+#define LTDC_TIMEOUT_US	U(100000)
 
 #if (TRACE_LEVEL < TRACE_DEBUG)
 #define dump_reg_ltdc(...)   ((void)0)
@@ -177,16 +191,38 @@ static TEE_Result stm32_ltdc_final(void *device)
 {
 	TEE_Result ret = TEE_ERROR_GENERIC;
 	struct ltdc_device *ldev = device;
+	uint64_t timeout_ref = 0;
 	const struct stm32_firewall_cfg sec_cfg[] = {
 		{ FWLL_NSEC_RW | FWLL_MASTER(0) },
 		{ }, /* Null terminated */
 	};
 
+	if (!ldev->activate)
+		goto out;
+
 	/* Disable secure layer */
 	io_clrbits32(ldev->regs + LTDC_L2CR, LXCR_LEN);
 
 	/* Reload configuration immediately. */
-	io_write32(ldev->regs + LTDC_L2RCR, LXCR_RCR_IMR);
+	io_write32(ldev->regs + LTDC_L2RCR, LXCR_RCR_VBR);
+
+	ldev->end_of_frame = false;
+
+	/* Enable line IRQ */
+	io_setbits32(ldev->regs + LTDC_IER2, IER_LIE);
+
+	/* wait end of frame */
+	timeout_ref = timeout_init_us(LTDC_TIMEOUT_US);
+	while (!timeout_elapsed(timeout_ref))
+		if (ldev->end_of_frame)
+			break;
+
+	/* Disable IRQs */
+	io_clrbits32(ldev->regs + LTDC_IER2, IER_LIE | IER_FUKIE | IER_TERRIE);
+
+	/* Allow an almost silent failure here */
+	if (!ldev->end_of_frame)
+		EMSG("ltdc: Did not receive end of frame interrupt");
 
 	ret = stm32_firewall_set_config(virt_to_phys((void *)ldev->regs),
 					0, sec_cfg);
@@ -199,6 +235,8 @@ static TEE_Result stm32_ltdc_final(void *device)
 
 out:
 	clk_disable(ldev->clock);
+
+	ldev->activate = false;
 
 	return ret;
 }
@@ -293,7 +331,10 @@ static TEE_Result stm32_ltdc_activate(void *device,
 	/* Reload configuration at next vertical blanking. */
 	io_write32(ldev->regs + LTDC_L2RCR, LXCR_RCR_VBR);
 
-	io_write32(ldev->regs + LTDC_IER2, IER_FUIE | IER_TERRIE);
+	/* Enable IRQs */
+	io_setbits32(ldev->regs + LTDC_IER2, IER_FUKIE | IER_TERRIE);
+
+	ldev->activate = true;
 
 	return ret;
 err:
@@ -339,20 +380,20 @@ out:
 
 static enum itr_return stm32_ltdc_it_handler(struct itr_handler *handler)
 {
-	struct ltdc_device *ltdc = handler->data;
+	struct ltdc_device *ldev = handler->data;
 	uint32_t irq_status = 0;
 
-	irq_status = io_read32(ltdc->regs + LTDC_ISR2);
-	io_write32(ltdc->regs + LTDC_ICR2, irq_status);
+	irq_status = io_read32(ldev->regs + LTDC_ISR2);
+	io_write32(ldev->regs + LTDC_ICR2, irq_status);
 
-	if (irq_status & ISR_FUIF)
+	if (irq_status & ISR_FUKIF)
 		EMSG("ltdc fifo underrun: please verify display mode");
 
 	if (irq_status & ISR_TERRIF)
 		EMSG("ltdc transfer error");
 
 	if (irq_status & ISR_LIF)
-		EMSG("ltdc Line interrupt");
+		ldev->end_of_frame = true;
 
 	return ITRR_HANDLED;
 }
@@ -411,23 +452,23 @@ static TEE_Result stm32_ltdc_probe(const void *fdt, int node,
 
 	cuint = fdt_getprop(fdt, node, "interrupts", &len);
 	if (cuint) {
-		interrupt0 = (uint32_t)fdt32_to_cpu(*(cuint+1)) + 32;
-		interrupt1 = (uint32_t)fdt32_to_cpu(*(cuint+4)) + 32;
+		interrupt0 = (uint32_t)fdt32_to_cpu(*(cuint + 1)) + 32;
+		interrupt1 = (uint32_t)fdt32_to_cpu(*(cuint + 4)) + 32;
 	}
 
 	ldev->itr0 = itr_alloc_add((size_t)interrupt0,
-				  stm32_ltdc_it_handler,
-				  ITRF_TRIGGER_LEVEL,
-				  (void *)ldev);
+				   stm32_ltdc_it_handler,
+				   ITRF_TRIGGER_LEVEL,
+				   (void *)ldev);
 	if (!ldev->itr0) {
 		res = TEE_ERROR_OUT_OF_MEMORY;
 		goto err;
 	}
 
 	ldev->itr1 = itr_alloc_add((size_t)interrupt1,
-				  stm32_ltdc_it_handler,
-				  ITRF_TRIGGER_LEVEL,
-				  (void *)ldev);
+				   stm32_ltdc_it_handler,
+				   ITRF_TRIGGER_LEVEL,
+				   (void *)ldev);
 	if (!ldev->itr1) {
 		res = TEE_ERROR_OUT_OF_MEMORY;
 		goto err;
