@@ -238,6 +238,9 @@ static struct stm32_scmi_rd stm32_scmi_reset_domain[] = {
 static const uint8_t plat_protocol_list[] = {
 	SCMI_PROTOCOL_ID_CLOCK,
 	SCMI_PROTOCOL_ID_RESET_DOMAIN,
+#ifdef CFG_SCMI_MSG_REGULATOR_CONSUMER
+	SCMI_PROTOCOL_ID_VOLTAGE_DOMAIN,
+#endif
 	0U /* Null termination */
 };
 
