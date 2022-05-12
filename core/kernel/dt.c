@@ -342,3 +342,61 @@ uint32_t _fdt_read_uint32_default(const void *fdt, int node,
 
 	return ret;
 }
+
+int _fdt_get_reg_props_by_index(const void *fdt, int node, int index,
+				paddr_t *base, size_t *size)
+{
+	const fdt32_t *prop = NULL;
+	int parent = 0;
+	int len = 0;
+	int ac = 0;
+	int sc = 0;
+	int cell = 0;
+
+	parent = fdt_parent_offset(fdt, node);
+	if (parent < 0)
+		return parent;
+
+	ac = fdt_address_cells(fdt, parent);
+	if (ac < 0)
+		return ac;
+
+	sc = fdt_size_cells(fdt, parent);
+	if (sc < 0)
+		return sc;
+
+	cell = index * (ac + sc);
+
+	prop = fdt_getprop(fdt, node, "reg", &len);
+	if (!prop)
+		return len;
+
+	if (((cell + ac + sc) * (int)sizeof(uint32_t)) > len)
+		return -FDT_ERR_BADVALUE;
+
+	if (base) {
+		*base = _fdt_read_paddr(&prop[cell], ac);
+		if (*base == DT_INFO_INVALID_REG)
+			return -FDT_ERR_BADVALUE;
+	}
+
+	if (size) {
+		*size = _fdt_read_size(&prop[cell + ac], sc);
+		if (*size == DT_INFO_INVALID_REG_SIZE)
+			return -FDT_ERR_BADVALUE;
+	}
+
+	return 0;
+}
+
+int _fdt_get_reg_props_by_name(const void *fdt, int node, const char *name,
+			       paddr_t *base, size_t *size)
+{
+	int index = 0;
+
+	index = fdt_stringlist_search(fdt, node, "reg-names", name);
+	if (index < 0)
+		return index;
+
+	return _fdt_get_reg_props_by_index(fdt, node, index, base, size);
+}
