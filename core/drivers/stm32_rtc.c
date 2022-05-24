@@ -415,17 +415,22 @@ void stm32_rtc_set_tamper_timestamp(void)
 	clk_disable(rtc_dev.pclk);
 }
 
-bool stm32_rtc_is_timestamp_enable(void)
+TEE_Result stm32_rtc_is_timestamp_enable(bool *ret)
 {
-	bool ret = false;
+	TEE_Result res = TEE_ERROR_GENERIC;
 
-	clk_enable(rtc_dev.pclk);
+	if (!rtc_dev.pclk)
+		return res;
 
-	ret = io_read32(get_base() + RTC_CR) & RTC_CR_TAMPTS;
+	res = clk_enable(rtc_dev.pclk);
+	if (res)
+		return res;
+
+	*ret = io_read32(get_base() + RTC_CR) & RTC_CR_TAMPTS;
 
 	clk_disable(rtc_dev.pclk);
 
-	return ret;
+	return TEE_SUCCESS;
 }
 
 static TEE_Result parse_dt(const void *fdt, int node,
