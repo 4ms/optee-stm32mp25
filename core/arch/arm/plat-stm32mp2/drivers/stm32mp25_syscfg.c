@@ -6,6 +6,7 @@
 #include <initcall.h>
 #include <io.h>
 #include <kernel/delay.h>
+#include <kernel/panic.h>
 #include <mm/core_memprot.h>
 #include <stdbool.h>
 #include <stm32_sysconf.h>
@@ -32,6 +33,20 @@ struct io_pa_va syscfg_base[SYSCON_NB_BANKS] = {
 #define SYSCFG_CCSR_ANSRC_MASK			GENMASK_32(3, 0)
 
 #define SYSCFG_CCSR_READY_TIMEOUT_US		U(1000)
+
+#define SYSCFG_OCTOSPIAMCR			SYSCON_ID(SYSCON_SYSCFG, \
+							  0x2C00U)
+#define SYSCFG_OCTOSPIAMCR_OAM_MASK		GENMASK_32(2, 0)
+#define SYSCFG_OCTOSPIAMCR_MM1_256_MM2_0	U(0)
+#define SYSCFG_OCTOSPIAMCR_MM1_192_MM2_64	U(1)
+#define SYSCFG_OCTOSPIAMCR_MM1_128_MM2_128	U(2)
+#define SYSCFG_OCTOSPIAMCR_MM1_64_MM2_192	U(3)
+#define SYSCFG_OCTOSPIAMCR_MM1_0_MM2_256	U(4)
+
+#define SZ_64M					U(0x04000000)
+#define SZ_128M					U(0x08000000)
+#define SZ_192M					U(0x0C000000)
+#define SZ_256M					U(0x10000000)
 
 /*
  * SYSCFG IO compensation register offsets (base relative)
@@ -121,3 +136,46 @@ TEE_Result stm32mp25_syscfg_disable_io_compensation(enum syscfg_io_ids id)
 	return TEE_SUCCESS;
 }
 
+void stm32mp25_syscfg_set_amcr(size_t mm1_size, size_t mm2_size)
+{
+	vaddr_t amcr_addr = stm32mp_syscfg_base(SYSCON_SYSCFG) +
+			    SYSCON_OFFSET(SYSCFG_OCTOSPIAMCR);
+	uint32_t amcr = 0;
+
+	switch (mm1_size) {
+	case 0:
+		if (mm2_size != SZ_256M)
+			panic();
+
+		amcr = SYSCFG_OCTOSPIAMCR_MM1_0_MM2_256;
+		break;
+	case SZ_64M:
+		if (mm2_size != SZ_192M)
+			panic();
+
+		amcr = SYSCFG_OCTOSPIAMCR_MM1_64_MM2_192;
+		break;
+	case SZ_128M:
+		if (mm2_size != SZ_128M)
+			panic();
+
+		amcr = SYSCFG_OCTOSPIAMCR_MM1_128_MM2_128;
+		break;
+	case SZ_192M:
+		if (mm2_size != SZ_64M)
+			panic();
+
+		amcr = SYSCFG_OCTOSPIAMCR_MM1_192_MM2_64;
+		break;
+	case SZ_256M:
+		if (mm2_size != 0)
+			panic();
+
+		amcr = SYSCFG_OCTOSPIAMCR_MM1_256_MM2_0;
+		break;
+	default:
+		panic();
+	}
+
+	io_clrsetbits32(amcr_addr, SYSCFG_OCTOSPIAMCR_OAM_MASK, amcr);
+}

@@ -57,4 +57,6 @@ enum syscfg_io_ids {
 TEE_Result stm32mp25_syscfg_enable_io_compensation(enum syscfg_io_ids id);
 TEE_Result stm32mp25_syscfg_disable_io_compensation(enum syscfg_io_ids id);
 
+void stm32mp25_syscfg_set_amcr(size_t mm1_size, size_t mm2_size);
+
 #endif /*__STM32_SYSCONF_H__*/
