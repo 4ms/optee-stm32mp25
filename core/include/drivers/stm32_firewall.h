@@ -114,6 +114,10 @@ struct stm32_firewall_ops {
 				     unsigned int id,
 				     paddr_t addr, size_t sz,
 				     const struct stm32_firewall_cfg *cfg);
+	TEE_Result (*get_data_config)(const void *fdt, int node,
+				      int *ndata, void **data_cfg);
+	TEE_Result (*set_data_config)(int ndata, void *data_cfg);
+	TEE_Result (*put_data_config)(int ndata, void *data_cfg);
 };
 
 /**
@@ -173,6 +177,49 @@ TEE_Result stm32_firewall_check_access(paddr_t base, size_t size,
  */
 TEE_Result stm32_firewall_set_config(paddr_t base, size_t size,
 				     const struct stm32_firewall_cfg *cfg);
+
+/**
+ * @brief stm32_firewall_get_data_config - Get the configuration access
+ * from the device tree.
+ *
+ * @base: Physical address.
+ * @size: Size to be checked.
+ * @fdt: Device tree address.
+ * @node: Bus node.
+ * @ndata: Number of data configuration.
+ * @data_cfg: Data configuration.
+ *
+ * Returns a TEE_Result compliant value.
+ */
+TEE_Result stm32_firewall_get_data_config(paddr_t base, size_t size,
+					  const void *fdt, int node,
+					  int *ndata, void **data_cfg);
+
+/**
+ * @brief stm32_firewall_set_data_config - Set the configuration access.
+ *
+ * @base: Physical address.
+ * @size: Size to be checked.
+ * @ndata: Number of data configuration.
+ * @data_cfg: Data configuration.
+ *
+ * Returns a TEE_Result compliant value.
+ */
+TEE_Result stm32_firewall_set_data_config(paddr_t base, size_t size,
+					  int ndata, void *data_cfg);
+
+/**
+ * @brief stm32_firewall_put_data_config - Put the configuration access.
+ *
+ * @base: Physical address.
+ * @size: Size to be checked.
+ * @ndata: Number of data configuration.
+ * @data_cfg: Data configuration.
+ *
+ * Returns a TEE_Result compliant value.
+ */
+TEE_Result stm32_firewall_put_data_config(paddr_t base, size_t size,
+					  int ndata, void *data_cfg);
 
 /**
  * @brief stm32_firewall_dev_alloc - Allocate a new firewall device.

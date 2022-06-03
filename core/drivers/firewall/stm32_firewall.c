@@ -96,6 +96,61 @@ TEE_Result stm32_firewall_set_config(paddr_t base, size_t size,
 	return res;
 }
 
+TEE_Result stm32_firewall_get_data_config(paddr_t base, size_t size,
+					  const void *fdt, int node,
+					  int *ndata, void **data_cfg)
+{
+	TEE_Result res = TEE_ERROR_ITEM_NOT_FOUND;
+	struct stm32_firewall_device *fdev = NULL;
+	uint32_t exceptions = 0;
+	unsigned int index = 0;
+
+	exceptions = cpu_spin_lock_xsave(&list_lock);
+	fdev = find_device(base, size, &index);
+	cpu_spin_unlock_xrestore(&list_lock, exceptions);
+
+	if (fdev && fdev->ops->get_data_config)
+		res = fdev->ops->get_data_config(fdt, node, ndata, data_cfg);
+
+	return res;
+}
+
+TEE_Result stm32_firewall_set_data_config(paddr_t base, size_t size,
+					  int ndata, void *data_cfg)
+{
+	TEE_Result res = TEE_ERROR_ITEM_NOT_FOUND;
+	struct stm32_firewall_device *fdev = NULL;
+	uint32_t exceptions = 0;
+	unsigned int index = 0;
+
+	exceptions = cpu_spin_lock_xsave(&list_lock);
+	fdev = find_device(base, size, &index);
+	cpu_spin_unlock_xrestore(&list_lock, exceptions);
+
+	if (fdev && fdev->ops->set_data_config)
+		res = fdev->ops->set_data_config(ndata, data_cfg);
+
+	return res;
+}
+
+TEE_Result stm32_firewall_put_data_config(paddr_t base, size_t size,
+					  int ndata, void *data_cfg)
+{
+	TEE_Result res = TEE_ERROR_ITEM_NOT_FOUND;
+	struct stm32_firewall_device *fdev = NULL;
+	uint32_t exceptions = 0;
+	unsigned int index = 0;
+
+	exceptions = cpu_spin_lock_xsave(&list_lock);
+	fdev = find_device(base, size, &index);
+	cpu_spin_unlock_xrestore(&list_lock, exceptions);
+
+	if (fdev && fdev->ops->put_data_config)
+		res = fdev->ops->put_data_config(ndata, data_cfg);
+
+	return res;
+}
+
 struct stm32_firewall_device *stm32_firewall_dev_alloc(void)
 {
 	return calloc(1, sizeof(struct stm32_firewall_device));
