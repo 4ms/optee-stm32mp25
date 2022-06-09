@@ -49,7 +49,7 @@ import binascii
 # +-----------+          | sign size   |   size of the signature
 # |   Header  |          +-------------+   (in bytes, 64-bit aligned)
 # +-----------+          +-------------+
-#              \         | image size  |   size of the image to load
+#              \         | images size |   size of the images to load
 #               \        +-------------+   (in bytes, 64-bit aligned)
 #                \       +-------------+
 #                 \      |  TLV size   |   Generic TLV size
@@ -64,7 +64,12 @@ import binascii
 #
 #                        +-------------+
 #                        |   Firmware  |
-#                        |    image    |
+#                        |    image 1  |
+#                        +-------------+
+#                               ...
+#                        +-------------+
+#                        |   Firmware  |
+#                        |    image n  |
 #                        +-------------+
 #                  ------+-------------+
 #                 /      |+-----------+|
@@ -94,7 +99,9 @@ import binascii
 TLV_VALUES = {
         'SIGNTYPE': 0x01,    # algorithm used for signature
         'HASHTYPE': 0x02,    # algorithm used for computing segment's hash
-        'IMGTYPE': 0x03,     # type of images to load
+        'NUM_IMG': 0x03,     # number of images to load
+        'IMGTYPE': 0x04,     # type of images to load
+        'IMGSIZE': 0x05,     # size of an image to load
         'HASHTABLE': 0x10,   # segment hash table for authentication
         'PKEYINFO': 0x11,    # optional information to retrieve signature key
 }
@@ -341,11 +348,11 @@ def get_args(logger):
                         default=[], dest='plat_tlv')
     parser.add_argument(
         '--in', required=True, dest='inf',
-        help='Name of firmware input file')
+        help='Name of firmware input file', action='append')
     parser.add_argument(
         '--out', required=False, dest='outf',
         help='Name of the signed firmware output file,' +
-             ' default <in base name>.sig')
+             ' default rproc_fw.sig')
 
     parsed = parser.parse_args()
 
@@ -460,37 +467,58 @@ def main():
 
     tlv.add('SIGNTYPE', sign_type.to_bytes(1, 'little'))
 
+    images_type = []
+    hash_tlv = bytearray()
+    images_size = []
+
     # Firmware image
-    input_file = open(args.inf, 'rb')
-    img = ELFFile(input_file)
+    for inputf in args.inf:
+        logging.debug("image  %s" % inputf)
+        input_file = open(inputf, 'rb')
+        img = ELFFile(input_file)
 
-    # Only ARM machine has been tested and well supported yet.
-    # Indeed this script uses of ENUM_P_TYPE_ARM dic
-    assert img.get_machine_arch() in ["ARM"]
+        # Only ARM machine has been tested and well supported yet.
+        # Indeed this script uses of ENUM_P_TYPE_ARM dic
+        assert img.get_machine_arch() in ["ARM"]
 
-    # Need to reopen the file to get the raw data
-    with open(args.inf, 'rb') as f:
-        bin_img = f.read()
-    img_size = len(bin_img)
-    logging.debug("image size %d" % img_size)
-    s_header.img_length = img_size
+        # Need to reopen the file to get the raw data
+        with open(inputf, 'rb') as f:
+            bin_img = f.read()
+        size = len(bin_img)
+        align_64b = size % 8
+        if align_64b:
+            size += 8 - align_64b
 
-    # Add image type information in TLV blob
-    bin_type = ENUM_BINARY_TYPE['ELF']
-    tlv.add('IMGTYPE', bin_type.to_bytes(1, 'little'))
+        images_size.extend(size.to_bytes(4, 'little'))
+        s_header.img_length += size
+        f.close()
+
+        # store image type information
+        # TODO support other format
+        bin_type = ENUM_BINARY_TYPE['ELF']
+        images_type += bin_type.to_bytes(1, 'little')
+
+        # Compute the hash table and add it to TLV blob
+        hash_table = SegmentHash(img)
+        hash_tlv.extend(hash_table.get_table())
+
+    # Add image information
+    # The 'IMGTYPE' contains a byte array of the image type (ENUM_BINARY_TYPE).
+    # The 'IMGSIZE' contains a byte array of the size (32-bit) of each image.
+    tlv.add('NUM_IMG', len(args.inf).to_bytes(1, 'little'))
+    tlv.add('IMGTYPE', bytearray(images_type))
+    tlv.add('IMGSIZE', bytearray(images_size))
 
     # Add hash type information in TLV blob
+    # The 'HASHTYPE' TLV contains a byte associated to ENUM_HASH_TYPE.
     hash_type = ENUM_HASH_TYPE['SHA256']
     tlv.add('HASHTYPE', hash_type.to_bytes(1, 'little'))
 
-    # Hash table
-    h = SHA256.new()
-
-    # Compute the hash table and add it to TLV blob
-    hash_table = SegmentHash(img)
-    hash = hash_table.get_table()
-
-    tlv.add('HASHTABLE', hash)
+    # Add hash table information in TLV blob
+    # The HASHTABLE TLV contains a byte array containing all the elf segment
+    # with associated hash.
+    # TODO: add a sanity check to ensure that there is not segment overlap
+    tlv.add('HASHTABLE', hash_tlv)
 
     # Add optional key information to TLV
     if args.key_infof:
@@ -505,7 +533,8 @@ def main():
     # TODO: create a function for alignment
     align_64b = 8 - (s_header.tlv_length % 8)
     if align_64b:
-        trailer_buff += bytearray(align_64b)
+        s_header.tlv_length += 8 - align_64b
+        trailer_buff += bytearray(8 - align_64b)
 
     # Compute custom TLV that will provided to the platform PTA
     # Get list of custom protected TLVs from the command-line
@@ -516,7 +545,8 @@ def main():
         trailer_buff += platform_tlv.custom_tlvs.get()
         align_64b = 8 - (s_header.plat_tlv_len % 8)
         if align_64b:
-            trailer_buff += bytearray(align_64b)
+            s_header.plat_tlv_len += 8 - align_64b
+            trailer_buff += bytearray(8 - align_64b)
 
     dump_buffer(trailer_buff, name='TRAILER', indent="\t")
 
@@ -545,10 +575,14 @@ def main():
         f.write(header)
         f.write(signature)
         f.write(bytearray(sign_size - s_header.sign_length))
-        f.write(bin_img)
-        align_64b = 8 - (s_header.img_length % 8)
-        if align_64b:
-            f.write(bytearray(align_64b))
+        for inputf in args.inf:
+            with open(inputf, 'rb') as fin:
+                bin_img = fin.read()
+            f.write(bin_img)
+            fin.close()
+            align_64b = len(bin_img) % 8
+            if align_64b:
+                f.write(bytearray(8 - align_64b))
         f.write(trailer_buff)
 
 
