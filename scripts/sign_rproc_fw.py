@@ -90,6 +90,11 @@ TLV_VALUES = {
         'PKEYINFO': 0x11,    # optional information to retrieve signature key
 }
 
+PLAT_TLV_PREDEF_VALUES = {
+        'SBOOTADDR': 0x21,   # boot address of the secure firmware
+        'NSBOOTADDR': 0x22,  # boot address of the non-secure firmware
+}
+
 TLV_INFO_MAGIC = 0x6907
 PLAT_TLV_INFO_MAGIC = 0x6908
 TLV_INFO_SIZE = 8
@@ -317,6 +322,14 @@ def get_args(logger):
                         help='Type of signing key: should be RSA or ECC',
                         default='RSA',
                         dest='key_type')
+    parser.add_argument('--plat-tlv', required=False, nargs=2,
+                        metavar=("ID", "value"), action='append',
+                        help='platform TLV that will be placed into image '
+                             'plat_tlv area. Add "0x" prefix to interpret '
+                             'the value as an integer, otherwise it will be '
+                             'interpreted as a string. Option can be used '
+                             'multiple times to add multiple TLVs.',
+                        default=[], dest='plat_tlv')
     parser.add_argument(
         '--in', required=True, dest='inf',
         help='Name of firmware input file')
@@ -363,6 +376,50 @@ sig_size_type = {
         1: rsa_sig_size,
         2: ecc_sig_size,
 }
+
+
+class custom_tlv(object):
+    '''
+        custom tlv provided as argument
+    '''
+
+    def __init__(self):
+        self.tlvs = {}
+        self.custom_tlvs = TLV(PLAT_TLV_INFO_MAGIC)
+        self.tlv_buff = bytearray()
+
+    def generate_tlv(self, cust_tlv):
+        # Get list of custom protected TLVs from the command-line
+        for tlv in cust_tlv:
+            if tlv[0].isalpha():
+                if tlv[0] in PLAT_TLV_PREDEF_VALUES.keys():
+                    tag = PLAT_TLV_PREDEF_VALUES[tlv[0]]
+                    logging.debug("\ttag found \t= %s" % tag)
+                else:
+                    raise Exception(
+                        'Predefined platform TLV %s not found' % tlv[0])
+            else:
+                tag = int(tlv[0], 0)
+
+                if tag in PLAT_TLV_PREDEF_VALUES.values():
+                    raise Exception(
+                        'TLV %s conflicts with predefined platform TLV.'
+                        % hex(tag))
+            if tag in self.tlvs:
+                raise Exception('Custom TLV %s already exists.' % hex(tag))
+
+            value = tlv[1]
+            if value.startswith('0x'):
+                int_val = int(value[2:], 16)
+                self.tlvs[tag] = int_val.to_bytes(4, 'little')
+            else:
+                self.tlvs[tag] = value.encode('utf-8')
+
+        if self.tlvs is not None:
+            for tag, value in self.tlvs.items():
+                self.custom_tlvs.add(tag, value)
+        self.tlv_buff = self.custom_tlvs.get()
+        dump_buffer(self.tlv_buff, name='PROC_TLV', indent="\t")
 
 
 def main():
@@ -440,6 +497,17 @@ def main():
     align_64b = 8 - (s_header.tlv_length % 8)
     if align_64b:
         trailer_buff += bytearray(align_64b)
+
+    # Compute custom TLV that will provided to the platform PTA
+    # Get list of custom protected TLVs from the command-line
+    if args.plat_tlv:
+        platform_tlv = custom_tlv()
+        platform_tlv.generate_tlv(args.plat_tlv)
+        s_header.plat_tlv_len = len(platform_tlv.tlv_buff)
+        trailer_buff += platform_tlv.custom_tlvs.get()
+        align_64b = 8 - (s_header.plat_tlv_len % 8)
+        if align_64b:
+            trailer_buff += bytearray(align_64b)
 
     dump_buffer(trailer_buff, name='TRAILER', indent="\t")
 
