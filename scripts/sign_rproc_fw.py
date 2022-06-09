@@ -29,6 +29,18 @@ import logging
 import binascii
 
 
+TLV_VALUES = {
+        'SIGNTYPE': 0x01,    # algorithm used for signature
+        'HASHTYPE': 0x02,    # algorithm used for computing segment's hash
+        'IMGTYPE': 0x03,     # type of images to load
+        'HASHTABLE': 0x10,   # segment hash table for authentication
+        'PKEYINFO': 0x11,    # optional information to retrieve signature key
+}
+
+TLV_INFO_MAGIC = 0x6907
+PLAT_TLV_INFO_MAGIC = 0x6908
+TLV_INFO_SIZE = 8
+
 logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 
 ENUM_HASH_TYPE = dict(
@@ -51,6 +63,40 @@ def dump_buffer(buf, step=16, name="", logger=logging.info, indent=""):
         logger("%s    " % (indent) + " ".
                join(["%02X" % c for c in buf[i:i+step]]))
     logger("\n")
+
+
+class TLV():
+    def __init__(self, magic):
+        self.magic = magic
+        self.buf = bytearray()
+
+    def __len__(self):
+        return TLV_INFO_SIZE + len(self.buf)
+
+    def add(self, kind, payload):
+        """
+        Add a TLV record.  Kind should be a string found in TLV_VALUES above.
+        """
+        if isinstance(kind, int):
+            buf = struct.pack('BBH', kind, 0, len(payload))
+        else:
+            buf = struct.pack('BBH', TLV_VALUES[kind], 0, len(payload))
+
+        # Ensure that each tlv is 64-bit aligned
+        align_64b = (len(payload) + len(buf)) % 8
+        self.buf += buf
+        self.buf += payload
+        if align_64b:
+            self.buf += bytearray(8 - align_64b)
+
+    def get(self):
+        """
+        Get a byte-array that concatenates all the TLV added with a TLV header.
+        """
+        if len(self.buf) == 0:
+            return bytes()
+        header = struct.pack('II', self.magic, len(self.buf))
+        return header + bytes(self.buf)
 
 
 class RSA_Signature(object):
