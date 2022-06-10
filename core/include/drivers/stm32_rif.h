@@ -49,12 +49,15 @@
 #define SEM_EN_AND_OK(cidcfgr, wl)	(((cidcfgr) & _CIDCFGR_CFEN) &&  \
 					 ((cidcfgr) & _CIDCFGR_SEMEN) && \
 					 ((cidcfgr) & _CIDCFGR_SEMWL(wl)))
-
+#ifdef CFG_STM32_RIF
 #define SEM_MODE_INCORRECT(cidcfgr)	(!((cidcfgr) & _CIDCFGR_CFEN) ||  \
 					 !((cidcfgr) & _CIDCFGR_SEMEN) || \
 					 (!((cidcfgr) &			  \
 					    _CIDCFGR_SEMWL(RIF_CID1)) &&  \
 					  ((cidcfgr) & _CIDCFGR_SEMEN)))
+#else /* CFG_STM32_RIF */
+#define SEM_MODE_INCORRECT(cidcfgr)	(cidcfgr)
+#endif /* CFG_STM32_RIF */
 
 /*
  * Structure containing RIF configuration data
@@ -89,10 +92,21 @@ struct rif_conf_data {
  *  is enabled and is taken, and Cortex A35 CID is
  *  white-listed and semaphore is already taken by Cortex A35
  */
+#ifdef CFG_STM32_RIF
 TEE_Result stm32_rif_check_access(uint32_t cidcfgr,
 				  uint32_t semcr,
 				  unsigned int nb_cid_supp,
 				  unsigned int cid_to_check);
+#else
+static inline TEE_Result
+		stm32_rif_check_access(uint32_t cidcfgr __unused,
+				       uint32_t semcr __unused,
+				       unsigned int nb_cid_supp __unused,
+				       unsigned int cid_to_check __unused)
+{
+	return TEE_SUCCESS;
+}
+#endif
 
 /*
  * Parse RIF config from Device Tree extracted information
@@ -104,16 +118,47 @@ TEE_Result stm32_rif_check_access(uint32_t cidcfgr,
  * @nb_cid_supp: Number of supported CID for the IP
  * @nb_channel: Number of channels for the IP
  */
+#ifdef CFG_STM32_RIF
 void stm32_rif_parse_cfg(uint32_t rif_conf,
 			 struct rif_conf_data *conf_data,
 			 unsigned int nb_cid_supp,
 			 unsigned int nb_channel);
+#else
+static inline void
+		stm32_rif_parse_cfg(uint32_t rif_conf __unused,
+				    struct rif_conf_data *conf_data __unused,
+				    unsigned int nb_cid_supp __unused,
+				    unsigned int nb_channel __unused)
+{
+}
+#endif
 
+#ifdef CFG_STM32_RIF
 /* RIF semaphore functions */
 bool stm32_rif_is_semaphore_available(vaddr_t addr);
 TEE_Result stm32_rif_acquire_semaphore(vaddr_t addr,
 				       unsigned int nb_cid_supp);
 TEE_Result stm32_rif_release_semaphore(vaddr_t addr,
 				       unsigned int nb_cid_supp);
+#else
+static inline bool stm32_rif_is_semaphore_available(vaddr_t addr __unused)
+{
+	return true;
+}
+
+static inline TEE_Result
+		stm32_rif_acquire_semaphore(vaddr_t addr __unused,
+					    unsigned int nb_cid_supp __unused)
+{
+	return TEE_SUCCESS;
+}
+
+static inline TEE_Result
+		stm32_rif_release_semaphore(vaddr_t addr __unused,
+					    unsigned int nb_cid_supp __unused)
+{
+	return TEE_SUCCESS;
+}
+#endif
 
 #endif /* __DRIVERS_STM32_RIF_H */
