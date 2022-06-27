@@ -59,6 +59,14 @@ struct stm32_scmi_rd {
 	bool is_exposed;
 };
 
+/*
+ * struct stm32_scmi_perfd - Data for the exposed performance domains
+ * @name: Performance domain string ID (aka name) exposed to channel
+ */
+struct stm32_scmi_perfd {
+	const char *name;
+};
+
 #define CLOCK_CELL(_scmi_id, _id, _name, _init_enabled) \
 	[_scmi_id] = { \
 		.clock_id = _id, \
@@ -75,12 +83,19 @@ struct stm32_scmi_rd {
 		.is_exposed = true,\
 	}
 
+#define PERFD_CELL(_scmi_id, _name) \
+	[_scmi_id] = { \
+		.name = (_name), \
+	}
+
 struct channel_resources {
 	struct scmi_msg_channel *channel;
 	struct stm32_scmi_clk *clock;
 	size_t clock_count;
 	struct stm32_scmi_rd *rd;
 	size_t rd_count;
+	struct stm32_scmi_perfd *perfd;
+	size_t perfd_count;
 };
 
 static struct stm32_scmi_clk stm32_scmi_clock[] = {
@@ -234,12 +249,21 @@ static struct stm32_scmi_rd stm32_scmi_reset_domain[] = {
 	RESET_CELL(RST_SCMI_OSPI2DLL, OSPI2DLL_R, OSPI2_BASE, "ospi2_ddl"),
 };
 
+struct stm32_scmi_perfd stm32_scmi_performance_domain[] = {
+	#ifdef CFG_SCMI_MSG_PERF_DOMAIN
+	PERFD_CELL(0 /* PERFD_SCMI_CPU_OPP */, "cpu-opp"),
+	#endif
+};
+
 /* Currently supporting Clocks and Reset Domains */
 static const uint8_t plat_protocol_list[] = {
 	SCMI_PROTOCOL_ID_CLOCK,
 	SCMI_PROTOCOL_ID_RESET_DOMAIN,
 #ifdef CFG_SCMI_MSG_REGULATOR_CONSUMER
 	SCMI_PROTOCOL_ID_VOLTAGE_DOMAIN,
+#endif
+#ifdef CFG_SCMI_MSG_PERF_DOMAIN
+	SCMI_PROTOCOL_ID_PERF,
 #endif
 	0U /* Null termination */
 };
@@ -251,6 +275,8 @@ static const struct channel_resources scmi_channel[] = {
 		.clock_count = ARRAY_SIZE(stm32_scmi_clock),
 		.rd = stm32_scmi_reset_domain,
 		.rd_count = ARRAY_SIZE(stm32_scmi_reset_domain),
+		.perfd = stm32_scmi_performance_domain,
+		.perfd_count = ARRAY_SIZE(stm32_scmi_performance_domain),
 	},
 };
 
@@ -293,6 +319,12 @@ static size_t __maybe_unused plat_scmi_protocol_count_paranoid(void)
 	for (n = 0; n < channel_count; n++)
 		if (IS_ENABLED(CFG_SCMI_MSG_REGULATOR_CONSUMER) &&
 		    plat_scmi_voltd_count(n))
+			break;
+	if (n < channel_count)
+		count++;
+
+	for (n = 0; n < channel_count; n++)
+		if (scmi_channel[n].perfd_count)
 			break;
 	if (n < channel_count)
 		count++;
@@ -572,6 +604,121 @@ int32_t plat_scmi_rd_set_state(unsigned int channel_id, unsigned int scmi_id,
 
 	return SCMI_SUCCESS;
 }
+
+#ifdef CFG_SCMI_MSG_PERF_DOMAIN
+/*
+ * Platform SCMI performance domains
+ *
+ * Note: currently exposes a single performance domain that is the CPU DVFS
+ * operating point. Non-secure is allowed to access this performance domain.
+ */
+static struct stm32_scmi_perfd *find_perfd(unsigned int channel_id,
+					   unsigned int domain_id)
+{
+	const struct channel_resources *resource = find_resource(channel_id);
+	size_t n = 0;
+
+	if (resource) {
+		for (n = 0; n < resource->perfd_count; n++)
+			if (n == domain_id)
+				return &resource->perfd[n];
+	}
+
+	return NULL;
+}
+
+size_t plat_scmi_perf_count(unsigned int channel_id)
+{
+	const struct channel_resources *resource = find_resource(channel_id);
+
+	if (!resource)
+		return 0;
+
+	return resource->perfd_count;
+}
+
+const char *plat_scmi_perf_domain_name(unsigned int channel_id,
+				       unsigned int domain_id)
+{
+	struct stm32_scmi_perfd *perfd = find_perfd(channel_id, domain_id);
+
+	if (!perfd)
+		return NULL;
+
+	return perfd->name;
+}
+
+int32_t plat_scmi_perf_levels_array(unsigned int channel_id,
+				    unsigned int domain_id, size_t start_index,
+				    unsigned int *levels, size_t *nb_elts)
+{
+	struct stm32_scmi_perfd *perfd = find_perfd(channel_id, domain_id);
+	size_t full_count = 0;
+	size_t out_count = 0;
+	size_t n = 0;
+
+	if (!perfd)
+		return SCMI_NOT_FOUND;
+
+	full_count = stm32_cpu_opp_count();
+
+	if (!levels) {
+		*nb_elts = full_count - start_index;
+
+		return SCMI_SUCCESS;
+	}
+
+	if (SUB_OVERFLOW(full_count, start_index, &out_count))
+		return SCMI_GENERIC_ERROR;
+
+	out_count = MIN(out_count, *nb_elts);
+
+	FMSG("%zu levels: start %zu requested %zu output %zu",
+	     full_count, start_index, *nb_elts, out_count);
+
+	for (n = 0; n < out_count; n++)
+		levels[n] = stm32_cpu_opp_level(n);
+
+	*nb_elts = out_count;
+
+	return SCMI_SUCCESS;
+}
+
+int32_t plat_scmi_perf_level_get(unsigned int channel_id,
+				 unsigned int domain_id, unsigned int *level)
+{
+	struct stm32_scmi_perfd *perfd = find_perfd(channel_id, domain_id);
+	unsigned int current_level = 0;
+
+	if (!perfd)
+		return SCMI_NOT_FOUND;
+
+	if (stm32_cpu_opp_read_level(&current_level))
+		return SCMI_GENERIC_ERROR;
+
+	*level = current_level;
+
+	return SCMI_SUCCESS;
+}
+
+int32_t plat_scmi_perf_level_set(unsigned int channel_id,
+				 unsigned int domain_id, unsigned int level)
+{
+	struct stm32_scmi_perfd *perfd = find_perfd(channel_id, domain_id);
+
+	if (!perfd)
+		return SCMI_NOT_FOUND;
+
+	switch (stm32_cpu_opp_set_level(level)) {
+	case TEE_SUCCESS:
+		return SCMI_SUCCESS;
+	case TEE_ERROR_BAD_PARAMETERS:
+		return SCMI_OUT_OF_RANGE;
+	default:
+		return SCMI_GENERIC_ERROR;
+	}
+}
+#endif
 
 /*
  * Initialize platform SCMI resources
