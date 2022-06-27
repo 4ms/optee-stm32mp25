@@ -41,6 +41,12 @@ static struct mutex cpu_opp_mu = MUTEX_INITIALIZER;
 
 #define MPU_RAM_LOW_SPEED_THRESHOLD 1320
 
+#ifdef CFG_STM32MP25
+#define STM32_CPU_COMPATIBLE "arm,cortex-a35"
+#else
+#define STM32_CPU_COMPATIBLE "arm,cortex-a7"
+#endif
+
 size_t stm32_cpu_opp_count(void)
 {
 	return cpu_opp.opp_count;
@@ -326,7 +332,7 @@ static TEE_Result get_cpu_parent(const void *fdt)
 {
 	TEE_Result res = TEE_ERROR_GENERIC;
 	const struct fdt_property *prop = NULL;
-	int node = fdt_node_offset_by_compatible(fdt, -1, "arm,cortex-a7");
+	int node = fdt_node_offset_by_compatible(fdt, -1, STM32_CPU_COMPATIBLE);
 
 	if (node < 0) {
 		EMSG("Compatible \"arm,cortex-a7\" not found");
