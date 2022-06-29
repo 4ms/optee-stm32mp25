@@ -25,6 +25,8 @@
 
 #define DT_RCC_CLK_COMPAT	"st,stm32mp2-rcc"
 
+#define MAX_OPP		CFG_STM32MP_OPP_COUNT
+
 /* A35 Sub-System which manages its own PLL (PLL1) */
 #define A35_SS_CHGCLKREQ	0x0000
 #define A35_SS_PLL_FREQ1	0x0080
@@ -157,12 +159,23 @@ struct stm32_osci_dt_cfg {
 	uint32_t drive;
 };
 
+struct stm32_clk_opp_cfg {
+	uint32_t frq;
+	uint32_t src;
+	struct stm32_pll_dt_cfg pll_cfg;
+};
+
+struct stm32_clk_opp_dt_cfg {
+	struct stm32_clk_opp_cfg cpu1_opp[MAX_OPP];
+};
+
 struct stm32_clk_platdata {
 	uintptr_t rcc_base;
 	uint32_t nosci;
 	struct stm32_osci_dt_cfg *osci;
 	uint32_t npll;
 	struct stm32_pll_dt_cfg *pll;
+	struct stm32_clk_opp_dt_cfg *opp;
 	uint32_t nbusclk;
 	uint32_t *busclk;
 	uint32_t nkernelclk;
@@ -1221,6 +1234,63 @@ static int stm32_clk_parse_fdt_all_pll(const void *fdt, int node,
 	return 0;
 }
 
+static int stm32_clk_parse_fdt_opp(const void *fdt, int node,
+				   const char *opp_name,
+				   struct stm32_clk_opp_cfg *opp_cfg)
+{
+	int subnode = 0;
+	int nb_opp = 0;
+	int ret = 0;
+
+	node = fdt_subnode_offset(fdt, node, opp_name);
+	if (node == -FDT_ERR_NOTFOUND)
+		return 0;
+
+	if (node < 0)
+		return node;
+
+	fdt_for_each_subnode(subnode, fdt, node) {
+		assert(nb_opp <= MAX_OPP);
+
+		opp_cfg->frq = _fdt_read_uint32_default(fdt, subnode,
+							"hz",
+							UINT32_MAX);
+
+		opp_cfg->src = _fdt_read_uint32_default(fdt, subnode,
+							"st,clksrc",
+							UINT32_MAX);
+
+		ret = clk_stm32_parse_pll_fdt(fdt, subnode, &opp_cfg->pll_cfg);
+		if (ret < 0)
+			return ret;
+
+		opp_cfg++;
+		nb_opp++;
+	}
+
+	return 0;
+}
+
+static int stm32_clk_parse_fdt_all_opp(const void *fdt, int node,
+				       struct stm32_clk_platdata *pdata)
+{
+	struct stm32_clk_opp_dt_cfg *opp = pdata->opp;
+	int ret = 0;
+
+	node = fdt_subnode_offset(fdt, node, "st,clk_opp");
+	if (node == -FDT_ERR_NOTFOUND)
+		return 0;
+
+	if (node < 0)
+		return node;
+
+	ret = stm32_clk_parse_fdt_opp(fdt, node, "st,ck_cpu1", opp->cpu1_opp);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
 static int stm32_clk_parse_fdt(const void *fdt, int node,
 			       struct stm32_clk_platdata *pdata)
 {
@@ -1235,6 +1305,10 @@ static int stm32_clk_parse_fdt(const void *fdt, int node,
 		return err;
 
 	err = stm32_clk_parse_fdt_all_pll(fdt, node, pdata);
+	if (err != 0)
+		return err;
+
+	err = stm32_clk_parse_fdt_all_opp(fdt, node, pdata);
 	if (err != 0)
 		return err;
 
@@ -1291,6 +1365,39 @@ static int stm32_clk_parse_fdt(const void *fdt, int node,
 }
 
 #ifdef CFG_STM32_CLK_DEBUG
+static void clk_stm32_debug_display_pll_cfg(int pll_id,
+					    struct stm32_pll_dt_cfg *pll)
+{
+	int mux = (pll->src & MUX_ID_MASK) >> MUX_ID_SHIFT;
+	int sel = (pll->src & MUX_SEL_MASK) >> MUX_SEL_SHIFT;
+
+	printf("PLL%d : %s ", pll_id + 1,
+	       pll->enabled ? "enabled" : "disabled");
+
+	if (!pll->enabled)
+		printf("\n");
+
+	printf("cfg = < ");
+
+	for (int j = 0; j < PLLCFG_NB; j++)
+		printf("%d ", pll->cfg[j]);
+
+	printf("> ");
+
+	printf("frac = %d ", pll->frac);
+
+	if (pll->csg_enabled) {
+		printf("csg = < ");
+
+		for (int j = 0; j < PLLCSG_NB; j++)
+			printf("%d ", pll->csg[j]);
+
+		printf("> ");
+	}
+
+	printf("mux id = %d sel = %d\n", mux, sel);
+}
+
 static void clk_stm32_debug_display_pll_dt_cfg(struct clk_stm32_priv *priv)
 {
 	struct stm32_clk_platdata *pdata = priv->pdata;
@@ -1416,6 +1523,36 @@ static void clk_stm32_debug_display_ker_dt_cfg(struct clk_stm32_priv *priv)
 	printf("\n");
 }
 
+static void clk_stm32_debug_display_opp_cfg(const char *opp_name,
+					    struct stm32_clk_opp_cfg *opp_cfg)
+{
+	unsigned int i = 0;
+
+	printf("\nOPP %s :\n", opp_name);
+
+	for (i = 0; i < MAX_OPP; i++) {
+		if (opp_cfg->frq == 0UL || opp_cfg->frq == UINT32_MAX)
+			break;
+
+		printf("frequency = %d src = 0x%x ", opp_cfg->frq,
+		       opp_cfg->src);
+
+		clk_stm32_debug_display_pll_cfg(PLL1_ID, &opp_cfg->pll_cfg);
+
+		opp_cfg++;
+	}
+
+	printf("\n");
+}
+
+static void clk_stm32_debug_display_opp_dt_cfg(struct clk_stm32_priv *priv)
+{
+	struct stm32_clk_platdata *pdata = priv->pdata;
+	struct stm32_clk_opp_dt_cfg *opp = pdata->opp;
+
+	clk_stm32_debug_display_opp_cfg("st,ck_cpu1", opp->cpu1_opp);
+}
+
 static void clk_stm32_debug_display_others_dt_cfg(struct clk_stm32_priv *priv)
 {
 	struct stm32_clk_platdata *pdata = priv->pdata;
@@ -1428,6 +1565,7 @@ static void clk_stm32_debug_display_pdata(void)
 	struct clk_stm32_priv *priv = clk_stm32_get_priv();
 
 	clk_stm32_debug_display_pll_dt_cfg(priv);
+	clk_stm32_debug_display_opp_dt_cfg(priv);
 	clk_stm32_debug_display_osc_dt_cfg(priv);
 	clk_stm32_debug_display_flex_dt_cfg(priv);
 	clk_stm32_debug_display_bus_dt_cfg(priv);
@@ -2086,6 +2224,46 @@ static unsigned long clk_stm32_pll1_get_rate(__maybe_unused struct clk *clk,
 	return dfout;
 }
 
+static struct
+stm32_clk_opp_cfg *clk_stm32_get_opp_config(struct stm32_clk_opp_cfg *opp_cfg,
+					    unsigned long rate)
+{
+	unsigned int i = 0;
+
+	for (i = 0; i < MAX_OPP; i++, opp_cfg++) {
+		if (opp_cfg->frq == 0UL)
+			break;
+
+		if (opp_cfg->frq == rate)
+			return opp_cfg;
+	}
+
+	return NULL;
+}
+
+static TEE_Result clk_stm32_pll1_set_rate(struct clk *clk __unused,
+					  unsigned long rate,
+					  unsigned long parent_rate __unused)
+{
+	struct clk_stm32_priv *priv = clk_stm32_get_priv();
+	struct stm32_clk_platdata *pdata = priv->pdata;
+	struct stm32_pll_dt_cfg *pll_conf = NULL;
+	struct stm32_clk_opp_cfg *opp = NULL;
+	int err = 0;
+
+	opp = clk_stm32_get_opp_config(pdata->opp->cpu1_opp, rate);
+	if (!opp)
+		return TEE_ERROR_GENERIC;
+
+	pll_conf = &opp->pll_cfg;
+
+	err = clk_stm32_pll1_init(priv, PLL1_ID, pll_conf);
+	if (err)
+		return TEE_ERROR_GENERIC;
+
+	return TEE_SUCCESS;
+}
+
 static size_t clk_stm32_pll_get_parent(struct clk *clk)
 {
 	struct clk_stm32_pll_cfg *cfg = clk->priv;
@@ -2096,6 +2274,7 @@ static size_t clk_stm32_pll_get_parent(struct clk *clk)
 static const struct clk_ops clk_stm32_pll1_ops = {
 	.get_parent	= clk_stm32_pll_get_parent,
 	.get_rate	= clk_stm32_pll1_get_rate,
+	.set_rate	= clk_stm32_pll1_set_rate,
 };
 
 static unsigned long clk_get_pll_fvco(uint32_t offset_base,
@@ -2448,7 +2627,32 @@ static size_t clk_cpu1_get_parent(__maybe_unused struct clk *clk)
 		>> MUX_A35_SHIFT;
 }
 
+static TEE_Result clk_cpu1_determine_rate(struct clk *clk,
+					  struct clk_rate_request *req)
+{
+	struct clk_stm32_priv *priv = clk_stm32_get_priv();
+	struct stm32_clk_platdata *pdata = priv->pdata;
+	struct stm32_clk_opp_cfg *opp = NULL;
+	unsigned long rate = req->rate;
+	struct clk *parent = NULL;
+	int index = 0;
+
+	opp = clk_stm32_get_opp_config(pdata->opp->cpu1_opp, rate);
+	if (!opp)
+		return TEE_SUCCESS;
+
+	index = (opp->src & MUX_SEL_MASK) >> MUX_SEL_SHIFT;
+
+	parent = clk_get_parent_by_index(clk, index);
+
+	req->best_parent = parent;
+	req->best_parent_rate = req->rate;
+
+	return TEE_SUCCESS;
+}
+
 static const struct clk_ops clk_stm32_cpu1_ops = {
+	.determine_rate = clk_cpu1_determine_rate,
 	.get_parent	= clk_cpu1_get_parent,
 };
 
@@ -2668,7 +2872,7 @@ static STM32_FLEXGEN(ck_flexgen_63, 0, 63);
 static struct clk ck_cpu1 = {
 	.ops		= &clk_stm32_cpu1_ops,
 	.name		= "ck_cpu1",
-	.flags		= 0,
+	.flags		= CLK_SET_RATE_PARENT,
 	.num_parents	= 2,
 	.parents	= { &ck_pll1, &ck_flexgen_63 },
 };
@@ -3425,6 +3629,7 @@ static TEE_Result clk_stm32_apply_rcc_config(struct stm32_clk_platdata *pdata)
 }
 
 struct stm32_pll_dt_cfg mp25_pll[PLL_NB];
+static struct stm32_clk_opp_dt_cfg mp25_clk_opp;
 struct stm32_osci_dt_cfg mp25_osci[NB_OSCILLATOR];
 
 #define DT_FLEXGEN_CLK_MAX	64
@@ -3441,6 +3646,7 @@ struct stm32_clk_platdata stm32mp25_clock_pdata = {
 	.nosci		= NB_OSCILLATOR,
 	.pll		= mp25_pll,
 	.npll		= PLL_NB,
+	.opp		= &mp25_clk_opp,
 	.busclk		= mp25_busclk,
 	.nbusclk	= DT_BUS_CLK_MAX,
 	.kernelclk	= mp25_kernelclk,
