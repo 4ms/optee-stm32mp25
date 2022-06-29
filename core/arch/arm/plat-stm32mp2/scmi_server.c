@@ -11,6 +11,7 @@
 #include <drivers/rstctrl.h>
 #include <drivers/scmi-msg.h>
 #include <drivers/scmi.h>
+#include <drivers/stm32_firewall.h>
 #include <drivers/stm32mp_dt_bindings.h>
 #include <initcall.h>
 #include <mm/core_memprot.h>
@@ -46,11 +47,13 @@ struct stm32_scmi_clk {
 /*
  * struct stm32_scmi_rd - Data for the exposed reset controller
  * @reset_id: Reset identifier in RCC reset driver
+ * @base: Physical controller address
  * @name: Reset string ID exposed to channel
-  * @rstctrl: Reset controller device
+ * @rstctrl: Reset controller device
  */
 struct stm32_scmi_rd {
 	unsigned long reset_id;
+	paddr_t base;
 	const char *name;
 	struct rstctrl *rstctrl;
 	bool is_exposed;
@@ -64,9 +67,10 @@ struct stm32_scmi_rd {
 		.is_exposed = true,\
 	}
 
-#define RESET_CELL(_scmi_id, _id, _name) \
+#define RESET_CELL(_scmi_id, _id, _base, _name) \
 	[_scmi_id] = { \
 		.reset_id = _id, \
+		.base = _base, \
 		.name = _name, \
 		.is_exposed = true,\
 	}
@@ -218,16 +222,16 @@ static struct stm32_scmi_clk stm32_scmi_clock[] = {
 };
 
 static struct stm32_scmi_rd stm32_scmi_reset_domain[] = {
-	RESET_CELL(RST_SCMI_C1_R, C1_R, "c1"),
-	RESET_CELL(RST_SCMI_C2_R, C2_R, "c2"),
-	RESET_CELL(RST_SCMI_C1_HOLDBOOT_R, HOLD_BOOT_C1_R, "c1_holdboot"),
-	RESET_CELL(RST_SCMI_C2_HOLDBOOT_R, HOLD_BOOT_C2_R, "c2_holdboot"),
-	RESET_CELL(RST_SCMI_FMC, FMC_R, "fmc"),
-	RESET_CELL(RST_SCMI_PCIE, PCIE_R, "pcie"),
-	RESET_CELL(RST_SCMI_OSPI1, OSPI1_R, "ospi1"),
-	RESET_CELL(RST_SCMI_OSPI2, OSPI2_R, "ospi2"),
-	RESET_CELL(RST_SCMI_OSPI1DLL, OSPI1DLL_R, "ospi1_ddl"),
-	RESET_CELL(RST_SCMI_OSPI2DLL, OSPI2DLL_R, "ospi2_ddl"),
+	RESET_CELL(RST_SCMI_C1_R, C1_R, 0, "c1"),
+	RESET_CELL(RST_SCMI_C2_R, C2_R, 0, "c2"),
+	RESET_CELL(RST_SCMI_C1_HOLDBOOT_R, HOLD_BOOT_C1_R, 0, "c1_holdboot"),
+	RESET_CELL(RST_SCMI_C2_HOLDBOOT_R, HOLD_BOOT_C2_R, 0, "c2_holdboot"),
+	RESET_CELL(RST_SCMI_FMC, FMC_R, FMC_BASE, "fmc"),
+	RESET_CELL(RST_SCMI_PCIE, PCIE_R, PCIE_BASE, "pcie"),
+	RESET_CELL(RST_SCMI_OSPI1, OSPI1_R, OSPI1_BASE, "ospi1"),
+	RESET_CELL(RST_SCMI_OSPI2, OSPI2_R, OSPI2_BASE, "ospi2"),
+	RESET_CELL(RST_SCMI_OSPI1DLL, OSPI1DLL_R, OSPI1_BASE, "ospi1_ddl"),
+	RESET_CELL(RST_SCMI_OSPI2DLL, OSPI2DLL_R, OSPI2_BASE, "ospi2_ddl"),
 };
 
 /* Currently supporting Clocks and Reset Domains */
@@ -508,6 +512,10 @@ int32_t plat_scmi_rd_autonomous(unsigned int channel_id, unsigned int scmi_id,
 				uint32_t state)
 {
 	const struct stm32_scmi_rd *rd = find_rd(channel_id, scmi_id);
+	const struct stm32_firewall_cfg nsec_cfg[] = {
+		{ FWLL_NSEC_PRIV_RW | FWLL_MASTER(0) },
+		{ }, /* Null terminated */
+	};
 
 	if (!rd)
 		return SCMI_NOT_FOUND;
@@ -516,6 +524,9 @@ int32_t plat_scmi_rd_autonomous(unsigned int channel_id, unsigned int scmi_id,
 	/* Supports only reset with context loss */
 	if (state)
 		return SCMI_NOT_SUPPORTED;
+
+	if (rd->base && stm32_firewall_check_access(rd->base, 0, nsec_cfg))
+		return SCMI_DENIED;
 
 	FMSG("SCMI reset %u cycle", scmi_id);
 
@@ -533,9 +544,16 @@ int32_t plat_scmi_rd_set_state(unsigned int channel_id, unsigned int scmi_id,
 {
 	const struct stm32_scmi_rd *rd = find_rd(channel_id, scmi_id);
 	TEE_Result res = TEE_ERROR_GENERIC;
+	const struct stm32_firewall_cfg nsec_cfg[] = {
+		{ FWLL_NSEC_PRIV_RW | FWLL_MASTER(0) },
+		{ }, /* Null terminated */
+	};
 
 	if (!rd)
 		return SCMI_NOT_FOUND;
+
+	if (rd->base && stm32_firewall_check_access(rd->base, 0, nsec_cfg))
+		return SCMI_DENIED;
 
 	assert(rd->rstctrl);
 	if (assert_not_deassert) {
