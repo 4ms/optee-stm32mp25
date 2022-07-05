@@ -59,6 +59,14 @@
 		regulator-max-microvolt = <3300000>;
 		regulator-always-on;
 	};
+
+	typec_wakeup: typec_wakeup {
+		compatible = "st,stm32mp1,pwr-irq-user";
+		/* Alert pin on PI2, wakeup_pin_5 */
+		st,wakeup-pin-number = <5>;
+		st,notif-it-id = <1>;
+		status = "okay";
+	};
 };
 
 &adc_2 {
@@ -143,6 +151,10 @@
 
 &gpioe {
 	st,protreg = < (TZPROT(15)) >;
+};
+
+&gpioi {
+	st,protreg = < (TZPROT(2)|TZPROT(3)) >;
 };
 
 &i2c4 {
@@ -574,3 +586,7 @@
 	pinctrl-0 = <&uart8_pins_a>;
 	status = "disabled";
 };
+&wakeup_pin_5 {
+	bias-pull-up;
+};
+
