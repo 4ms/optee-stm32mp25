@@ -735,15 +735,28 @@ void TA_DestroyEntryPoint(void)
 {
 }
 
-TEE_Result TA_OpenSessionEntryPoint(uint32_t pt __unused,
-				    TEE_Param params[TEE_NUM_PARAMS] __unused,
+ /*
+  * TA_OpenSessionEntryPoint: open a TA session associated to a firmware
+  *  to manage.
+  *
+  *  [in]  params[0].value.a:	unique 32bit identifier of the firmware
+  */
+TEE_Result TA_OpenSessionEntryPoint(uint32_t pt,
+				    TEE_Param params[TEE_NUM_PARAMS],
 				    void **sess __unused)
 {
 	static const TEE_UUID uuid = PTA_REMOTEPROC_UUID;
 	TEE_Result res = TEE_ERROR_GENERIC;
+	const uint32_t exp_pt = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INPUT,
+						TEE_PARAM_TYPE_NONE,
+						TEE_PARAM_TYPE_NONE,
+						TEE_PARAM_TYPE_NONE);
+
+	if (pt != exp_pt)
+		return TEE_ERROR_BAD_PARAMETERS;
 
 	if (!session_refcount) {
-		res = TEE_OpenTASession(&uuid, TEE_TIMEOUT_INFINITE, 0, NULL,
+		res = TEE_OpenTASession(&uuid, TEE_TIMEOUT_INFINITE, pt, params,
 					&pta_session, NULL);
 		if (res)
 			return res;
