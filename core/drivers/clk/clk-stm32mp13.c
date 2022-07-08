@@ -1636,7 +1636,7 @@ static int stm32_clk_parse_fdt_all_oscillator(const void *fdt,
 		fdt_err = clk_stm32_parse_oscillator_fdt(fdt, osc_node,
 							 osc_data->name, osci);
 		if (fdt_err < 0)
-			panic();
+			osci->freq = 0UL;
 	}
 
 	return 0;
@@ -2230,11 +2230,58 @@ const struct clk_ops ck_timer_ops = {
 	}
 
 /* Oscillator clocks */
-static STM32_GATE_READY(ck_hsi, NULL, 0, GATE_HSI);
-static STM32_GATE_READY(ck_hse, NULL, 0, GATE_HSE);
-static STM32_GATE_READY(ck_csi, NULL, 0, GATE_CSI);
-static STM32_GATE_READY(ck_lsi, NULL, 0, GATE_LSI);
-static STM32_GATE_READY(ck_lse, NULL, 0, GATE_LSE);
+
+static TEE_Result clk_stm32_oscillator_enable(struct clk *clk)
+{
+	struct clk_stm32_gate_cfg *cfg = clk->priv;
+
+	if (clk->rate == 0U)
+		return TEE_SUCCESS;
+
+	return stm32_gate_rdy_enable(cfg->gate_id);
+}
+
+static void clk_stm32_oscillator_disable(struct clk *clk)
+{
+	struct clk_stm32_gate_cfg *cfg = clk->priv;
+
+	if (clk->rate == 0U)
+		return;
+
+	if (stm32_gate_rdy_disable(cfg->gate_id))
+		panic();
+}
+
+static bool clk_stm32_oscillator_is_enabled(struct clk *clk)
+{
+	struct clk_stm32_gate_cfg *cfg = clk->priv;
+
+	return stm32_gate_is_enabled(cfg->gate_id);
+}
+
+static const struct clk_ops clk_stm32_oscillator_ops = {
+	.enable		= clk_stm32_oscillator_enable,
+	.disable	= clk_stm32_oscillator_disable,
+	.is_enabled	= clk_stm32_oscillator_is_enabled,
+};
+
+#define STM32_OSCILLATOR(_name, _parent, _flags, _gate_id)\
+	struct clk _name = {\
+		.ops = &clk_stm32_oscillator_ops,\
+		.priv = &(struct clk_stm32_gate_cfg) {\
+			.gate_id = _gate_id,\
+		},\
+		.name = #_name,\
+		.flags = (_flags),\
+		.num_parents = 1,\
+		.parents = { _parent },\
+	}
+
+static STM32_OSCILLATOR(ck_hsi, NULL, 0, GATE_HSI);
+static STM32_OSCILLATOR(ck_hse, NULL, 0, GATE_HSE);
+static STM32_OSCILLATOR(ck_csi, NULL, 0, GATE_CSI);
+static STM32_OSCILLATOR(ck_lsi, NULL, 0, GATE_LSI);
+static STM32_OSCILLATOR(ck_lse, NULL, 0, GATE_LSE);
 
 static STM32_FIXED_FACTOR(ck_i2sckin, NULL, 0, 1, 1);
 static STM32_FIXED_FACTOR(ck_hse_div2, &ck_hse, 0, 1, 2);
