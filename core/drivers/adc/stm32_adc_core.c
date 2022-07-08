@@ -9,6 +9,7 @@
 #include <drivers/stm32_adc_core.h>
 #include <io.h>
 #include <kernel/dt.h>
+#include <kernel/pm.h>
 #include <libfdt.h>
 #include <mm/core_memprot.h>
 
@@ -229,6 +230,34 @@ stm32_adc_core_get_common_data(struct dt_driver_phandle_args *pargs __unused,
 	return (struct stm32_adc_common *)data;
 }
 
+static TEE_Result
+stm32_adc_core_pm_resume(struct stm32_adc_core_device *adc_dev)
+{
+	return stm32_adc_core_hw_start(adc_dev);
+}
+
+static TEE_Result
+stm32_adc_core_pm_suspend(struct stm32_adc_core_device *adc_dev)
+{
+	return stm32_adc_core_hw_stop(adc_dev);
+}
+
+static TEE_Result
+stm32_adc_core_pm(enum pm_op op, unsigned int pm_hint __unused,
+		  const struct pm_callback_handle *pm_handle)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+	struct stm32_adc_core_device *dev =
+	(struct stm32_adc_core_device *)PM_CALLBACK_GET_HANDLE(pm_handle);
+
+	if (op == PM_OP_RESUME)
+		res = stm32_adc_core_pm_resume(dev);
+	else
+		res = stm32_adc_core_pm_suspend(dev);
+
+	return res;
+}
+
 static TEE_Result stm32_adc_core_probe(const void *fdt, int node,
 				       const void *compat_data __unused)
 {
@@ -296,6 +325,9 @@ static TEE_Result stm32_adc_core_probe(const void *fdt, int node,
 		EMSG("Error %#"PRIx32" selecting clock", res);
 		goto err_stop;
 	}
+
+	register_pm_core_service_cb(stm32_adc_core_pm, adc_dev,
+				    "stm32-adc-core");
 
 	res = dt_driver_register_provider(fdt, node,
 					  (get_of_device_func)

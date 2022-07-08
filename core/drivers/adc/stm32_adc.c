@@ -10,6 +10,7 @@
 #include <kernel/delay.h>
 #include <kernel/dt.h>
 #include <kernel/dt_driver.h>
+#include <kernel/pm.h>
 #include <libfdt.h>
 #include <trace.h>
 
@@ -586,6 +587,45 @@ static TEE_Result stm32_adc_fdt_chan_init(struct adc_device *adc_dev,
 	return TEE_SUCCESS;
 }
 
+static TEE_Result stm32_adc_pm_resume(struct adc_device *adc_dev)
+{
+	return stm32_adc_hw_start(adc_dev);
+}
+
+static TEE_Result stm32_adc_pm_suspend(struct adc_device *adc_dev)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+
+	/*
+	 * If there are on-going conversions, return an error.
+	 * Else the ADC can be stopped safely.
+	 * No need to protect status check against race conditions here,
+	 * as we are no more in a multi-threading context.
+	 */
+	if (adc_dev->state)
+		return TEE_ERROR_BUSY;
+
+	res = stm32_adc_hw_stop(adc_dev);
+
+	return res;
+}
+
+static TEE_Result
+stm32_adc_pm(enum pm_op op, unsigned int pm_hint __unused,
+	     const struct pm_callback_handle *pm_handle)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+	struct adc_device *dev =
+		(struct adc_device *)PM_CALLBACK_GET_HANDLE(pm_handle);
+
+	if (op == PM_OP_RESUME)
+		res = stm32_adc_pm_resume(dev);
+	else
+		res = stm32_adc_pm_suspend(dev);
+
+	return res;
+}
+
 static struct adc_consumer *
 stm32_adc_register_cons(struct dt_driver_phandle_args *pargs __unused,
 			void *data, TEE_Result *res)
@@ -695,6 +735,7 @@ static TEE_Result stm32_adc_probe(const void *fdt, int node,
 		goto err_start;
 	}
 
+	register_pm_core_service_cb(stm32_adc_pm, adc_dev, "stm32-adc");
 	DMSG("adc %s probed", fdt_get_name(fdt, node, NULL));
 
 	return TEE_SUCCESS;
