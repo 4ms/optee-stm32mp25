@@ -126,7 +126,7 @@ int dt_map_dev(const void *fdt, int offs, vaddr_t *base, size_t *size)
 }
 
 /* Read a physical address (n=1 or 2 cells) */
-static paddr_t _fdt_read_paddr(const uint32_t *cell, int n)
+paddr_t _fdt_read_paddr(const uint32_t *cell, int n)
 {
 	paddr_t addr;
 
