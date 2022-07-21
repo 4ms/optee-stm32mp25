@@ -598,11 +598,16 @@ TEE_Result stm32_hash_update(struct stm32_hash_context *c,
 		memcpy(((uint8_t *)c->remain.buf) + c->remain.len, buffer,
 		       len);
 		c->remain.len += len;
+
+		next_queue_size = c->queue_size;
+
 		/*
 		 * We don't need to save status as we didn't change IP
 		 * internal state.
 		 */
 		goto exit;
+	} else {
+		next_queue_size = c->block_size;
 	}
 
 	/*
@@ -630,6 +635,7 @@ TEE_Result stm32_hash_update(struct stm32_hash_context *c,
 			res = hash_write_data(hash_base(c), c->remain.buf[i]);
 			if (res)
 				goto exit;
+
 			c->remain.buf[i] = 0; /* Reset to 0 */
 		}
 
@@ -638,14 +644,14 @@ TEE_Result stm32_hash_update(struct stm32_hash_context *c,
 	}
 
 	/*
-	 * We will fill the queue for the first time, now queue flush will
-	 * happen exactly after block_size bytes.
+	 * Here, the data should be written to the FIFO until we cannot
+	 * guarantee anymore that the data that we write will trigger a
+	 * process of data. Then we write the remaining data until DINIS
+	 * is set to 1 by hardware, meaning that a complete block can be
+	 * sent. Data written will be saved during save_context() and
+	 * remaining data not written (if there's any) will be saved in
+	 * c->remain.buf.
 	 */
-	if (len >= c->queue_size)
-		next_queue_size = c->block_size;
-	else
-		next_queue_size = c->queue_size;
-
 	while (len >= c->queue_size ||
 	       !(io_read32(hash_base(c) + _HASH_SR) & _HASH_SR_DINIS)) {
 		uint32_t tmp_buf = 0;
