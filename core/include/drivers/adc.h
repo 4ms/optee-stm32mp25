@@ -12,6 +12,18 @@
 struct adc_ops;
 
 /**
+ * struct adc_evt - event configuration filled by ADC user
+ * @id: ADC event identifier
+ * @lt: ADC event low threshold (raw value)
+ * @ht: ADC event high threshold (raw value)
+ */
+struct adc_evt {
+	unsigned int id;
+	uint32_t lt;
+	uint32_t ht;
+};
+
+/**
  * struct adc_chan - ADC channel descriptor
  * @id: ADC channel identifier
  * @name: ADC channel name
@@ -70,6 +82,12 @@ struct adc_consumer {
 struct adc_ops {
 	TEE_Result (*read_channel)(struct adc_device *dev, uint32_t channel,
 				   uint32_t *data);
+	TEE_Result (*set_event)(struct adc_device *dev, struct adc_evt *evt,
+				uint32_t channel);
+	TEE_Result (*clr_event)(struct adc_device *dev, struct adc_evt *evt,
+				uint32_t channel);
+	TEE_Result (*start_conv)(struct adc_device *dev, uint32_t channel_mask);
+	TEE_Result (*stop_conv)(struct adc_device *dev);
 };
 
 static inline void *adc_get_drv_data(struct adc_device *dev)
@@ -116,6 +134,15 @@ TEE_Result adc_trylock(struct adc_device *dev);
  * @dev: ADC device
  */
 void adc_unlock(struct adc_device *dev);
+
+/**
+ * adc_clr_event_all() - clear an event on all consumers of an ADC device
+ *
+ * @adc_name: ADC instance name
+ * @id: event identifier
+ * @Return: TEE_SUCCESS on success, error code otherwise
+ */
+TEE_Result adc_clr_event_all(const char *adc_name, unsigned int id);
 
 /**
  * adc_consumer_get_by_name() - get consumer from ADC name and channel index
@@ -172,4 +199,42 @@ TEE_Result adc_consumer_get_all(const void *fdt, int node, size_t *nb_cons,
  * Return: TEE_SUCCESS on success, error code otherwise
  */
 TEE_Result adc_consumer_read_processed(struct adc_consumer *cons, int32_t *uv);
+
+/**
+ * adc_consumer_set_event() - configure an event for an ADC consumer
+ *
+ * @cons: ADC consumer handle
+ * @evt: Event descriptor pointer
+ * @Return: TEE_SUCCESS on success, error code otherwise
+ */
+TEE_Result adc_consumer_set_event(struct adc_consumer *cons,
+				  struct adc_evt *evt);
+
+/**
+ * adc_consumer_clr_event() - clear an event for an ADC consumer
+ *
+ * @cons: ADC consumer handle
+ * @evt: Event descriptor pointer
+ * @Return: TEE_SUCCESS on success, error code otherwise
+ */
+TEE_Result adc_consumer_clr_event(struct adc_consumer *cons,
+				  struct adc_evt *evt);
+
+/**
+ * adc_consumer_start_conv() - launch channel(s) conversions on an ADC device
+ *
+ * @dev: ADC device handle
+ * @channel_mask: ADC channel mask
+ * @Return: TEE_SUCCESS on success, error code otherwise
+ */
+TEE_Result adc_consumer_start_conv(struct adc_device *dev,
+				   uint32_t channel_mask);
+
+/**
+ * adc_consumer_stop_conv() - stop channel(s) conversions on an ADC device
+ *
+ * @dev: ADC device handle
+ * @Return: TEE_SUCCESS on success, error code otherwise
+ */
+TEE_Result adc_consumer_stop_conv(struct adc_device *dev);
 #endif /* __DRIVERS_ADC_H */

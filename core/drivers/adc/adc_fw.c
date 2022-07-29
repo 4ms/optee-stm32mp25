@@ -65,14 +65,14 @@ TEE_Result adc_print_info(const char *adc_name)
 	}
 
 	IMSG("ADC Device '%s':", adc_dev->name);
-	IMSG("Channel mask: 0x%x", adc_dev->channel_mask);
+	IMSG("Channel mask: %#"PRIx32, adc_dev->channel_mask);
 	IMSG("Channels:");
 	for (i = 0; i < adc_dev->channels_nb; i++)
 		IMSG("\tChannel id=%u label='%s'",
 		     adc_dev->channels[i].id,
 		     adc_dev->channels[i].name);
 
-	IMSG("Data mask: 0x%x", adc_dev->data_mask);
+	IMSG("Data mask: %#"PRIx32, adc_dev->data_mask);
 	IMSG("VDD: %"PRIu16"mV", adc_dev->vref_mv);
 
 	return TEE_SUCCESS;
@@ -98,6 +98,27 @@ static TEE_Result adc_conv_raw_data(struct adc_device *dev,
 	*data_uv = UDIV_ROUND_NEAREST(data, dev->data_mask);
 
 	return TEE_SUCCESS;
+}
+
+TEE_Result adc_clr_event_all(const char *adc_name, unsigned int id)
+{
+	struct adc_device *adc_dev = NULL;
+	struct adc_consumer *c = NULL;
+	TEE_Result res = TEE_ERROR_GENERIC;
+
+	res = adc_get_by_name(adc_name, &adc_dev);
+	if (res)
+		return res;
+
+	SLIST_FOREACH(c, &adc_cons_list, link) {
+		if (c->evt && c->dev == adc_dev && c->evt->id == id) {
+			res = adc_consumer_clr_event(c, c->evt);
+			if (res)
+				return res;
+		}
+	}
+
+	return res;
 }
 
 static TEE_Result adc_consumer_lookup(const char *adc_name, uint32_t channel,
@@ -153,6 +174,9 @@ void adc_consumer_print_list(void)
 	SLIST_FOREACH(cons, &adc_cons_list, link) {
 		IMSG("ADC %s : channel %"PRIu32,
 		     cons->dev->name, cons->channel);
+		if (cons->evt)
+			IMSG("Event id=%u lt=%#"PRIx32" ht=%#"PRIx32,
+			     cons->evt->id, cons->evt->lt, cons->evt->ht);
 	}
 }
 
@@ -258,6 +282,131 @@ TEE_Result adc_consumer_read_processed(struct adc_consumer *cons,
 		adc_conv_raw_data(cons->dev, data, uv);
 
 	adc_unlock(cons->dev);
+
+	return res;
+}
+
+TEE_Result adc_consumer_set_event(struct adc_consumer *cons,
+				  struct adc_evt *evt)
+{
+	struct adc_ops *ops = cons->dev->ops;
+	TEE_Result res = TEE_ERROR_GENERIC;
+
+	if (!ops || !ops->set_event)
+		return TEE_ERROR_NOT_IMPLEMENTED;
+
+	res = adc_trylock(cons->dev);
+	if (res)
+		return res;
+
+	res = ops->set_event(cons->dev, evt, cons->channel);
+	if (res)
+		goto err;
+
+	cons->evt = calloc(1, sizeof(*cons->evt));
+	if (!cons->evt) {
+		res = TEE_ERROR_OUT_OF_MEMORY;
+		goto err;
+	}
+
+	memcpy(cons->evt, evt, sizeof(*cons->evt));
+	res = TEE_SUCCESS;
+
+err:
+	adc_unlock(cons->dev);
+
+	return res;
+}
+
+TEE_Result adc_consumer_clr_event(struct adc_consumer *cons,
+				  struct adc_evt *evt)
+{
+	struct adc_ops *ops = cons->dev->ops;
+	TEE_Result res = TEE_ERROR_GENERIC;
+
+	if (!ops || !ops->clr_event)
+		return TEE_ERROR_NOT_IMPLEMENTED;
+
+	res = adc_trylock(cons->dev);
+	if (res)
+		return res;
+
+	if (!cons->evt) {
+		EMSG("No event found");
+		res = TEE_ERROR_NO_DATA;
+		goto err;
+	}
+
+	free(cons->evt);
+	cons->evt = NULL;
+
+	res = ops->clr_event(cons->dev, evt, cons->channel);
+
+err:
+	adc_unlock(cons->dev);
+
+	return res;
+}
+
+TEE_Result adc_consumer_start_conv(struct adc_device *adc_dev,
+				   uint32_t channel_mask)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+	struct adc_ops *ops = NULL;
+
+	if ((channel_mask & adc_dev->channel_mask) != channel_mask ||
+	    !channel_mask) {
+		EMSG("Wrong channel mask %#"PRIx32" for ADC %s",
+		     channel_mask, adc_dev->name);
+
+		return TEE_ERROR_BAD_PARAMETERS;
+	}
+
+	res = adc_trylock(adc_dev);
+	if (res)
+		return res;
+
+	ops = adc_dev->ops;
+	if (!ops || !ops->start_conv) {
+		res = TEE_ERROR_NOT_IMPLEMENTED;
+		goto err;
+	}
+
+	res = ops->start_conv(adc_dev, channel_mask);
+	if (!res)
+		adc_dev->state = 1;
+
+err:
+	adc_unlock(adc_dev);
+
+	return res;
+}
+
+TEE_Result adc_consumer_stop_conv(struct adc_device *adc_dev)
+{
+	struct adc_ops *ops = NULL;
+	TEE_Result res = TEE_ERROR_GENERIC;
+
+	mutex_lock(&adc_dev->lock);
+
+	ops = adc_dev->ops;
+	if (!ops || !ops->stop_conv)
+		return TEE_ERROR_NOT_IMPLEMENTED;
+
+	if (!adc_dev->state) {
+		res = TEE_ERROR_BAD_STATE;
+		goto err;
+	}
+
+	res = ops->stop_conv(adc_dev);
+	if (res) {
+		EMSG("Failed to stop ADC");
+		goto err;
+	}
+	adc_dev->state = 0;
+
+err:
+	mutex_unlock(&adc_dev->lock);
 
 	return res;
 }
