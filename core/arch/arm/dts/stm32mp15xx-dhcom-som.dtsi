@@ -6,7 +6,7 @@
 
 #include "stm32mp15-pinctrl.dtsi"
 #include "stm32mp15xxaa-pinctrl.dtsi"
-#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/gpio/stm32mp_gpio.h>
 #include <dt-bindings/mfd/st,stpmic1.h>
 
 / {
