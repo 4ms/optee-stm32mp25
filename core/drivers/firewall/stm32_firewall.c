@@ -10,10 +10,16 @@
 #include <libfdt.h>
 #include <util.h>
 
+#define MAX_COMPAT_LENGTH	30
+
 static LIST_HEAD(fw_dev_list_head, stm32_firewall_device) fw_dev_list =
 	LIST_HEAD_INITIALIZER(fw_dev_list_head);
 
 static unsigned int list_lock = SPINLOCK_UNLOCK;
+
+static const char firewall_compatible_exceptions[][MAX_COMPAT_LENGTH] = {
+	"st,stm32mp15-i2c-non-secure"
+};
 
 static struct stm32_firewall_device *find_device(paddr_t base, size_t size,
 						 unsigned int *idx)
@@ -124,6 +130,7 @@ static TEE_Result
 stm32_firewall_bus_dt_register(struct stm32_firewall_device *fdev,
 			       const void *fdt, int node)
 {
+	const char __maybe_unused *name = NULL;
 	int idx = 0;
 	int len = 0;
 	int count = 0;
@@ -131,8 +138,8 @@ stm32_firewall_bus_dt_register(struct stm32_firewall_device *fdev,
 	const char *compat = NULL;
 	paddr_t pbase = 0;
 
-	/* Check secure access on main core */
-	static const struct stm32_firewall_cfg sec_cfg[] = {
+	/* Check accesses */
+	const struct stm32_firewall_cfg sec_cfg[] = {
 		{ FWLL_SEC_RW | FWLL_MASTER(0) },
 		{ }, /* Null terminated */
 	};
@@ -155,9 +162,29 @@ stm32_firewall_bus_dt_register(struct stm32_firewall_device *fdev,
 	if (id == fdev->compat->compat_size)
 		return TEE_ERROR_ITEM_NOT_FOUND;
 
+	name = fdt_get_name(fdt, node, NULL);
+
+	compat = fdt_getprop(fdt, node, "compatible", &len);
+	assert(compat);
+
 	if (fdev->ops->has_access(fdev, id, pbase, 0, sec_cfg)) {
-		FMSG("Skip the %s is not secured",
-		     fdt_get_name(fdt, node, NULL));
+		const struct stm32_firewall_cfg non_sec_cfg[] = {
+			{ FWLL_NSEC_RW | FWLL_MASTER(0) },
+			{ }, /* Null terminated */
+		};
+		int len_array = ARRAY_SIZE(firewall_compatible_exceptions);
+		bool exception_found = false;
+
+		if (fdev->ops->has_access(fdev, id, pbase, 0, non_sec_cfg))
+			return TEE_SUCCESS;
+
+		for (int i = 0; i < len_array; i++) {
+			if (!strcmp(firewall_compatible_exceptions[i],
+				    compat))
+				exception_found = true;
+		}
+
+		if (!exception_found)
 			return TEE_SUCCESS;
 	}
 
