@@ -66,6 +66,7 @@ CFG_STM32_RIF ?= y
 CFG_STM32_RIFSC ?= y
 CFG_STM32_RISAB ?= y
 CFG_STM32_RISAF ?= y
+CFG_STM32_RNG ?= y
 CFG_STM32_SERC ?= y
 CFG_STM32_SHARED_IO ?= y
 CFG_STM32_UART ?= y
@@ -85,6 +86,14 @@ CFG_EXTERNAL_DT ?= n
 
 # Enable if board is Rev.A
 CFG_STM32MP25x_REVA ?= y
+
+# Default enable HWRNG PTA support
+CFG_HWRNG_PTA ?= y
+ifeq ($(CFG_HWRNG_PTA),y)
+$(call force,CFG_STM32_RNG,y,Mandated by CFG_HWRNG_PTA)
+$(call force,CFG_WITH_SOFTWARE_PRNG,n,Mandated by CFG_HWRNG_PTA)
+CFG_HWRNG_QUALITY ?= 1024
+endif
 
 # Enable reset control
 ifeq ($(CFG_STM32MP25_RSTCTRL),y)
