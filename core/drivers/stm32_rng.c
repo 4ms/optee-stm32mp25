@@ -62,7 +62,11 @@
 #define RNG_NOISE_CTRL_CONFIG_C	U(0x3FFFF)
 #define RNG_NIST_CONFIG_MASK	GENMASK_32(25, 8)
 
+#ifdef CFG_STM32MP25
+#define RNG_MAX_NOISE_CLK_FREQ	U(48000000)
+#else
 #define RNG_MAX_NOISE_CLK_FREQ	U(3000000)
+#endif
 
 struct stm32_rng_driver_data {
 	bool has_cond_reset;
