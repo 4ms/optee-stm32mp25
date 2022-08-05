@@ -20,18 +20,37 @@
 #define STM32MP13_ADC_CFGR		U(0xC)
 #define STM32MP13_ADC_SMPR1		U(0x14)
 #define STM32MP13_ADC_SMPR2		U(0x18)
+#define STM32MP13_ADC_TR1		U(0x20)
+#define STM32MP13_ADC_TR2		U(0x24)
+#define STM32MP13_ADC_TR3		U(0x28)
 #define STM32MP13_ADC_SQR1		U(0x30)
+#define STM32MP13_ADC_SQR2		U(0x34)
+#define STM32MP13_ADC_SQR3		U(0x38)
+#define STM32MP13_ADC_SQR4		U(0x3C)
 #define STM32MP13_ADC_DR		U(0x40)
 #define STM32MP13_ADC_DIFSEL		U(0xB0)
 #define STM32MP13_ADC_CALFACT		U(0xB4)
 #define STM32MP13_ADC2_OR		U(0xC8)
+#define STM32MP13_ADC_AWD2CR		U(0xA0)
+#define STM32MP13_ADC_AWD3CR		U(0xA4)
 
 /* STM32MP13_ADC_ISR - bit fields */
+#define STM32MP13_AWD3			BIT(9)
+#define STM32MP13_AWD2			BIT(8)
+#define STM32MP13_AWD1			BIT(7)
+#define STM32MP13_OVR			BIT(4)
 #define STM32MP13_EOC			BIT(2)
 #define STM32MP13_ADRDY			BIT(0)
 
 /* STM32MP13_ADC_CFGR bit fields */
+#define STM32MP13_AWD1CH		GENMASK_32(30, 26)
+#define STM32MP13_AWD1CH_SHIFT		U(26)
 #define STM32MP13_EXTEN			GENMASK_32(11, 10)
+#define STM32MP13_AWD1EN		BIT(23)
+#define STM32MP13_AWD1SGL		BIT(22)
+#define STM32MP13_CONT			BIT(13)
+#define STM32MP13_OVRMOD		BIT(12)
+#define STM32MP13_RES			GENMASK_32(4, 3)
 #define STM32MP13_DMACFG		BIT(1)
 #define STM32MP13_DMAEN			BIT(0)
 
@@ -45,6 +64,21 @@
 #define STM32MP13_ADDIS			BIT(1)
 #define STM32MP13_ADEN			BIT(0)
 
+/* STM32MP13_ADC_TR1 - bit fields */
+#define STM32MP13_HT1			GENMASK_32(27, 16)
+#define STM32MP13_HT1_SHIFT		U(16)
+#define STM32MP13_LT1			GENMASK_32(11, 0)
+
+/* STM32MP13_ADC_TR2 - bit fields */
+#define STM32MP13_HT2			GENMASK_32(23, 16)
+#define STM32MP13_HT2_SHIFT		U(16)
+#define STM32MP13_LT2			GENMASK_32(7, 0)
+
+/* STM32MP13_ADC_TR3 - bit fields */
+#define STM32MP13_HT3			GENMASK_32(23, 16)
+#define STM32MP13_HT3_SHIFT		U(16)
+#define STM32MP13_LT3			GENMASK_32(7, 0)
+
 /* STM32MP13_ADC_SQR1 - bit fields */
 #define STM32MP13_SQ1_SHIFT		U(6)
 
@@ -56,12 +90,21 @@
 #define STM32MP13_OP0			BIT(0)
 #define STM32MP13_OP1			BIT(1)
 #define STM32MP13_OP2			BIT(2)
+
+/* STM32MP13_ADC_AWD2CR - bit fields */
+#define STM32MP13_AWD2CH		GENMASK_32(18, 0)
+
+/* STM32MP13_ADC_AWD3CR - bit fields */
+#define STM32MP13_AWD3CH		GENMASK_32(18, 0)
+
 #define STM32MP13_ADC_MAX_RES		U(12)
 #define STM32MP13_ADC_CH_MAX		U(19)
+#define STM32MP13_ADC_AWD_NB		U(3)
+#define STM32MP13_ADC_MAX_SQ		U(16)	/* SQ1..SQ16 */
 #define STM32MP13_ADC_MAX_SMP		U(7)	/* SMPx range is [0..7] */
+
 #define STM32_ADC_TIMEOUT_US		U(100000)
 #define STM32_ADC_NSEC_PER_SEC		UL(1000000000)
-
 #define STM32_ADCVREG_STUP_DELAY_US	U(20)
 
 /**
@@ -104,6 +147,15 @@ struct stm32_adc_regs {
 	int reg;
 	int msk;
 	int shift;
+};
+
+struct stm32_adc_awd_reginfo {
+	uint32_t awd_isr_msk;
+	const struct stm32_adc_regs awd_ch;
+	const struct stm32_adc_regs awd_lt;
+	const struct stm32_adc_regs awd_ht;
+	const struct stm32_adc_regs awd_en;
+	const struct stm32_adc_regs awd_sgl;
 };
 
 static const struct stm32_adc_ic stm32_adc_ic[STM32_ADC_INT_CH_NB] = {
@@ -150,6 +202,248 @@ static const struct stm32_adc_regs stm32mp13_adc_smp_bits[] = {
 
 const unsigned int stm32mp13_adc_min_ts[] = { 100, 0, 0, 4300, 9800 };
 
+/**
+ * STM32MP13_awd_reginfo[] - Analog watchdog description.
+ *
+ * two watchdog types are found in stm32mp13 ADC:
+ * - AWD1 has en_bits, and can select either a single or all channel(s)
+ * - AWD2 & AWD3 are enabled by channel mask (in AWDxCR)
+ * Remaining is similar
+ */
+static const struct stm32_adc_awd_reginfo awd_reginfo[] = {
+	{
+		.awd_ch = {STM32MP13_ADC_CFGR, STM32MP13_AWD1CH,
+			   STM32MP13_AWD1CH_SHIFT},
+		.awd_en = {STM32MP13_ADC_CFGR, STM32MP13_AWD1EN},
+		.awd_sgl = {STM32MP13_ADC_CFGR, STM32MP13_AWD1SGL},
+		.awd_lt = {STM32MP13_ADC_TR1, STM32MP13_LT1},
+		.awd_ht = {STM32MP13_ADC_TR1, STM32MP13_HT1,
+			   STM32MP13_HT1_SHIFT},
+	}, {
+		.awd_ch = {STM32MP13_ADC_AWD2CR, STM32MP13_AWD2CH},
+		.awd_lt = {STM32MP13_ADC_TR2, STM32MP13_LT2},
+		.awd_ht = {STM32MP13_ADC_TR2, STM32MP13_HT2,
+			   STM32MP13_HT2_SHIFT},
+	}, {
+		.awd_ch = {STM32MP13_ADC_AWD3CR, STM32MP13_AWD3CH},
+		.awd_lt = {STM32MP13_ADC_TR3, STM32MP13_LT3},
+		.awd_ht = {STM32MP13_ADC_TR3, STM32MP13_HT3,
+			   STM32MP13_HT3_SHIFT},
+	},
+};
+
+static const struct stm32_adc_regs stm32_sqr[STM32MP13_ADC_MAX_SQ + 1] = {
+	/* L: len bit field description to be kept as first element */
+	{ STM32MP13_ADC_SQR1, GENMASK_32(3, 0), 0 },
+	/* SQ1..SQ16 registers & bit fields (reg, mask, shift) */
+	{ STM32MP13_ADC_SQR1, GENMASK_32(10, 6), 6 },
+	{ STM32MP13_ADC_SQR1, GENMASK_32(16, 12), 12 },
+	{ STM32MP13_ADC_SQR1, GENMASK_32(22, 18), 18 },
+	{ STM32MP13_ADC_SQR1, GENMASK_32(28, 24), 24 },
+	{ STM32MP13_ADC_SQR2, GENMASK_32(4, 0), 0 },
+	{ STM32MP13_ADC_SQR2, GENMASK_32(10, 6), 6 },
+	{ STM32MP13_ADC_SQR2, GENMASK_32(16, 12), 12 },
+	{ STM32MP13_ADC_SQR2, GENMASK_32(22, 18), 18 },
+	{ STM32MP13_ADC_SQR2, GENMASK_32(28, 24), 24 },
+	{ STM32MP13_ADC_SQR3, GENMASK_32(4, 0), 0 },
+	{ STM32MP13_ADC_SQR3, GENMASK_32(10, 6), 6 },
+	{ STM32MP13_ADC_SQR3, GENMASK_32(16, 12), 12 },
+	{ STM32MP13_ADC_SQR3, GENMASK_32(22, 18), 18 },
+	{ STM32MP13_ADC_SQR3, GENMASK_32(28, 24), 24 },
+	{ STM32MP13_ADC_SQR4, GENMASK_32(4, 0), 0 },
+	{ STM32MP13_ADC_SQR4, GENMASK_32(10, 6), 6 },
+};
+
+static TEE_Result stm32_adc_awd_enable(struct adc_device *adc_dev,
+				       struct adc_evt *evt, uint32_t channel)
+{
+	struct stm32_adc_data *adc = adc_get_drv_data(adc_dev);
+	unsigned int i = 0;
+	uint32_t val = 0;
+
+	if (!evt->id || evt->id > STM32MP13_ADC_AWD_NB) {
+		EMSG("AWD index out of valid range [1..%u]", evt->id);
+		return TEE_ERROR_BAD_PARAMETERS;
+	}
+	i = evt->id - 1;
+
+	/*
+	 * Watchdog threshold comparison depends on ADC data format
+	 * Supported data format:
+	 *	resolution: 12 bits (other resolutions not supported)
+	 *	alignment: indifferent (applied after comparison)
+	 *	offset: indifferent (applied after comparison)
+	 */
+	val = io_read32(adc->regs + STM32MP13_ADC_CFGR);
+	if (val & STM32MP13_RES)
+		return TEE_ERROR_NOT_IMPLEMENTED;
+
+	/* Set AWD thresholds and enable AWD */
+	if (awd_reginfo[i].awd_en.reg) {
+		/*
+		 * AWD1:
+		 * Enable AWD on a single channel. (scan mode not supported)
+		 * Thresholds resolution: 12 bits
+		 */
+		if (!IS_POWER_OF_TWO(channel)) {
+			EMSG("Only single channel allowed for AWD1");
+			return TEE_ERROR_BAD_PARAMETERS;
+		}
+
+		io_clrsetbits32(adc->regs + awd_reginfo[i].awd_lt.reg,
+				awd_reginfo[i].awd_lt.msk, evt->lt);
+		io_clrsetbits32(adc->regs + awd_reginfo[i].awd_ht.reg,
+				awd_reginfo[i].awd_ht.msk,
+				evt->ht << awd_reginfo[i].awd_ht.shift);
+
+		io_clrsetbits32(adc->regs + awd_reginfo[i].awd_ch.reg,
+				awd_reginfo[i].awd_ch.msk,
+				channel << awd_reginfo[i].awd_ch.shift);
+		/* Enable AWD on a single channel */
+		io_setbits32(adc->regs + awd_reginfo[i].awd_sgl.reg,
+			     awd_reginfo[i].awd_sgl.msk);
+		/* Enable AWD */
+		io_setbits32(adc->regs + awd_reginfo[i].awd_en.reg,
+			     awd_reginfo[i].awd_en.msk);
+	} else {
+		/*
+		 * AWD2/3:
+		 * Enable AWD through channel mask. (Scan mode supported)
+		 * Thresholds resolution: 8 bits (MSBs)
+		 */
+		io_clrsetbits32(adc->regs + awd_reginfo[i].awd_lt.reg,
+				awd_reginfo[i].awd_lt.msk, evt->lt >> 4);
+		io_clrsetbits32(adc->regs + awd_reginfo[i].awd_ht.reg,
+				awd_reginfo[i].awd_ht.msk,
+				evt->ht << (awd_reginfo[i].awd_ht.shift - 4));
+
+		/* Enable AWD for channel. Do not clear channels already set */
+		io_setbits32(adc->regs + awd_reginfo[i].awd_ch.reg,
+			     awd_reginfo[i].awd_ch.msk & BIT(channel));
+	}
+
+	DMSG("AWD%u config: lt=%#"PRIx32" ht=%#"PRIx32"\n",
+	     evt->id, evt->lt, evt->ht);
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result stm32_adc_awd_disable(struct adc_device *adc_dev,
+					struct adc_evt *evt, uint32_t channel)
+{
+	struct stm32_adc_data *adc = adc_get_drv_data(adc_dev);
+	unsigned int i = 0;
+
+	if (!evt->id || evt->id > STM32MP13_ADC_AWD_NB) {
+		EMSG("AWD index out of valid range [1..%u]", evt->id);
+		return TEE_ERROR_BAD_PARAMETERS;
+	}
+	i = evt->id - 1;
+
+	if (awd_reginfo[i].awd_en.reg) {
+		/* AWD1: Only one channel set. Disable AWD immediately */
+		io_clrbits32(adc->regs + awd_reginfo[i].awd_en.reg,
+			     awd_reginfo[i].awd_en.msk);
+	} else {
+		/*
+		 * AWD2/3: Clear only the selected channel
+		 * Disable AWD if all channels are cleared
+		 */
+		io_clrbits32(adc->regs + awd_reginfo[i].awd_ch.reg,
+			     awd_reginfo[i].awd_ch.msk & BIT(channel));
+	}
+
+	return TEE_SUCCESS;
+}
+
+static int stm32_adc_conf_scan_seq(struct stm32_adc_data *adc,
+				   uint32_t channel_mask)
+{
+	uint32_t val = 0;
+	uint32_t chan_idx = 0, scan_idx = 0;
+
+	io_setbits32(adc->regs + STM32MP13_ADC_SMPR1, adc->smpr[0]);
+	io_setbits32(adc->regs + STM32MP13_ADC_SMPR2, adc->smpr[1]);
+
+	do {
+		if (channel_mask & 0x1) {
+			scan_idx++;
+
+			if (scan_idx > STM32MP13_ADC_MAX_SQ)
+				return TEE_ERROR_GENERIC;
+
+			DMSG("SQ%u set to channel %u\n", scan_idx, chan_idx);
+
+			val = io_read32(adc->regs + stm32_sqr[scan_idx].reg);
+			val &= ~stm32_sqr[scan_idx].msk;
+			val |= chan_idx << stm32_sqr[scan_idx].shift;
+			io_write32(adc->regs + stm32_sqr[scan_idx].reg, val);
+		}
+		channel_mask >>= 1;
+	} while (chan_idx++ < STM32MP13_ADC_CH_MAX);
+
+	/* Sequence len */
+	val = io_read32(adc->regs + stm32_sqr[0].reg);
+	val &= ~stm32_sqr[0].msk;
+	val |= (scan_idx << stm32_sqr[0].shift);
+	io_write32(adc->regs + stm32_sqr[0].reg, val);
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result stm32_adc_start_conv(struct adc_device *adc_dev,
+				       uint32_t channel_mask)
+{
+	struct stm32_adc_data *adc = adc_get_drv_data(adc_dev);
+
+	stm32_adc_conf_scan_seq(adc, channel_mask);
+
+	/*
+	 * Trigger disabled. Conversion launched in sw. Continuous mode set
+	 * overrun mode set. Data not read but always updated in data register
+	 */
+	io_clrsetbits32(adc->regs + STM32MP13_ADC_CFGR,
+			STM32MP13_EXTEN | STM32MP13_DMAEN | STM32MP13_DMACFG,
+			STM32MP13_OVRMOD | STM32MP13_CONT);
+
+	/* Start conversion */
+	io_setbits32(adc->regs + STM32MP13_ADC_CR, STM32MP13_ADSTART);
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result stm32_adc_stop_conv(struct adc_device *adc_dev)
+{
+	struct stm32_adc_data *adc = adc_get_drv_data(adc_dev);
+	uint64_t timeout = 0;
+	uint32_t val = 0;
+
+	/* Leave right now if already stopped */
+	if (!(io_read32(adc->regs + STM32MP13_ADC_CR) & STM32MP13_ADSTART))
+		return TEE_ERROR_BAD_STATE;
+
+	/* Stop conversion */
+	io_setbits32(adc->regs + STM32MP13_ADC_CR, STM32MP13_ADSTP);
+
+	/* Stop conversion */
+	timeout = timeout_init_us(STM32_ADC_TIMEOUT_US);
+	do {
+		val = io_read32(adc->regs + STM32MP13_ADC_CR) &
+		      STM32MP13_ADSTART;
+		if (!val)
+			break;
+	} while (!timeout_elapsed(timeout));
+
+	/* Disable continuous and overrun modes */
+	io_clrbits32(adc->regs + STM32MP13_ADC_CFGR,
+		     STM32MP13_CONT | STM32MP13_OVRMOD);
+
+	/* Clear EOC and OVR bits by setting these bits in ISR register  */
+	io_setbits32(adc->regs + STM32MP13_ADC_ISR,
+		     STM32MP13_OVR | STM32MP13_EOC);
+
+	return TEE_SUCCESS;
+}
 static void stm32_adc_int_ch_enable(struct adc_device *adc_dev)
 {
 	struct stm32_adc_data *adc = adc_get_drv_data(adc_dev);
@@ -659,6 +953,10 @@ stm32_adc_register_cons(struct dt_driver_phandle_args *pargs __unused,
 
 static struct adc_ops stm32_adc_ops = {
 	.read_channel = stm32_adc_read_channel,
+	.set_event = stm32_adc_awd_enable,
+	.clr_event = stm32_adc_awd_disable,
+	.start_conv = stm32_adc_start_conv,
+	.stop_conv = stm32_adc_stop_conv,
 };
 
 static TEE_Result stm32_adc_probe(const void *fdt, int node,

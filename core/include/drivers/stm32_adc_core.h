@@ -9,7 +9,13 @@
 #define STM32_ADCX_COMN_OFFSET		U(0x300)
 
 /* STM32MP13 - common registers for all ADC instances */
+#define STM32MP13_ADC_CSR		(STM32_ADCX_COMN_OFFSET + 0x00)
 #define STM32MP13_ADC_CCR		(STM32_ADCX_COMN_OFFSET + 0x08)
+
+/* STM32MP13_ADC_CSR - bit fields */
+#define STM32MP13_AWD3			BIT(9)
+#define STM32MP13_AWD2			BIT(8)
+#define STM32MP13_AWD1			BIT(7)
 
 /* STM32MP13_ADC_CCR - bit fields */
 #define STM32MP13_VBATEN		BIT(24)
