@@ -369,7 +369,14 @@ static TEE_Result clk_set_rate_no_lock(struct clk *clk, unsigned long rate)
 	}
 
 	if (clk->ops->set_rate) {
+		if (clk->flags & CLK_SET_RATE_UNGATE)
+			clk_enable_no_lock(clk);
+
 		res = clk->ops->set_rate(clk, new_rate, parent_rate);
+
+		if (clk->flags & CLK_SET_RATE_UNGATE)
+			clk_disable_no_lock(clk);
+
 		if (res)
 			return res;
 	}
