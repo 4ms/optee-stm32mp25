@@ -26,6 +26,7 @@
 struct stm32_rproc_mem {
 	paddr_t addr;
 	size_t size;
+	int sec_mem;
 };
 
 /**
@@ -168,13 +169,25 @@ TEE_Result stm32_rproc_map(uint32_t firmware_id, paddr_t pa, size_t size,
 		 * TODO: get memory RIF access right to determine the type.
 		 * The type is forced  to MEM_AREA_RAM_NSEC
 		 */
-
-		if (!core_mmu_add_mapping(MEM_AREA_RAM_NSEC, pa, size)) {
-			EMSG("Can't map region %#"PRIxPA" size %zu", pa, size);
-			return TEE_ERROR_GENERIC;
+		if (mems[i].sec_mem) {
+			if (!core_mmu_add_mapping(MEM_AREA_RAM_SEC, pa, size)) {
+				EMSG("Can't map region %#"PRIxPA" size %zu",
+				     pa, size);
+				return TEE_ERROR_GENERIC;
+			}
+			*va = (void *)core_mmu_get_va(pa, MEM_AREA_RAM_SEC,
+						      size);
+		} else {
+			if (!core_mmu_add_mapping(MEM_AREA_RAM_NSEC,
+						  pa, size)) {
+				EMSG("Can't map region %#"PRIxPA" size %zu",
+				     pa, size);
+				return TEE_ERROR_GENERIC;
+			}
+			*va = (void *)core_mmu_get_va(pa, MEM_AREA_RAM_NSEC,
+						      size);
 		}
 
-		*va = (void *)core_mmu_get_va(pa, MEM_AREA_RAM_NSEC, size);
 		if (!*va)
 			return TEE_ERROR_ACCESS_DENIED;
 
@@ -206,17 +219,37 @@ TEE_Result stm32_rproc_unmap(uint32_t firmware_id, paddr_t pa, size_t size)
 		 * The type is forced to MEM_AREA_RAM_NSEC
 		 */
 
-		va = (void *)core_mmu_get_va(pa, MEM_AREA_RAM_NSEC, size);
-		if (!va)
-			return TEE_ERROR_ACCESS_DENIED;
+		if (mems[i].sec_mem) {
+			va = (void *)core_mmu_get_va(pa, MEM_AREA_RAM_SEC,
+						     size);
+			if (!va)
+				return TEE_ERROR_ACCESS_DENIED;
 
-		if (core_mmu_remove_mapping(MEM_AREA_RAM_NSEC, va, size)) {
-			EMSG("Can't unmap region %#"PRIxPA" size %zu",
-			     pa, size);
-			return TEE_ERROR_GENERIC;
+			/* Flush the cache before unmapping the memory */
+			dcache_clean_range(va, size);
+
+			if (core_mmu_remove_mapping(MEM_AREA_RAM_SEC,
+						    va, size)) {
+				EMSG("Can't map region %#"PRIxPA" size %zu",
+				     pa, size);
+				return TEE_ERROR_GENERIC;
+			}
+		} else {
+			va = (void *)core_mmu_get_va(pa, MEM_AREA_RAM_NSEC,
+						     size);
+			if (!va)
+				return TEE_ERROR_ACCESS_DENIED;
+
+			/* Flush the cache before unmapping the memory */
+			dcache_clean_range(va, size);
+
+			if (core_mmu_remove_mapping(MEM_AREA_RAM_NSEC,
+						    va, size)) {
+				EMSG("Can't unmap region %#"PRIxPA" size %zu",
+				     pa, size);
+				return TEE_ERROR_GENERIC;
+			}
 		}
-		/* Flush the cache before unmapping the memory */
-		dcache_clean_range(va, size);
 
 		return TEE_SUCCESS;
 	}
@@ -241,6 +274,7 @@ static TEE_Result stm32_rproc_parse_mems(struct stm32_rproc_instance *rproc,
 					 const void *fdt, int node)
 {
 	const fdt32_t *list = NULL;
+	TEE_Result res = TEE_ERROR_GENERIC;
 	struct stm32_rproc_mem *regions = NULL;
 	int len = 0;
 	int nregions = 0;
@@ -264,6 +298,7 @@ static TEE_Result stm32_rproc_parse_mems(struct stm32_rproc_instance *rproc,
 	for (i = 0; i < nregions; i++) {
 		int pnode = 0;
 		const fdt32_t *prop = NULL;
+		uint32_t sec_mem = 0;
 
 		pnode = fdt_node_offset_by_phandle(fdt,
 						   fdt32_to_cpu(*(list + i)));
@@ -277,8 +312,20 @@ static TEE_Result stm32_rproc_parse_mems(struct stm32_rproc_instance *rproc,
 		regions[i].addr = fdt32_to_cpu(prop[0]);
 		regions[i].size = fdt32_to_cpu(prop[1]);
 
-		DMSG("register region %#"PRIxPA" size %#zx", regions[i].addr,
-		     regions[i].size);
+		if (regions[i].addr <= 0 || regions[i].size <= 0)
+			return TEE_ERROR_CORRUPT_OBJECT;
+
+		/* TODO suppress temporary property and use firewall */
+		res = _fdt_read_uint32_index(fdt, node, "st,s-memory-region",
+					     i, &sec_mem);
+		if (res)
+			return res;
+
+		regions[i].sec_mem = fdt32_to_cpu(sec_mem);
+
+		DMSG("register %s region %#"PRIxPA" size %#zx",
+		     regions[i].sec_mem ? "sec" : " none sec",
+		     regions[i].addr, regions[i].size);
 
 		rproc->nregions++;
 	}
