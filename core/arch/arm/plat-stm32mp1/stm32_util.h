@@ -29,12 +29,18 @@ vaddr_t stm32_rcc_base(void);
 /* Platform util for the GIC */
 vaddr_t get_gicd_base(void);
 
-#ifdef CFG_TEE_CORE_DEBUG
-void stm32mp_dump_core_registers(bool force_display);
+#if TRACE_LEVEL >= TRACE_DEBUG
+/*
+ * stm32mp_dump_core_registers - Print CPU registers to console
+ *
+ * @panicking:  False if we are not called from a panic sequence. True if we
+ *              are panicking. Trace messages are emitted only once this
+ *              function is called with @panicking being true. Until then,
+ *              calling with @panicking being false emits no trace.
+ */
+void stm32mp_dump_core_registers(bool panicking);
 #else
-static inline void stm32mp_dump_core_registers(bool force_display __unused)
-{
-}
+static inline void stm32mp_dump_core_registers(bool panicking __unused) { }
 #endif
 
 /*
