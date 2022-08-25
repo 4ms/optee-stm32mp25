@@ -222,6 +222,18 @@ struct clk *clk_get_parent_by_index(struct clk *clk, size_t pidx);
 TEE_Result clk_set_parent(struct clk *clk, struct clk *parent);
 
 /**
+ * clk_reparent - Update clock parent
+ *
+ * This function mandates that clock framework is locked against
+ * concurrent accesses on clock tree.
+ *
+ * @clk: Clock for which the parent should be set
+ * @parent: Parent clock to set
+ * Return a TEE_Result compliant value
+ */
+TEE_Result clk_reparent(struct clk *clk, struct clk *parent);
+
+/**
  * clk_get_duty_cyle - Get clock duty cycle
  *
  * @clk: Clock for which the duty cycle is requested
