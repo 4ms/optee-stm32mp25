@@ -446,7 +446,7 @@ static TEE_Result remoteproc_parse_rsc_table(struct remoteproc_context *ctx)
 		return res;
 
 	if (da) {
-		DMSG("Resource table device address %#"PRIx32" size %zu",
+		DMSG("Resource table device address %#"PRIx32" size %x",
 		     da, ctx->rsc_size);
 
 		ctx->rsc_pa = remoteproc_da_to_pa(da, ctx->rsc_size, ctx);
@@ -596,7 +596,7 @@ static TEE_Result remoteproc_load_fw(uint32_t pt,
 	if (!params[1].memref.buffer || !params[1].memref.size)
 		return TEE_ERROR_BAD_PARAMETERS;
 
-	DMSG("Got base addr: %p size %zu", params[1].memref.buffer,
+	DMSG("Got base addr: %p size %x", params[1].memref.buffer,
 	     params[1].memref.size);
 
 	res = remoteproc_verify_firmware(ctx, params[1].memref.buffer,
