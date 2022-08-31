@@ -586,8 +586,9 @@ static TEE_Result stm32_pmic_probe(const void *fdt, int node,
 		}
 
 		res = stm32mp1_pwr_itr_alloc_add(it, stpmic1_irq_handler,
-						 PWR_WKUP_FLAG_FALLING, it_id,
-						 &hdl);
+						 PWR_WKUP_FLAG_FALLING |
+						 PWR_WKUP_FLAG_THREADED,
+						 it_id, &hdl);
 		if (res)
 			panic("pmic: Couldn't allocate itr");
 

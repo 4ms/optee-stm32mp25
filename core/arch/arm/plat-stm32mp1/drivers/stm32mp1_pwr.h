@@ -64,6 +64,16 @@
 #define PWR_CR2_BRRDY		BIT(16)
 #define PWR_CR2_RRRDY		BIT(17)
 
+/*
+ * Flags for PWR wakeup event management
+ * PWR_WKUP_FLAG_RISING - Detect event on signal rising edge
+ * PWR_WKUP_FLAG_FALLING - Detect event on signal falling edge
+ * PWR_WKUP_FLAG_THREADED - Notify event in the threaded context
+ */
+#define PWR_WKUP_FLAG_RISING	0
+#define PWR_WKUP_FLAG_FALLING	BIT(0)
+#define PWR_WKUP_FLAG_THREADED	BIT(1)
+
 enum pwr_regulator {
 	PWR_REG11 = 0,
 	PWR_REG18,
@@ -85,11 +95,6 @@ enum pwr_wkup_pins {
 	PWR_WKUP_PIN5,
 	PWR_WKUP_PIN6,
 	PWR_NB_WAKEUPPINS
-};
-
-enum pwr_wkup_flags {
-	PWR_WKUP_FLAG_RISING = 0,
-	PWR_WKUP_FLAG_FALLING,
 };
 
 TEE_Result

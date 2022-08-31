@@ -45,40 +45,45 @@ struct stm32_pwr_data {
 	struct stm32_pinctrl_list *pinctrl_list;
 	struct itr_handler *hdl[PWR_NB_WAKEUPPINS];
 	struct itr_handler *gic_hdl;
+	bool threaded[PWR_NB_WAKEUPPINS];
+	bool pending[PWR_NB_WAKEUPPINS];
 };
 
 static struct stm32_pwr_data *pwr_data;
 
-static enum itr_return pwr_it_threaded_handler(void)
+static enum itr_return pwr_it_call_handler(struct stm32_pwr_data *priv,
+					   uint32_t pin)
 {
-	struct stm32_pwr_data *priv = pwr_data;
-	uint32_t wkupfr = 0;
-	uint32_t wkupenr = 0;
-	uint32_t i = 0;
+	uint32_t wkupenr = io_read32(priv->base + MPUWKUPENR);
 
-	wkupfr = io_read32(priv->base + WKUPFR);
-	wkupenr = io_read32(priv->base + MPUWKUPENR);
+	if (wkupenr & BIT(pin)) {
+		VERBOSE_PWR("call wkup handler irq:%d\n", pin);
 
-	for (i = 0; i < PWR_NB_WAKEUPPINS; i++) {
-		if ((wkupfr & BIT(i)) && (wkupenr & BIT(i))) {
-			VERBOSE_PWR("handle wkup irq:%d\n", i);
+		if (priv->hdl[pin]) {
+			struct itr_handler *h = priv->hdl[pin];
 
-			if (priv->hdl[i]) {
-				struct itr_handler *h = priv->hdl[i];
-
-				if (h->handler(h) != ITRR_HANDLED) {
-					EMSG("Disabling unhandled interrupt %u",
-					     i);
-					stm32mp1_pwr_itr_disable(i);
-				}
+			if (h->handler(h) != ITRR_HANDLED) {
+				EMSG("Disabling unhandled IT %"PRIu32, pin);
+				stm32mp1_pwr_itr_disable(pin);
 			}
-
-			/* Ack IRQ */
-			io_setbits32(priv->base + WKUPCR, BIT(i));
 		}
 	}
 
-	itr_enable(priv->gic_hdl->it);
+	return ITRR_HANDLED;
+}
+
+static enum itr_return pwr_it_threaded_handler(void)
+{
+	struct stm32_pwr_data *priv = pwr_data;
+	uint32_t i = 0;
+
+	for (i = 0; i < PWR_NB_WAKEUPPINS; i++) {
+		if (priv->pending[i]) {
+			VERBOSE_PWR("handle pending wkup irq:%"PRIu32, i);
+			priv->pending[i] = false;
+			pwr_it_call_handler(priv, i);
+		}
+	}
 
 	return ITRR_HANDLED;
 }
@@ -107,13 +112,30 @@ struct notif_driver stm32_pwr_notif = {
 static enum itr_return pwr_it_handler(struct itr_handler *handler)
 {
 	struct stm32_pwr_data *priv = (struct stm32_pwr_data *)handler->data;
+	uint32_t wkupfr = 0;
+	uint32_t i = 0;
 
 	itr_disable(priv->gic_hdl->it);
 
-	if (notif_async_is_started())
-		notif_send_async(NOTIF_VALUE_DO_BOTTOM_HALF);
-	else
-		return pwr_it_threaded_handler();
+	wkupfr = io_read32(priv->base + WKUPFR);
+
+	for (i = 0; i < PWR_NB_WAKEUPPINS; i++) {
+		if (wkupfr & BIT(i)) {
+			VERBOSE_PWR("handle wkup irq:%"PRIu32, i);
+
+			/* Ack IRQ */
+			io_setbits32(priv->base + WKUPCR, BIT(i));
+
+			if (priv->threaded[i] && notif_async_is_started()) {
+				priv->pending[i] = true;
+				notif_send_async(NOTIF_VALUE_DO_BOTTOM_HALF);
+			} else {
+				pwr_it_call_handler(priv, i);
+			}
+		}
+	}
+
+	itr_enable(priv->gic_hdl->it);
 
 	return ITRR_HANDLED;
 }
@@ -138,13 +160,13 @@ stm32_pwr_irq_set_pull_config(size_t it, enum wkup_pull_setting config)
 }
 
 static TEE_Result
-stm32_pwr_irq_set_trig(size_t it, enum pwr_wkup_flags trig)
+stm32_pwr_irq_set_trig(size_t it, unsigned int flags)
 {
 	struct stm32_pwr_data *priv = pwr_data;
-	uint32_t wkupcr = 0;
 	int en = 0;
 
-	VERBOSE_PWR("irq:%zu trig:%#"PRIx32, it, trig);
+	VERBOSE_PWR("irq:%zu %s edge", it,
+		    flags & PWR_WKUP_FLAG_FALLING ? "falling" : "rising");
 
 	en = io_read32(priv->base + MPUWKUPENR) & BIT(it);
 	/*
@@ -154,19 +176,10 @@ stm32_pwr_irq_set_trig(size_t it, enum pwr_wkup_flags trig)
 	if (en)
 		stm32mp1_pwr_itr_disable(it);
 
-	wkupcr = io_read32(priv->base + WKUPCR);
-	switch (trig) {
-	case PWR_WKUP_FLAG_FALLING:
-		wkupcr |= BIT(WKUP_EDGE_SHIFT + it);
-		break;
-	case PWR_WKUP_FLAG_RISING:
-		wkupcr &= ~BIT(WKUP_EDGE_SHIFT + it);
-		break;
-	default:
-		panic("Bad edge configuration");
-	}
-
-	io_write32(priv->base + WKUPCR, wkupcr);
+	if (flags & PWR_WKUP_FLAG_FALLING)
+		io_setbits32(priv->base + WKUPCR, BIT(WKUP_EDGE_SHIFT + it));
+	else
+		io_clrbits32(priv->base + WKUPCR, BIT(WKUP_EDGE_SHIFT + it));
 
 	if (en)
 		stm32mp1_pwr_itr_enable(it);
@@ -198,7 +211,7 @@ void stm32mp1_pwr_itr_disable(size_t it)
 		stm32_exti_disable_wake(PWR_EXTI_WKUP1 + it);
 }
 
-static TEE_Result stm32mp1_pwr_irt_add(struct itr_handler *hdl)
+static TEE_Result stm32mp1_pwr_itr_add(struct itr_handler *hdl)
 {
 	struct stm32_pwr_data *priv = pwr_data;
 	int it = hdl->it;
@@ -218,6 +231,9 @@ static TEE_Result stm32mp1_pwr_irt_add(struct itr_handler *hdl)
 	assert(!priv->hdl[it]);
 
 	priv->hdl[it] = hdl;
+
+	if (hdl->flags & PWR_WKUP_FLAG_THREADED)
+		priv->threaded[it] = true;
 
 	STAILQ_FOREACH(pinctrl, priv->pinctrl_list, link) {
 		if ((unsigned int)it == i)
@@ -263,8 +279,6 @@ stm32mp1_pwr_itr_alloc_add(size_t it, itr_handler_t handler, uint32_t flags,
 	TEE_Result res = TEE_SUCCESS;
 	struct itr_handler *hdl = NULL;
 
-	assert(!(flags & ITRF_SHARED));
-
 	hdl = calloc(1, sizeof(*hdl));
 	if (!hdl)
 		return TEE_ERROR_OUT_OF_MEMORY;
@@ -274,7 +288,7 @@ stm32mp1_pwr_itr_alloc_add(size_t it, itr_handler_t handler, uint32_t flags,
 	hdl->flags = flags;
 	hdl->data = data;
 
-	res = stm32mp1_pwr_irt_add(hdl);
+	res = stm32mp1_pwr_itr_add(hdl);
 	if (res) {
 		free(hdl);
 		return res;
