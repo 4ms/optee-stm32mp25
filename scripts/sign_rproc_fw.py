@@ -351,7 +351,7 @@ def main():
     s_header.hash_length = hash_table.size
     s_header.hash_type = ENUM_HASH_TYPE['SHA256']
     # Get padding to align on 64 bytes
-    hash_align = s_header.hash_length % 8
+    hash_align = 8 - (s_header.hash_length % 8)
 
     # Key information chunk
     if args.key_infof:
@@ -361,7 +361,7 @@ def main():
         s_header.key_offset = s_header.hash_offset + s_header.hash_length + \
             hash_align
         # Get padding to align on 64 bytes
-        key_info_align = s_header.key_length % 8
+        key_info_align = 8 - (s_header.key_length % 8)
     else:
         key_info_align = 0
 
