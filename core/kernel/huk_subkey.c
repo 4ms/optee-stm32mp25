@@ -58,6 +58,7 @@ static TEE_Result huk_compat(void *ctx, enum huk_subkey_usage usage)
 }
 #endif /*CFG_CORE_HUK_SUBKEY_COMPAT*/
 
+__weak
 TEE_Result huk_subkey_derive(enum huk_subkey_usage usage,
 			     const void *const_data, size_t const_data_len,
 			     uint8_t *subkey, size_t subkey_len)
