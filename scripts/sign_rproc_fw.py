@@ -28,6 +28,59 @@ import struct
 import logging
 import binascii
 
+#  Generated file structure:
+#
+#                    ----+-------------+
+#                   /    |    Magic    |
+#                  /     +-------------+
+#                 /      +-------------+
+#                /       |   version   |
+#               /        +-------------+
+#              /         +-------------+
+# +-----------+          | sign size   |   size of the signature
+# |   Header  |          +-------------+   (in bytes, 64-bit aligned)
+# +-----------+          +-------------+
+#              \         | image size  |   size of the image to load
+#               \        +-------------+   (in bytes, 64-bit aligned)
+#                \       +-------------+
+#                 \      |  TLV size   |   Generic TLV size
+#                  \     +-------------+   (in bytes, 64-bit aligned)
+#                   \    +-------------+
+#                    \   | PLAT TLV sz |   Platform TLV size
+#                     \--+-------------+   (in bytes, 64-bit aligned)
+#
+#                        +-------------+   Signature of the header, the trailer
+#                        | Signature   |   and optionally the firmware image if
+#                        +-------------+   a hash table is not stored.
+#
+#                        +-------------+
+#                        |   Firmware  |
+#                        |    image    |
+#                        +-------------+
+#                  ------+-------------+
+#                 /      |+-----------+|
+#                /       ||   TLV     ||   Information used to authenticate the
+#  +-----------+/        ||           ||   firmware, stored in
+#  |  Trailer  |         |+-----------+|   Type-Length-Value format.
+#  +-----------+\        |+-----------+|
+#                \       || Platform  ||   Specific platform information,
+#                 \      ||   TLV     ||   stored in Type-Length-Value format.
+#                  \     |+-----------+|
+#                   -----+-------------+
+#
+#  TLV and platform TLV chunk:
+#
+#                  -----+-------------+
+#                 |     |    Magic    |
+#     +-----------+     +-------------+
+#     |   Header  |     +-------------+
+#     +-----------+     |    size     |  size of the TLV payload
+#                 |-----+-------------+
+#                       +-------------+
+#                       |     TLV     |  TLV structures
+#                       |   payload   |
+#                       +-------------+
+
 
 TLV_VALUES = {
         'SIGNTYPE': 0x01,    # algorithm used for signature
@@ -191,74 +244,41 @@ class ImageHeader(object):
 
     magic = 'HELF'   # SHDR_MAGIC
     version = 1
-    sign_type = 1     # SHA256
-    img_type = 1     # ELF
 
     MAGIC_OFFSET = 0
     VERSION_OFFSET = 4
-    LENGTH_OFFSET = 8
-    SIGNATURE_LEN_OFFSET = 12
-    SIGNATURE_OFFSET_OFFSET = 16
-    SIGNATURE_TYPE_OFFSET = 20
-    HASH_LEN_OFFSET = 24
-    HASH_OFFSET_OFFSET = 28
-    HASH_TYPE_OFFSET = 32
-    PUBLIC_INFO_LEN_OFFSET = 36
-    PUBLIC_INFO_OFFSET_OFFSET = 40
-    IMG_LEN_OFFSET = 44
-    IMG_OFFSET_OFFSET = 48
-    IMG_TYPE_OFFSET = 52
+    SIGN_LEN_OFFSET = 8
+    IMG_LEN_OFFSET = 12
+    TLV_LEN_OFFSET = 16
+    PTLV_LEN_OFFSET = 20
 
     def __init__(self):
         self.size = 56
 
         self.magic = 0x3543A468
         self.version = 1
-        self.length = 0
         self.sign_length = 0
-        self.sign_offset = 0
-        self.sign_type = 0
-        self.hash_length = 0
-        self.hash_offset = 0
-        self.hash_type = 0
-        self.key_length = 0
-        self.key_offset = 0
         self.img_length = 0
-        self.img_offset = 0
-        self.img_type = 0
+        self.tlv_length = 0
+        self.plat_tlv_len = 0
 
-        self.shdr = struct.pack('<IIIIIIIIIIIIII',
-                                self.magic, self.version, self.length,
-                                self.sign_length, self.sign_offset,
-                                self.sign_type, self.hash_length,
-                                self.hash_offset, self.hash_type,
-                                self.key_length, self.key_offset,
-                                self.img_length, self.img_offset,
-                                self.img_type)
+        self.shdr = struct.pack('<IIIIII',
+                                self.magic, self.version,
+                                self.sign_length, self.img_length,
+                                self.tlv_length, self.plat_tlv_len)
 
     def dump(self):
         logging.info("\tMAGIC\t\t= %08X" % (self.magic))
         logging.info("\tHEADER_VERSION\t= %08X" % (self.version))
-        logging.info("\tHEADER_LENGTH\t= %08X" % (self.length))
         logging.info("\tSIGN_LENGTH\t= %08X" % (self.sign_length))
-        logging.info("\tSIGN_OFFSET\t= %08X" % (self.sign_offset))
-        logging.info("\tSIGN_TYPE\t= %08X" % (self.sign_type))
-        logging.info("\tHASH_LENGTH\t= %08X" % (self.hash_length))
-        logging.info("\tHASH_OFFSET\t= %08X" % (self.hash_offset))
-        logging.info("\tHASH_TYPE\t= %08X" % (self.hash_type))
-        logging.info("\tPKEY_LENGTH\t= %08X" % (self.key_length))
-        logging.info("\tPKEY_OFFSET\t= %08X" % (self.key_offset))
         logging.info("\tIMAGE_LENGTH\t= %08X" % (self.img_length))
-        logging.info("\tIMAGE_OFFSET\t= %08X" % (self.img_offset))
-        logging.info("\tIMAGE_TYPE\t= %08X" % (self.img_type))
+        logging.info("\tTLV_LENGTH\t= %08X" % (self.tlv_length))
+        logging.info("\tPLAT_TLV_LENGTH\t= %08X" % (self.plat_tlv_len))
 
     def get_packed(self):
-        return struct.pack('<IIIIIIIIIIIIII',
-                           self.magic, self.version, self.length,
-                           self.sign_length, self.sign_offset, self.sign_type,
-                           self.hash_length, self.hash_offset, self.hash_type,
-                           self.key_length, self.key_offset, self.img_length,
-                           self.img_offset, self.img_type)
+        return struct.pack('<IIIIII',
+                           self.magic, self.version, self.sign_length,
+                           self.img_length, self.tlv_length, self.plat_tlv_len)
 
 
 def get_args(logger):
@@ -360,15 +380,19 @@ def main():
 
     # Initialise the header */
     s_header = ImageHeader()
+    tlv = TLV(TLV_INFO_MAGIC)
 
-    get_key = key_type.get(ENUM_SIGNATURE_TYPE[args.key_type],
-                           lambda: "Invalid sign type")
+    sign_type = ENUM_SIGNATURE_TYPE[args.key_type]
+    get_key = key_type.get(sign_type, lambda: "Invalid sign type")
+
     key = get_key(args.keyf)
 
     if not key.has_private():
         logger.error('Provided key cannot be used for signing, ' +
                      'please use offline-signing mode.')
         sys.exit(1)
+
+    tlv.add('SIGNTYPE', sign_type.to_bytes(1, 'little'))
 
     # Firmware image
     input_file = open(args.inf, 'rb')
@@ -378,68 +402,60 @@ def main():
     # Indeed this script uses of ENUM_P_TYPE_ARM dic
     assert img.get_machine_arch() in ["ARM"]
 
-    # need to reopen the file to get the raw data
+    # Need to reopen the file to get the raw data
     with open(args.inf, 'rb') as f:
         bin_img = f.read()
     img_size = len(bin_img)
     logging.debug("image size %d" % img_size)
     s_header.img_length = img_size
-    s_header.img_type = ENUM_BINARY_TYPE['ELF']
 
-    # Hash table chunk
+    # Add image type information in TLV blob
+    bin_type = ENUM_BINARY_TYPE['ELF']
+    tlv.add('IMGTYPE', bin_type.to_bytes(1, 'little'))
+
+    # Add hash type information in TLV blob
+    hash_type = ENUM_HASH_TYPE['SHA256']
+    tlv.add('HASHTYPE', hash_type.to_bytes(1, 'little'))
+
+    # Hash table
     h = SHA256.new()
 
-    # Compute the hash table
+    # Compute the hash table and add it to TLV blob
     hash_table = SegmentHash(img)
     hash = hash_table.get_table()
 
-    s_header.hash_offset = s_header.size
-    s_header.hash_length = hash_table.size
-    s_header.hash_type = ENUM_HASH_TYPE['SHA256']
-    # Get padding to align on 64 bytes
-    hash_align = 8 - (s_header.hash_length % 8)
+    tlv.add('HASHTABLE', hash)
 
-    # Key information chunk
+    # Add optional key information to TLV
     if args.key_infof:
         with open(args.key_infof, 'rb') as f:
             key_info = f.read()
-        s_header.key_length = sys.getsizeof(key_info)
-        s_header.key_offset = s_header.hash_offset + s_header.hash_length + \
-            hash_align
-        # Get padding to align on 64 bytes
-        key_info_align = 8 - (s_header.key_length % 8)
-    else:
-        key_info_align = 0
+        tlv.add('PKEYINFO', key_info)
+
+    # Compute the Trailer containing TLV (with 64 bit alignment)
+    trailer_buff = tlv.get()
+    s_header.tlv_length = len(trailer_buff)
+
+    # TODO: create a function for alignment
+    align_64b = 8 - (s_header.tlv_length % 8)
+    if align_64b:
+        trailer_buff += bytearray(align_64b)
+
+    dump_buffer(trailer_buff, name='TRAILER', indent="\t")
 
     # Signature chunk
-    s_header.sign_type = ENUM_SIGNATURE_TYPE[args.key_type]
-
     sign_size = sig_size_type.get(ENUM_SIGNATURE_TYPE[args.key_type],
                                   lambda: "Invalid sign type")(key)
     s_header.sign_length = sign_size
 
-    if args.key_infof:
-        s_header.sign_offset = s_header.key_offset + s_header.key_length + \
-                           key_info_align
-    else:
-        s_header.sign_offset = s_header.hash_offset + s_header.hash_length + \
-                               hash_align
-
-    s_header.img_offset = s_header.sign_offset + sign_size
-
-    s_header.length = s_header.size + s_header.hash_length + hash_align + \
-        s_header.key_length + key_info_align + s_header.sign_length
-
+    # Construct the Header
     header = s_header.get_packed()
 
     # Generate signature
     signer = Signature.get(ENUM_SIGNATURE_TYPE[args.key_type])(key)
 
     signer.hash_compute(header)
-    signer.hash_compute(bytes(hash))
-    if args.key_infof:
-        signer.hash_compute(key_info)
-
+    signer.hash_compute(trailer_buff)
     signature = signer.sign()
     if len(signature) != sign_size:
         raise Exception(("Actual signature length is not equal to ",
@@ -450,16 +466,13 @@ def main():
 
     with open(args.outf, 'wb') as f:
         f.write(header)
-        f.write(hash)
-        if hash_align:
-            f.write(bytearray(hash_align))
-        if args.key_infof:
-            if key_info_align:
-                f.write(key_info)
-                f.write(bytearray(key_info_align))
         f.write(signature)
         f.write(bytearray(sign_size - s_header.sign_length))
         f.write(bin_img)
+        align_64b = 8 - (s_header.img_length % 8)
+        if align_64b:
+            f.write(bytearray(align_64b))
+        f.write(trailer_buff)
 
 
 if __name__ == "__main__":
