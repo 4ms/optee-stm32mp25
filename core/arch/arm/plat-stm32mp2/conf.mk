@@ -119,6 +119,16 @@ CFG_STM32_EARLY_CONSOLE_UART ?= 2
 # Default disable external DT support
 CFG_EXTERNAL_DT ?= n
 
+# Remoteproc early TA for coprocessor firmware management
+CFG_RPROC_PTA ?= y
+ifeq ($(CFG_RPROC_PTA),y)
+CFG_IN_TREE_EARLY_TAS += remoteproc/80a4c275-0a47-4905-8285-1486a9771a08
+CFG_CORE_HEAP_SIZE ?= (128 * 1024)
+
+# Embed public part of this key in OP-TEE OS
+CFG_RPROC_SIGN_KEY ?= keys/default_rproc.pem
+endif
+
 # Enable if board is Rev.A
 ifneq ($(filter $(CFG_EMBED_DTB_SOURCE_FILE),$(flavorlist-MP25-REV-A-B)),)
 $(call force,CFG_STM32MP25x_REVA,y)
