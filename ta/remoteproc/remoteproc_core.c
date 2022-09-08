@@ -13,6 +13,61 @@
 #include <types_ext.h>
 #include <utee_defines.h>
 
+/*
+ *  signed file structure:
+ *
+ *                    ----+-------------+
+ *                   /    |    Magic    |
+ *                  /     +-------------+
+ *                 /      +-------------+
+ *                /       |   version   |
+ *               /        +-------------+
+ *              /         +-------------+
+ * +-----------+          | sign size   |   size of the signature
+ * |   Header  |          +-------------+   (in bytes, 64-bit aligned)
+ * +-----------+          +-------------+
+ *              \         | image size  |   size of the image to load
+ *               \        +-------------+   (in bytes, 64-bit aligned)
+ *                \       +-------------+
+ *                 \      |  TLV size   |   Generic TLV size
+ *                  \     +-------------+   (in bytes, 64-bit aligned)
+ *                   \    +-------------+
+ *                    \   | PLAT TLV sz |   Platform TLV size
+ *                     \--+-------------+   (in bytes, 64-bit aligned)
+ *
+ *                        +-------------+   Signature of the header, the trailer
+ *                        | Signature   |   and optionally the firmware image if
+ *                        +-------------+   a hash table is not stored.
+ *
+ *                        +-------------+
+ *                        |   Firmware  |
+ *                        |    image    |
+ *                        +-------------+
+ *                  ------+-------------+
+ *                 /      |+-----------+|
+ *                /       ||   TLV     ||   Information used to authenticate the
+ *  +-----------+/        ||           ||   firmware, stored in
+ *  |  Trailer  |         |+-----------+|   Type-Length-Value format.
+ *  +-----------+\        |+-----------+|
+ *                \       || Platform  ||   Specific platform information,
+ *                 \      ||   TLV     ||   stored in Type-Length-Value format.
+ *                  \     |+-----------+|
+ *                   -----+-------------+
+ *
+ *  TLV and platform TLV chunks:
+ *
+ *                        +-------------+
+ *                        |    Magic    |
+ *                        +-------------+
+ *                        +-------------+
+ *                        |    size     |  size of the TLV payload
+ *                        +-------------+
+ *                        +-------------+
+ *                        |     TLV     |  TLV structures
+ *                        |   payload   |
+ *                        +-------------+
+ */
+
 /* Firmware state */
 enum remoteproc_state {
 	REMOTEPROC_OFF,
@@ -29,11 +84,26 @@ enum remoteproc_sign_type {
 	RPROC_ECDSA_SHA256 = 2,
 };
 
+enum remoteproc_img_type {
+	RPROC_ELF_TYPE = 1,
+};
+
 /* remoteproc_tlv structure offsets */
 #define RPROC_TLV_LENGTH_OF	U(0x02)
 #define RPROC_TLV_VALUE_OF	U(0x04)
 
-/* Little endian to CPU format conversions */
+#define TLV_INFO_MAGIC		U(0x6907)
+#define PLAT_TLV_INFO_MAGIC	U(0x6908)
+
+/* TLV types */
+#define RPROC_TLV_SIGNTYPE	U(0x01)
+#define RPROC_TLV_HASHTYPE	U(0x02)
+#define RPROC_TLV_IMGTYPE	U(0x03)
+#define RPROC_TLV_HASHTABLE	U(0x10)
+#define RPROC_TLV_PKEYINFO	U(0x11)
+
+#define RPROC_TLV_SIGNTYPE_LGTH U(1)
+
 #define LE16_TO_CPU(x) (((x)[1] << 8) | (x)[0])
 #define LE32_TO_CPU(x) (((x)[3] << 24) | ((x)[2] << 16) | \
 			((x)[1] << 8)  | (x)[0])
@@ -77,35 +147,27 @@ struct remoteproc_segment {
  * struct remoteproc_fw_hdr - firmware header
  * @magic:        Magic number, must be equal to RPROC_HDR_MAGIC
  * @version:      Version of the header (must be 1)
- * @hdr_length:   Total header byte length including chunks
- * @sign_length:  Signature chunk byte length
- * @sign_offset:  Signature chunk byte offset from header start
- * @sign_type:    Signature type
- * @phhdr_length: Program header with hashes byte size, possibly 0
- * @phhdr_offset: Program header with hashes byte offset, 0 if not used
- * @phhdr_type:   Program header with hash type or 0 if not used
- * @key_length:   Authentication key info byte length, possibly 0
- * @key_offset:   Authentication key info byte offset, 0 if not used
- * @img_length:   Firmware image chunk byte length
- * @img_offset:   Firmware image chunk byte offset
- * @img_type:     Firmware image type
+ * @sign_len:     Signature chunk byte length
+ * @img_len:      Firmware image chunk byte length
+ * @tlv_len:      Generic meta data chunk (TLV format)
+ * @plat_tlv_len: Platform meta data chunk (TLV format)
  */
 struct remoteproc_fw_hdr {
 	uint32_t magic;
 	uint32_t version;
-	uint32_t hdr_length;
-	uint32_t sign_length;
-	uint32_t sign_offset;
-	uint32_t sign_type;
-	uint32_t phhdr_length;
-	uint32_t phhdr_offset;
-	uint32_t phhdr_type;
-	uint32_t key_length;
-	uint32_t key_offset;
-	uint32_t img_length;
-	uint32_t img_offset;
-	uint32_t img_type;
+	uint32_t sign_len;
+	uint32_t img_len;
+	uint32_t tlv_len;
+	uint32_t plat_tlv_len;
 };
+
+#define FW_SIGN_OFFSET(fw_img, hdr)	((fw_img) + sizeof(*(hdr)))
+#define FW_IMG_OFFSET(fw_img, hdr)	(FW_SIGN_OFFSET((fw_img), (hdr)) +    \
+					 U64_ALIGN_SZ(hdr->sign_len))
+#define FW_TLV_OFFSET(fw_img, hdr)	(FW_IMG_OFFSET((fw_img), (hdr)) +     \
+					 U64_ALIGN_SZ(hdr->img_len))
+#define FW_PTLV_OFFSET(fw_img, hdr)	(FW_TLV_OFFSET((fw_img), (hdr)) +     \
+					 U64_ALIGN_SZ(hdr->tlv_len))
 
 /*
  * struct remoteproc_sig_algo - signature algorithm information
@@ -122,9 +184,12 @@ struct remoteproc_sig_algo {
 /*
  * struct remoteproc_context - firmware context
  * @fw_id:       Unique Id of the firmware
- * @hdr:         Location of a secure copy of the firmware header
+ * @hdr:         Location of a secure copy of the firmware header and signature
+ * @tlr:         Location of a secure copy of the firmware trailer
  * @fw_img:      Firmware image
  * @fw_img_size: Byte size of the firmware image
+ * @hash_table:  Location of a copy of the segment's hash table
+ * @nb_segment:  number of segment to load
  * @rsc_pa:      Physical address of the firmware resource table
  * @rsc_size:    Byte size of the firmware resource table
  * @state:       Remote-processor state
@@ -135,8 +200,11 @@ struct remoteproc_sig_algo {
 struct remoteproc_context {
 	uint32_t fw_id;
 	struct remoteproc_fw_hdr *hdr;
+	uint8_t *tlr;
 	uint8_t *fw_img;
 	size_t fw_img_size;
+	struct remoteproc_segment *hash_table;
+	uint32_t nb_segment;
 	paddr_t rsc_pa;
 	uint32_t rsc_size;
 	enum remoteproc_state state;
@@ -170,18 +238,10 @@ static void remoteproc_header_dump(struct remoteproc_fw_hdr __maybe_unused *hdr)
 {
 	DMSG("magic :\t%#"PRIx32, hdr->magic);
 	DMSG("version :\t%#"PRIx32, hdr->version);
-	DMSG("hdr_length :\t%#"PRIx32, hdr->hdr_length);
-	DMSG("sign_length :\t%#"PRIx32, hdr->sign_length);
-	DMSG("sign_offset :\t%#"PRIx32, hdr->sign_offset);
-	DMSG("sign_type :\t%#"PRIx32, hdr->sign_type);
-	DMSG("phhdr_length :\t%#"PRIx32, hdr->phhdr_length);
-	DMSG("phhdr_offset :\t%#"PRIx32, hdr->phhdr_offset);
-	DMSG("phhdr_type :\t%#"PRIx32, hdr->phhdr_type);
-	DMSG("key_length :\t%#"PRIx32, hdr->key_length);
-	DMSG("key_offset :\t%#"PRIx32, hdr->key_offset);
-	DMSG("img_length :\t%#"PRIx32, hdr->img_length);
-	DMSG("img_offset :\t%#"PRIx32, hdr->img_offset);
-	DMSG("img_type :\t%#"PRIx32, hdr->img_type);
+	DMSG("sign_len :\t%#"PRIx32, hdr->sign_len);
+	DMSG("img_len :\t%#"PRIx32, hdr->img_len);
+	DMSG("tlv_len :\t%#"PRIx32, hdr->tlv_len);
+	DMSG("plat_tlv_len :\t%#"PRIx32, hdr->plat_tlv_len);
 }
 
 static TEE_Result __maybe_unused
@@ -269,23 +329,32 @@ static TEE_Result remoteproc_pta_verify(struct remoteproc_context *ctx,
 					       TEE_PARAM_TYPE_MEMREF_INPUT,
 					       TEE_PARAM_TYPE_MEMREF_INPUT);
 	TEE_Param params[TEE_NUM_PARAMS] = { };
+	size_t length = 0;
+	uint8_t *tlv_keyinfo = NULL;
+	uint8_t *sign = NULL;
 
-	keyinfo = TEE_Malloc(sizeof(*keyinfo) + hdr->key_length, 0);
+	res = remoteproc_get_tlv(ctx->tlr, RPROC_TLV_PKEYINFO, &tlv_keyinfo,
+				 &length);
+	if (res != TEE_SUCCESS && res != TEE_ERROR_NO_DATA)
+		return res;
+
+	keyinfo = TEE_Malloc(sizeof(*keyinfo) + length, TEE_MALLOC_FILL_ZERO);
 	if (!keyinfo)
 		return TEE_ERROR_OUT_OF_MEMORY;
 
 	keyinfo->algo = algo->id;
-	keyinfo->info_size = hdr->key_length;
-	memcpy(keyinfo->info, (uint8_t *)hdr + hdr->key_offset,
-	       hdr->key_length);
+	keyinfo->info_size = length;
+	memcpy(keyinfo->info, tlv_keyinfo, length);
+
+	sign = (uint8_t *)hdr + sizeof(*hdr);
 
 	params[0].value.a = ctx->fw_id;
 	params[1].memref.buffer = keyinfo;
 	params[1].memref.size = RPROC_PTA_GET_KEYINFO_SIZE(keyinfo);
 	params[2].memref.buffer = hash;
 	params[2].memref.size = hash_len;
-	params[3].memref.buffer = (uint8_t *)hdr + hdr->sign_offset;
-	params[3].memref.size = hdr->sign_length;
+	params[3].memref.buffer = sign;
+	params[3].memref.size = hdr->sign_len;
 
 	res = TEE_InvokeTACommand(pta_session, TEE_TIMEOUT_INFINITE,
 				  PTA_REMOTEPROC_VERIFY_DIGEST,
@@ -303,17 +372,44 @@ static TEE_Result remoteproc_save_fw_header(struct remoteproc_context *ctx,
 					    uint32_t fw_orig_size)
 {
 	struct remoteproc_fw_hdr *hdr = fw_orig;
+	uint32_t length = sizeof(*hdr) + hdr->sign_len;
 
 	remoteproc_header_dump(hdr);
 
-	if (fw_orig_size <= sizeof(*hdr) || fw_orig_size <= hdr->hdr_length)
+	if (fw_orig_size <= length || !hdr->sign_len)
 		return TEE_ERROR_CORRUPT_OBJECT;
 
-	ctx->hdr = TEE_Malloc(hdr->hdr_length, TEE_MALLOC_FILL_ZERO);
+	/* Copy the header and the signature chunk in secure memory */
+	ctx->hdr = TEE_Malloc(length, TEE_MALLOC_FILL_ZERO);
 	if (!ctx->hdr)
 		return TEE_ERROR_OUT_OF_MEMORY;
 
-	memcpy(ctx->hdr, fw_orig, hdr->hdr_length);
+	memcpy(ctx->hdr, fw_orig, length);
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result remoteproc_save_fw_trailer(struct remoteproc_context *ctx,
+					     uint8_t *fw_orig,
+					     uint32_t fw_orig_size)
+{
+	struct remoteproc_fw_hdr *hdr = ctx->hdr;
+	uint32_t tlr_size = 0;
+	uint8_t *tlr_orig = NULL;
+
+	tlr_size = U64_ALIGN_SZ(hdr->tlv_len) +
+		   U64_ALIGN_SZ(hdr->plat_tlv_len);
+
+	if (fw_orig_size <= tlr_size || !tlr_size)
+		return TEE_ERROR_CORRUPT_OBJECT;
+
+	tlr_orig = FW_TLV_OFFSET(fw_orig, hdr);
+
+	ctx->tlr = TEE_Malloc(tlr_size, TEE_MALLOC_FILL_ZERO);
+	if (!ctx->tlr)
+		return TEE_ERROR_OUT_OF_MEMORY;
+
+	memcpy(ctx->tlr, tlr_orig, tlr_size);
 
 	return TEE_SUCCESS;
 }
@@ -324,18 +420,27 @@ static TEE_Result remoteproc_verify_signature(struct remoteproc_context *ctx)
 	struct remoteproc_fw_hdr *hdr = ctx->hdr;
 	const struct remoteproc_sig_algo  *algo = NULL;
 	TEE_Result res = TEE_ERROR_GENERIC;
+	uint8_t *tlv_sign_algo = NULL;
+	size_t length = 0;
 	char *hash = NULL;
 	uint32_t hash_len = 0;
 
-	algo = remoteproc_get_algo(hdr->sign_type);
+	/* Get the algo type from TLV data */
+	res = remoteproc_get_tlv(ctx->tlr, RPROC_TLV_SIGNTYPE,
+				 &tlv_sign_algo, &length);
+
+	if (res != TEE_SUCCESS || length != RPROC_TLV_SIGNTYPE_LGTH)
+		return TEE_ERROR_CORRUPT_OBJECT;
+
+	algo = remoteproc_get_algo(*tlv_sign_algo);
 	if (!algo) {
-		EMSG("Unsupported signature type %d", hdr->sign_type);
+		EMSG("Unsupported signature type %d", *tlv_sign_algo);
 		return TEE_ERROR_NOT_SUPPORTED;
 	}
 
-	/* Compute the header hash */
+	/* Compute the header and trailer hashes */
 	hash_len = algo->hash_len;
-	hash = TEE_Malloc(hash_len, 0);
+	hash = TEE_Malloc(hash_len, TEE_MALLOC_FILL_ZERO);
 	if (!hash)
 		return TEE_ERROR_OUT_OF_MEMORY;
 
@@ -343,7 +448,11 @@ static TEE_Result remoteproc_verify_signature(struct remoteproc_context *ctx)
 	if (res != TEE_SUCCESS)
 		goto free_hash;
 
-	res = TEE_DigestDoFinal(op, hdr, hdr->sign_offset, hash, &hash_len);
+	TEE_DigestUpdate(op, hdr, sizeof(*hdr));
+	res = TEE_DigestDoFinal(op, ctx->tlr, U64_ALIGN_SZ(hdr->tlv_len) +
+				U64_ALIGN_SZ(hdr->plat_tlv_len),
+				hash, &hash_len);
+
 	if (res != TEE_SUCCESS)
 		goto out;
 
@@ -364,12 +473,11 @@ free_hash:
 	return res;
 }
 
-static TEE_Result remoteproc_verify_header(struct remoteproc_context *ctx)
+static TEE_Result remoteproc_verify_header(struct remoteproc_context *ctx,
+					   uint32_t fw_orig_size)
 {
 	struct remoteproc_fw_hdr *hdr = ctx->hdr;
-	uint32_t hdr_size = 0;
-	uint32_t chunk_size = 0;
-	uint32_t alignment = 0;
+	uint32_t size = 0;
 
 	if (hdr->magic != RPROC_HDR_MAGIC)
 		return TEE_ERROR_CORRUPT_OBJECT;
@@ -378,33 +486,50 @@ static TEE_Result remoteproc_verify_header(struct remoteproc_context *ctx)
 		return TEE_ERROR_CORRUPT_OBJECT;
 
 	/*
-	 * The offsets are aligned to 64 bits format. The hdr_length takes into
-	 * account these alignments while the length of each chunks are the
-	 * effective length,excluding the alignment padding bytes.
+	 * The offsets are aligned to 64 bits format. While the length of each
+	 * chunks are the effective length, excluding the alignment padding
+	 * bytes.
 	 */
-	alignment = hdr->sign_length % sizeof(uint64_t) +
-		    hdr->phhdr_length % sizeof(uint64_t) +
-		    hdr->key_length % sizeof(uint64_t);
-
-	if (ADD_OVERFLOW(sizeof(*hdr), hdr->sign_length, &hdr_size) ||
-	    ADD_OVERFLOW(hdr_size, hdr->phhdr_length, &hdr_size) ||
-	    ADD_OVERFLOW(hdr_size, hdr->key_length, &hdr_size) ||
-	    ADD_OVERFLOW(hdr_size, alignment, &hdr_size) ||
-	    hdr->hdr_length != hdr_size)
+	if (ADD_OVERFLOW(sizeof(*hdr), U64_ALIGN_SZ(hdr->sign_len), &size) ||
+	    ADD_OVERFLOW(size, U64_ALIGN_SZ(hdr->img_len), &size) ||
+	    ADD_OVERFLOW(size, U64_ALIGN_SZ(hdr->tlv_len), &size) ||
+	    ADD_OVERFLOW(size, U64_ALIGN_SZ(hdr->plat_tlv_len), &size) ||
+	    fw_orig_size != size)
 		return TEE_ERROR_CORRUPT_OBJECT;
 
-	if (ADD_OVERFLOW(hdr->sign_offset, hdr->sign_length, &chunk_size) ||
-	    chunk_size > hdr_size ||
-	    ADD_OVERFLOW(hdr->key_offset, hdr->key_length, &chunk_size) ||
-	    chunk_size > hdr_size ||
-	    ADD_OVERFLOW(hdr->phhdr_offset, hdr->phhdr_length, &chunk_size) ||
-	    chunk_size > hdr_size)
+	return TEE_SUCCESS;
+}
+
+static TEE_Result remoteproc_verify_trailer(struct remoteproc_context *ctx)
+{
+	struct remoteproc_fw_hdr *hdr = ctx->hdr;
+	struct remoteproc_tlv_hr *tlv_hdr = NULL;
+	uint32_t size = 0;
+
+	/* The TLV chunk is at the beginning of the trailer */
+	tlv_hdr = (struct remoteproc_tlv_hr *)(void *)ctx->tlr;
+
+	if (tlv_hdr->magic != TLV_INFO_MAGIC)
 		return TEE_ERROR_CORRUPT_OBJECT;
 
-	if (hdr->phhdr_length % sizeof(struct remoteproc_segment))
+	if (hdr->tlv_len != (uint32_t)(tlv_hdr->size) + sizeof(*tlv_hdr))
 		return TEE_ERROR_CORRUPT_OBJECT;
 
-	return remoteproc_verify_signature(ctx);
+	/* An optional platform TLV chunk can follow the TLV chunk */
+	if (!hdr->plat_tlv_len)
+		return TEE_SUCCESS;
+
+	tlv_hdr = (struct remoteproc_tlv_hr *)(void *)
+		  (ctx->tlr + U64_ALIGN_SZ(hdr->tlv_len));
+
+	if (tlv_hdr->magic != PLAT_TLV_INFO_MAGIC)
+		return TEE_ERROR_CORRUPT_OBJECT;
+
+	if (ADD_OVERFLOW(sizeof(*tlv_hdr), (uint32_t)tlv_hdr->size, &size) ||
+	    hdr->plat_tlv_len  != size)
+		return TEE_ERROR_CORRUPT_OBJECT;
+
+	return TEE_SUCCESS;
 }
 
 static TEE_Result get_rproc_pta_capabilities(struct remoteproc_context *ctx)
@@ -455,18 +580,36 @@ static TEE_Result remoteproc_verify_firmware(struct remoteproc_context *ctx,
 	if (res)
 		return res;
 
-	res = remoteproc_verify_header(ctx);
+	res = remoteproc_verify_header(ctx, fw_orig_size);
 	if (res)
 		goto free_hdr;
 
+	res = remoteproc_save_fw_trailer(ctx, fw_orig, fw_orig_size);
+	if (res)
+		goto free_hdr;
+
+	res = remoteproc_verify_trailer(ctx);
+	if (res)
+		goto free_tlr;
+
+	res = remoteproc_verify_signature(ctx);
+	if (res)
+		goto free_tlr;
+
 	/* Store location of the loadable binary in non-secure memory */
 	hdr = ctx->hdr;
-	ctx->fw_img_size = hdr->img_length;
-	ctx->fw_img = fw_orig + hdr->img_offset;
+	ctx->fw_img_size = hdr->img_len;
+	ctx->fw_img = fw_orig + sizeof(*hdr) + hdr->sign_len;
 
 	DMSG("Firmware image addr: %p size: %zu", ctx->fw_img,
 	     ctx->fw_img_size);
 
+	/* TODO:  transmit to the PTA the platform tlv chunk */
+
+	return res;
+
+free_tlr:
+	TEE_Free(ctx->tlr);
 free_hdr:
 	TEE_Free(ctx->hdr);
 
@@ -482,6 +625,12 @@ static paddr_t remoteproc_da_to_pa(uint32_t da, uint32_t size, void *priv)
 					       TEE_PARAM_TYPE_VALUE_OUTPUT);
 	TEE_Param params[TEE_NUM_PARAMS] = { };
 	TEE_Result res = TEE_ERROR_GENERIC;
+
+	/*
+	 * The elf file contains remote processor device addresses, that refer
+	 * to the remote processor memory space.
+	 * A translation is needed to get the corresponding physical address.
+	 */
 
 	params[0].value.a = ctx->fw_id;
 	params[1].value.a = da;
@@ -526,16 +675,41 @@ static TEE_Result remoteproc_parse_rsc_table(struct remoteproc_context *ctx)
 	return TEE_SUCCESS;
 }
 
+static TEE_Result get_hash_table(struct remoteproc_context *ctx)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+	uint8_t *tlv_hash = NULL;
+	struct remoteproc_segment *hash_table = NULL;
+	size_t length = 0;
+
+	/* Get the hash table from TLV data */
+	res = remoteproc_get_tlv(ctx->tlr, RPROC_TLV_HASHTABLE,
+				 &tlv_hash, &length);
+	if (res || (length % sizeof(struct remoteproc_segment)))
+		return res;
+
+	/* We can not ensure that  tlv_hash is memory aligned so make a copy */
+	hash_table = TEE_Malloc(length, TEE_MALLOC_FILL_ZERO);
+	if (!hash_table)
+		return TEE_ERROR_OUT_OF_MEMORY;
+
+	memcpy(hash_table, tlv_hash, length);
+
+	ctx->hash_table = hash_table;
+	ctx->nb_segment = length / sizeof(struct remoteproc_segment);
+
+	return TEE_SUCCESS;
+}
+
 static TEE_Result get_segment_hash(struct remoteproc_context *ctx, uint8_t *src,
 				   uint32_t size, uint32_t da,
 				   uint32_t mem_size, unsigned char **hash)
 {
-	struct remoteproc_fw_hdr *hdr = ctx->hdr;
 	struct remoteproc_segment *peh = NULL;
 	unsigned int i = 0;
-	unsigned int nb_entry = hdr->phhdr_length / sizeof(*peh);
+	unsigned int nb_entry = ctx->nb_segment;
 
-	peh = (void *)((uint8_t *)hdr + hdr->phhdr_offset);
+	peh = (void *)(ctx->hash_table);
 
 	for (i = 0; i < nb_entry; peh++, i++) {
 		if (peh->phdr.p_paddr != da)
@@ -635,8 +809,16 @@ static TEE_Result remoteproc_load_elf(struct remoteproc_context *ctx)
 		return res;
 	}
 
-	return e32_parser_load_elf_image(ctx->fw_img, ctx->fw_img_size,
-					 remoteproc_load_segment, ctx);
+	res = get_hash_table(ctx);
+	if (res)
+		return res;
+
+	res = e32_parser_load_elf_image(ctx->fw_img, ctx->fw_img_size,
+					remoteproc_load_segment, ctx);
+
+	TEE_Free(ctx->hash_table);
+
+	return res;
 }
 
 static TEE_Result remoteproc_load_fw(uint32_t pt,
@@ -688,6 +870,11 @@ out:
 	/* Clear reference to firmware image from shared memory */
 	ctx->fw_img = NULL;
 	ctx->fw_img_size =  0;
+	ctx->nb_segment =  0;
+
+	/* Free allocated memories */
+	TEE_Free(ctx->hdr);
+	TEE_Free(ctx->tlr);
 
 	return res;
 }
