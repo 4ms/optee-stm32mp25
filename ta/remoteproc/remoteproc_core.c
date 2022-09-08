@@ -26,7 +26,7 @@
  * +-----------+          | sign size   |   size of the signature
  * |   Header  |          +-------------+   (in bytes, 64-bit aligned)
  * +-----------+          +-------------+
- *              \         | image size  |   size of the image to load
+ *              \         | images size |   total size of the images to load
  *               \        +-------------+   (in bytes, 64-bit aligned)
  *                \       +-------------+
  *                 \      |  TLV size   |   Generic TLV size
@@ -85,7 +85,8 @@ enum remoteproc_sign_type {
 };
 
 enum remoteproc_img_type {
-	RPROC_ELF_TYPE = 1,
+	REMOTEPROC_ELF_TYPE = 1,
+	REMOTEPROC_INVALID_TYPE = 0xFF
 };
 
 /* remoteproc_tlv structure offsets */
@@ -98,7 +99,9 @@ enum remoteproc_img_type {
 /* TLV types */
 #define RPROC_TLV_SIGNTYPE	U(0x01)
 #define RPROC_TLV_HASHTYPE	U(0x02)
-#define RPROC_TLV_IMGTYPE	U(0x03)
+#define RPROC_TLV_NUM_IMG	U(0x03)
+#define RPROC_TLV_IMGTYPE	U(0x04)
+#define RPROC_TLV_IMGSIZE	U(0x05)
 #define RPROC_TLV_HASHTABLE	U(0x10)
 #define RPROC_TLV_PKEYINFO	U(0x11)
 
@@ -187,7 +190,7 @@ struct remoteproc_sig_algo {
  * @hdr:         Location of a secure copy of the firmware header and signature
  * @tlr:         Location of a secure copy of the firmware trailer
  * @fw_img:      Firmware image
- * @fw_img_size: Byte size of the firmware image
+ * @fw_img_sz:   Byte size of the firmware image
  * @hash_table:  Location of a copy of the segment's hash table
  * @nb_segment:  number of segment to load
  * @rsc_pa:      Physical address of the firmware resource table
@@ -202,7 +205,7 @@ struct remoteproc_context {
 	struct remoteproc_fw_hdr *hdr;
 	uint8_t *tlr;
 	uint8_t *fw_img;
-	size_t fw_img_size;
+	size_t fw_img_sz;
 	struct remoteproc_segment *hash_table;
 	uint32_t nb_segment;
 	paddr_t rsc_pa;
@@ -598,11 +601,11 @@ static TEE_Result remoteproc_verify_firmware(struct remoteproc_context *ctx,
 
 	/* Store location of the loadable binary in non-secure memory */
 	hdr = ctx->hdr;
-	ctx->fw_img_size = hdr->img_len;
+	ctx->fw_img_sz = hdr->img_len;
 	ctx->fw_img = fw_orig + sizeof(*hdr) + hdr->sign_len;
 
 	DMSG("Firmware image addr: %p size: %zu", ctx->fw_img,
-	     ctx->fw_img_size);
+	     ctx->fw_img_sz);
 
 	/* TODO:  transmit to the PTA the platform tlv chunk */
 
@@ -652,7 +655,7 @@ static TEE_Result remoteproc_parse_rsc_table(struct remoteproc_context *ctx)
 	uint32_t da = 0;
 	TEE_Result res = TEE_ERROR_GENERIC;
 
-	res = e32_parser_find_rsc_table(ctx->fw_img, ctx->fw_img_size,
+	res = e32_parser_find_rsc_table(ctx->fw_img, ctx->fw_img_sz,
 					&da, &ctx->rsc_size);
 	if (res == TEE_ERROR_NO_DATA) {
 		/* Firmware without resource table */
@@ -682,7 +685,7 @@ static TEE_Result get_hash_table(struct remoteproc_context *ctx)
 	struct remoteproc_segment *hash_table = NULL;
 	size_t length = 0;
 
-	/* Get the hash table from TLV data */
+	/* Get the segment's hash table from TLV data */
 	res = remoteproc_get_tlv(ctx->tlr, RPROC_TLV_HASHTABLE,
 				 &tlv_hash, &length);
 	if (res || (length % sizeof(struct remoteproc_segment)))
@@ -697,6 +700,44 @@ static TEE_Result get_hash_table(struct remoteproc_context *ctx)
 
 	ctx->hash_table = hash_table;
 	ctx->nb_segment = length / sizeof(struct remoteproc_segment);
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result get_tlv_images_type(struct remoteproc_context *ctx,
+				      uint8_t num_img, uint8_t idx,
+				      uint8_t *img_type)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+	uint8_t *tlv_value = NULL;
+	size_t length = 0;
+
+	/* Get the type of the image to load, from TLV data */
+	res = remoteproc_get_tlv(ctx->tlr, RPROC_TLV_IMGTYPE,
+				 &tlv_value, &length);
+	if (res || length != (sizeof(*img_type) * num_img))
+		return res;
+
+	*img_type = tlv_value[idx];
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result get_tlv_images_size(struct remoteproc_context *ctx,
+				      uint8_t num_img, uint8_t idx,
+				      uint32_t *img_size)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+	uint8_t *tlv_value = NULL;
+	size_t length = 0;
+
+	/* Get the size of the image to load, from TLV data */
+	res = remoteproc_get_tlv(ctx->tlr, RPROC_TLV_IMGSIZE,
+				 &tlv_value, &length);
+	if (res || length != (sizeof(*img_size) * num_img))
+		return res;
+
+	*img_size = LE32_TO_CPU(&tlv_value[sizeof(*img_size) * idx]);
 
 	return TEE_SUCCESS;
 }
@@ -726,7 +767,8 @@ static TEE_Result get_segment_hash(struct remoteproc_context *ctx, uint8_t *src,
 		if (peh->phdr.p_filesz != size || peh->phdr.p_memsz != mem_size)
 			return TEE_ERROR_CORRUPT_OBJECT;
 
-		if ((Elf32_Off)(src - ctx->fw_img) !=  peh->phdr.p_offset)
+		if (src < ctx->fw_img ||
+		    (src + peh->phdr.p_filesz) > (ctx->fw_img + ctx->fw_img_sz))
 			return TEE_ERROR_CORRUPT_OBJECT;
 
 		*hash = peh->hash;
@@ -802,8 +844,14 @@ static TEE_Result remoteproc_load_segment(uint8_t *src, uint32_t size,
 static TEE_Result remoteproc_load_elf(struct remoteproc_context *ctx)
 {
 	TEE_Result res = TEE_ERROR_GENERIC;
+	uint8_t num_img = 0, i = 0;
+	uint8_t img_type = REMOTEPROC_INVALID_TYPE;
+	uint32_t img_size = 0;
+	uint8_t *tlv = NULL;
+	int32_t offset = 0;
+	size_t length = 0;
 
-	res = e32_parse_ehdr(ctx->fw_img, ctx->fw_img_size);
+	res = e32_parse_ehdr(ctx->fw_img, ctx->fw_img_sz);
 	if (res) {
 		EMSG("Failed to parse firmware, res = %#"PRIx32, res);
 		return res;
@@ -813,9 +861,41 @@ static TEE_Result remoteproc_load_elf(struct remoteproc_context *ctx)
 	if (res)
 		return res;
 
-	res = e32_parser_load_elf_image(ctx->fw_img, ctx->fw_img_size,
-					remoteproc_load_segment, ctx);
+	/* Get the number of firmwares to load */
 
+	res = remoteproc_get_tlv(ctx->tlr, RPROC_TLV_NUM_IMG,
+				 &tlv, &length);
+	if (res)
+		goto out;
+	if (length != sizeof(uint8_t)) {
+		res = TEE_ERROR_BAD_FORMAT;
+		goto out;
+	}
+
+	num_img = *tlv;
+
+	for (i = 0; i < num_img; i++) {
+		res = get_tlv_images_type(ctx, num_img, i, &img_type);
+		if (res)
+			goto out;
+		if (img_type != REMOTEPROC_ELF_TYPE) {
+			res = TEE_ERROR_BAD_FORMAT;
+			goto out;
+		}
+
+		res = get_tlv_images_size(ctx, num_img, i, &img_size);
+		if (res)
+			goto out;
+
+		res = e32_parser_load_elf_image(ctx->fw_img + offset, img_size,
+						remoteproc_load_segment, ctx);
+		if (res)
+			goto out;
+		offset += img_size;
+	}
+
+out:
+	/* TODO: clean-up the memories in case of fail */
 	TEE_Free(ctx->hash_table);
 
 	return res;
@@ -869,7 +949,7 @@ static TEE_Result remoteproc_load_fw(uint32_t pt,
 out:
 	/* Clear reference to firmware image from shared memory */
 	ctx->fw_img = NULL;
-	ctx->fw_img_size =  0;
+	ctx->fw_img_sz =  0;
 	ctx->nb_segment =  0;
 
 	/* Free allocated memories */
