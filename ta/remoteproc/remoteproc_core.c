@@ -650,32 +650,37 @@ static paddr_t remoteproc_da_to_pa(uint32_t da, uint32_t size, void *priv)
 	return (paddr_t)reg_pair_to_64(params[3].value.b, params[3].value.a);
 }
 
-static TEE_Result remoteproc_parse_rsc_table(struct remoteproc_context *ctx)
+static TEE_Result remoteproc_parse_rsc_table(struct remoteproc_context *ctx,
+					     uint8_t *fw_img, size_t fw_img_sz,
+					     paddr_t *rsc_pa,
+					     uint32_t *rsc_size)
 {
 	uint32_t da = 0;
 	TEE_Result res = TEE_ERROR_GENERIC;
 
-	res = e32_parser_find_rsc_table(ctx->fw_img, ctx->fw_img_sz,
-					&da, &ctx->rsc_size);
-	if (res == TEE_ERROR_NO_DATA) {
-		/* Firmware without resource table */
-		ctx->rsc_size = 0;
-		ctx->rsc_pa = 0;
-		return TEE_SUCCESS;
-	}
+	res = e32_parser_find_rsc_table(fw_img, fw_img_sz,
+					&da, rsc_size);
 	if (res)
-		return res;
+		goto out;
 
 	if (da) {
-		DMSG("Resource table device address %#"PRIx32" size %x",
-		     da, ctx->rsc_size);
+		DMSG("Resource table device address %#"PRIx32" size %#"PRIx32,
+		     da, *rsc_size);
 
-		ctx->rsc_pa = remoteproc_da_to_pa(da, ctx->rsc_size, ctx);
-		if (!ctx->rsc_pa)
-			return TEE_ERROR_ACCESS_DENIED;
+		*rsc_pa = remoteproc_da_to_pa(da, *rsc_size, ctx);
+		if (!*rsc_pa) {
+			res = TEE_ERROR_ACCESS_DENIED;
+			goto out;
+		}
 	}
 
 	return TEE_SUCCESS;
+
+out:
+	*rsc_size = 0;
+	*rsc_pa = 0;
+
+	return res;
 }
 
 static TEE_Result get_hash_table(struct remoteproc_context *ctx)
@@ -850,6 +855,8 @@ static TEE_Result remoteproc_load_elf(struct remoteproc_context *ctx)
 	uint8_t *tlv = NULL;
 	int32_t offset = 0;
 	size_t length = 0;
+	paddr_t rsc_pa = 0;
+	uint32_t rsc_size = 0;
 
 	res = e32_parse_ehdr(ctx->fw_img, ctx->fw_img_sz);
 	if (res) {
@@ -873,6 +880,8 @@ static TEE_Result remoteproc_load_elf(struct remoteproc_context *ctx)
 	}
 
 	num_img = *tlv;
+	ctx->rsc_pa = 0;
+	ctx->rsc_size = 0;
 
 	for (i = 0; i < num_img; i++) {
 		res = get_tlv_images_type(ctx, num_img, i, &img_type);
@@ -891,8 +900,36 @@ static TEE_Result remoteproc_load_elf(struct remoteproc_context *ctx)
 						remoteproc_load_segment, ctx);
 		if (res)
 			goto out;
+
+		/* Take opportunity to get the resource table address */
+		res = remoteproc_parse_rsc_table(ctx, ctx->fw_img + offset,
+						 img_size, &rsc_pa, &rsc_size);
+		if (res != TEE_SUCCESS && res != TEE_ERROR_NO_DATA)
+			goto out;
+
+		if (res != TEE_ERROR_NO_DATA) {
+			/*
+			 * Only one resource table is supported, check that no
+			 * other one has been declared in a previous loaded
+			 * firmware.
+			 */
+			if (ctx->rsc_pa || ctx->rsc_size) {
+				EMSG("More than one resource table found");
+				res = TEE_ERROR_CORRUPT_OBJECT;
+				goto out;
+			}
+			ctx->rsc_pa = rsc_pa;
+			ctx->rsc_size = rsc_size;
+		}
+
 		offset += img_size;
 	}
+
+	/*
+	 * If res == TEE_ERROR_NO_DATA then no resource table found.
+	 * Force to TEE_SUCCESS as the resource table is optional.
+	 */
+	res =  TEE_SUCCESS;
 
 out:
 	/* TODO: clean-up the memories in case of fail */
@@ -941,10 +978,7 @@ static TEE_Result remoteproc_load_fw(uint32_t pt,
 	if (res)
 		goto out;
 
-	/* Take opportunity to get the resource table address */
-	res = remoteproc_parse_rsc_table(ctx);
-	if (res == TEE_SUCCESS)
-		ctx->state = REMOTEPROC_LOADED;
+	ctx->state = REMOTEPROC_LOADED;
 
 out:
 	/* Clear reference to firmware image from shared memory */
