@@ -542,8 +542,11 @@
 		};
 
 		stgenc: stgen@48080000 {
+			compatible = "st,stm32mp25-stgen";
 			reg = <0x48080000 0x1000>;
-			status = "disabled";
+			clocks = <&rcc CK_BUS_STGEN>, <&rcc CK_KER_STGEN>;
+			clock-names = "bus", "tsgen_clk";
+			st,tsgen-clk-source = <&rcc HSE_CK>;
 		};
 
 		fmc: memory-controller@48200000 {
