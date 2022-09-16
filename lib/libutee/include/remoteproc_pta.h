@@ -28,6 +28,16 @@
 /* The platorm is able to change access to secure the firmware input image */
 #define PTA_REMOTEPROC_FW_MEMORY_PROTECTION	BIT32(2)
 
+/* Platform predefined TLV ID */
+/* boot address of secure fw */
+#define PTA_REMOTEPROC_TLV_SBOOTADDR            U(0x21)
+/* boot address of non-secure fw */
+#define PTA_REMOTEPROC_TLV_NSBOOTADDR           U(0x22)
+
+/* Platform predefined TLV LENGTH (byte) */
+#define PTA_REMOTEPROC_TLV_SBOOTADDR_LGTH       U(4)
+#define PTA_REMOTEPROC_TLV_NSBOOTADDR_LGTH      U(4)
+
 /**
  * struct rproc_pta_key_info - public key information
  * @algo:	Algorithm, defined by public key algorithms TEE_ALG_*
@@ -153,5 +163,16 @@ static inline size_t
  * [in]  params[3].memref:	Signature of the firmware authenticated data
  */
 #define PTA_REMOTEPROC_VERIFY_DIGEST	8
+
+/*
+ * Provide platform parameter in Type-Length-Value format
+ *
+ * Return TEE_SUCCESS if the TLV is valid,  else an error
+ *
+ * [in]  params[0].value.a:     Unique 32bit firmware identifier
+ * [in]  params[1].value.a:     16bit Type identifier
+ * [in]  params[2].memref:      Value associated to the type ID
+ */
+#define PTA_REMOTEPROC_TLV_PARAM 9
 
 #endif /* __REMOTEPROC_PTA_H */

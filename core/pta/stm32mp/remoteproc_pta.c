@@ -284,6 +284,45 @@ static TEE_Result rproc_pta_verify_digest(uint32_t pt,
 					      keyinfo->algo);
 }
 
+static TEE_Result rproc_pta_tlv_param(uint32_t pt,
+				      TEE_Param params[TEE_NUM_PARAMS])
+{
+	const uint32_t exp_pt = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INPUT,
+						TEE_PARAM_TYPE_VALUE_INPUT,
+						TEE_PARAM_TYPE_MEMREF_INPUT,
+						TEE_PARAM_TYPE_NONE);
+	uint32_t type_id = 0;
+	uint32_t *paddr = 0;
+
+	if (pt != exp_pt)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	if (rproc_ta_state != REMOTEPROC_OFF)
+		return TEE_ERROR_BAD_STATE;
+
+	type_id = params[1].value.a;
+
+	switch (type_id) {
+	case PTA_REMOTEPROC_TLV_SBOOTADDR:
+		if (params[2].memref.size != PTA_REMOTEPROC_TLV_SBOOTADDR_LGTH)
+			return TEE_ERROR_CORRUPT_OBJECT;
+		paddr = params[2].memref.buffer;
+		return stm32_rproc_set_boot_address(params[0].value.a,
+						   *paddr, true);
+
+	case PTA_REMOTEPROC_TLV_NSBOOTADDR:
+		if (params[2].memref.size != PTA_REMOTEPROC_TLV_NSBOOTADDR_LGTH)
+			return TEE_ERROR_CORRUPT_OBJECT;
+		paddr = params[2].memref.buffer;
+		return stm32_rproc_set_boot_address(params[0].value.a,
+						   *paddr, false);
+	default:
+		break;
+	}
+
+	return TEE_ERROR_NOT_IMPLEMENTED;
+}
+
 static TEE_Result rproc_pta_invoke_command(void *pSessionContext __unused,
 					   uint32_t cmd_id,
 					   uint32_t param_types,
@@ -304,6 +343,8 @@ static TEE_Result rproc_pta_invoke_command(void *pSessionContext __unused,
 		return rproc_pta_da_to_pa(param_types, params);
 	case PTA_REMOTEPROC_VERIFY_DIGEST:
 		return rproc_pta_verify_digest(param_types, params);
+	case PTA_REMOTEPROC_TLV_PARAM:
+		return rproc_pta_tlv_param(param_types, params);
 	default:
 		break;
 	}
