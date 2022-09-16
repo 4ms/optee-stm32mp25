@@ -558,6 +558,47 @@ static TEE_Result get_rproc_pta_capabilities(struct remoteproc_context *ctx)
 	return TEE_SUCCESS;
 }
 
+static TEE_Result remoteproc_set_platform_tlv(struct remoteproc_context *ctx)
+{
+	const uint32_t  exp_pt = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INPUT,
+						 TEE_PARAM_TYPE_VALUE_INPUT,
+						 TEE_PARAM_TYPE_MEMREF_INPUT,
+						 TEE_PARAM_TYPE_NONE);
+	TEE_Param params[TEE_NUM_PARAMS] = { };
+	struct remoteproc_tlv_hr *tlv_hdr = NULL;
+	void *tlv_chunk = NULL;
+	uint8_t *p_tlv = NULL;
+	uint8_t *p_end_tlv = NULL;
+	uint16_t tlv_length = 0;
+	TEE_Result res = TEE_ERROR_GENERIC;
+
+	tlv_chunk = (void *)(ctx->tlr + U64_ALIGN_SZ(ctx->hdr->tlv_len));
+	tlv_hdr = tlv_chunk;
+	p_tlv =  (uint8_t *)tlv_chunk + sizeof(struct remoteproc_tlv_hr);
+	p_end_tlv = p_tlv + tlv_hdr->size;
+
+	params[0].value.a = ctx->fw_id;
+
+	/* Parse the tlv area */
+	while (p_tlv < p_end_tlv) {
+		params[1].value.a  = LE16_TO_CPU(p_tlv);
+		tlv_length = LE16_TO_CPU(&p_tlv[RPROC_TLV_LENGTH_OF]);
+		params[2].memref.size = tlv_length;
+		params[2].memref.buffer = &p_tlv[RPROC_TLV_VALUE_OF];
+
+		res = TEE_InvokeTACommand(pta_session, TEE_TIMEOUT_INFINITE,
+					  PTA_REMOTEPROC_TLV_PARAM,
+					   exp_pt, params, NULL);
+		if (res)
+			return res;
+
+		p_tlv += U64_ALIGN_SZ(sizeof(struct remoteproc_tlv) +
+				      tlv_length);
+	}
+
+	return TEE_SUCCESS;
+}
+
 static TEE_Result remoteproc_verify_firmware(struct remoteproc_context *ctx,
 					     uint8_t *fw_orig,
 					     uint32_t fw_orig_size)
@@ -599,6 +640,11 @@ static TEE_Result remoteproc_verify_firmware(struct remoteproc_context *ctx,
 	if (res)
 		goto free_tlr;
 
+	/* TODO:  transmit to the PTA the platform tlv chunk */
+	res = remoteproc_set_platform_tlv(ctx);
+	if (res)
+		goto free_tlr;
+
 	/* Store location of the loadable binary in non-secure memory */
 	hdr = ctx->hdr;
 	ctx->fw_img_sz = hdr->img_len;
@@ -606,8 +652,6 @@ static TEE_Result remoteproc_verify_firmware(struct remoteproc_context *ctx,
 
 	DMSG("Firmware image addr: %p size: %zu", ctx->fw_img,
 	     ctx->fw_img_sz);
-
-	/* TODO:  transmit to the PTA the platform tlv chunk */
 
 	return res;
 
