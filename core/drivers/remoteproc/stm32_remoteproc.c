@@ -4,6 +4,7 @@
  */
 
 #include <assert.h>
+#include <config.h>
 #include <drivers/rstctrl.h>
 #include <drivers/stm32_remoteproc.h>
 #include <kernel/cache_helpers.h>
@@ -38,6 +39,8 @@ struct stm32_rproc_mem {
  * @mcu_rst:	reset control
  * @hold_boot:	hold boot control
  * @nregions:   number of memory regions
+ * sboot_addr:	secure boot address
+ * nsboot_addr: non secure boot address
  */
 struct stm32_rproc_instance {
 	const struct stm32_rproc_compat_data *cdata;
@@ -46,6 +49,8 @@ struct stm32_rproc_instance {
 	struct rstctrl *mcu_rst;
 	struct rstctrl *hold_boot;
 	size_t nregions;
+	paddr_t sboot_addr;
+	paddr_t nsboot_addr;
 };
 
 /**
@@ -81,6 +86,14 @@ TEE_Result stm32_rproc_start(uint32_t firmware_id)
 	if (!rproc || !rproc->hold_boot)
 		return TEE_ERROR_CORRUPT_OBJECT;
 
+	if (!rproc->sboot_addr && !rproc->nsboot_addr)
+		return TEE_ERROR_BAD_STATE;
+
+	if (rproc->sboot_addr)
+		stm32mp_syscfg_write(A35SSC_M33_TZEN_CR,
+				     A35SSC_M33_TZEN_CR_CFG_SECEXT,
+				     A35SSC_M33_TZEN_CR_CFG_SECEXT);
+
 	/*
 	 * The firmware is started by deasserting the hold boot and
 	 * asserting back to avoid auto restart on a crash.
@@ -112,6 +125,13 @@ static TEE_Result __stm32_rproc_stop(struct stm32_rproc_instance *rproc)
 	res = rstctrl_assert_to(rproc->mcu_rst, TIMEOUT_US_1MS);
 	if (res)
 		return res;
+
+	 /* Disable the trustzone */
+	stm32mp_syscfg_write(A35SSC_M33_TZEN_CR, 0,
+			     A35SSC_M33_TZEN_CR_CFG_SECEXT);
+
+	rproc->sboot_addr = 0;
+	rproc->nsboot_addr = 0;
 
 	return TEE_SUCCESS;
 }
@@ -165,6 +185,14 @@ TEE_Result stm32_rproc_map(uint32_t firmware_id, paddr_t pa, size_t size,
 		    (pa + size) > (mems[i].addr + mems[i].size))
 			continue;
 
+		/*
+		 * Only secure part is tested, the non-secure is not tested
+		 * as it is not possible to distinguish the FW memory from
+		 * the shared memory. The shared memory could be used by
+		 * the secure firmware.
+		 */
+		if (mems[i].sec_mem && !rproc->sboot_addr)
+			return	TEE_ERROR_CORRUPT_OBJECT;
 		/*
 		 * TODO: get memory RIF access right to determine the type.
 		 * The type is forced  to MEM_AREA_RAM_NSEC
@@ -270,6 +298,46 @@ TEE_Result stm32_rproc_mem_protect(uint32_t firmware_id,
 	return TEE_SUCCESS;
 }
 
+TEE_Result stm32_rproc_set_boot_address(uint32_t firmware_id,
+					paddr_t address, bool secure)
+{
+	struct stm32_rproc_instance *rproc = stm32_rproc_get(firmware_id);
+	struct stm32_rproc_mem *regions = NULL;
+	size_t i = 0;
+
+	if (!rproc)
+		return TEE_ERROR_CORRUPT_OBJECT;
+
+	regions = rproc->regions;
+
+	/* Check that the boot address is in declared regions */
+	for (i = 0; i < rproc->nregions; i++) {
+		if (address < regions[i].addr ||
+		    address > regions[i].addr + regions[i].size)
+			continue;
+
+		if ((!secure && regions[i].sec_mem) ||
+		    (secure && !regions[i].sec_mem))
+			return	TEE_ERROR_CORRUPT_OBJECT;
+
+		if (secure) {
+			stm32mp_syscfg_write(A35SSC_M33_INITSVTOR_CR,
+					     address, INITVTOR_MASK);
+			rproc->sboot_addr = address;
+
+		} else {
+			stm32mp_syscfg_write(A35SSC_M33_INITNSVTOR_CR,
+					     address, INITVTOR_MASK);
+			rproc->nsboot_addr = address;
+		}
+		DMSG("Cortex-M33 %ssecure Fw boot address: %#"PRIxPA,
+		     secure ? "" : "non-", address);
+		return TEE_SUCCESS;
+	}
+
+	return TEE_ERROR_CORRUPT_OBJECT;
+}
+
 static TEE_Result stm32_rproc_parse_mems(struct stm32_rproc_instance *rproc,
 					 const void *fdt, int node)
 {
@@ -346,11 +414,9 @@ static void stm32_rproc_cleanup(struct stm32_rproc_instance *rproc)
 static TEE_Result stm32_rproc_probe(const void *fdt, int node,
 				    const void *comp_data __unused)
 {
-	const fdt32_t *fdt_tz = NULL;
-	const fdt32_t *fdt_fw_addr = NULL;
 	struct stm32_rproc_instance *rproc = NULL;
 	TEE_Result res = TEE_ERROR_GENERIC;
-	uint32_t tz = 0;
+	const fdt32_t *fdt_fw_addr = NULL;
 
 	rproc = calloc(1, sizeof(*rproc));
 	if (!rproc)
@@ -392,50 +458,25 @@ static TEE_Result stm32_rproc_probe(const void *fdt, int node,
 			goto err;
 	}
 
-	/* TrustZone */
-	fdt_tz = fdt_getprop(fdt, node, "st,trustzone", NULL);
-	if (fdt_tz)
-		tz = fdt32_to_cpu(*fdt_tz);
-
-	IMSG("Cortex-M33 TrustZone %sable", tz ? "en" : "dis");
-
-	if (fdt_tz)
-		stm32mp_syscfg_write(A35SSC_M33_TZEN_CR,
-				     tz ? A35SSC_M33_TZEN_CR_CFG_SECEXT : 0,
-				     A35SSC_M33_TZEN_CR_CFG_SECEXT);
-
-	/*
-	 * Secure firmware boot address:
-	 * This address is the default boot address of the secure firmware.
-	 * It should point to a memory region that will contain the secure
-	 * firmware.
-	 */
-	if (tz) {
-		fdt_fw_addr = fdt_getprop(fdt, node, "st,s_fw_boot_addr", NULL);
+	if (!IS_ENABLED(CFG_RPROC_PTA)) {
+		/*
+		 * Set a Non-secure firmware boot address
+		 * This is a temporary warkaround to set a default boot address
+		 * for non secure firmware that are loaded by an other component
+		 * than OP-TEE (e.g U-boot, Linux).
+		 * TODO: Suppress DT property and provide acees right to
+		 * A35SSC_M33_INITNSVTOR_CR register to the non secure context
+		 * instead.
+		 */
+		fdt_fw_addr = fdt_getprop(fdt, node, "st,ns_fw_boot_addr",
+					  NULL);
 		if (fdt_fw_addr) {
-			stm32mp_syscfg_write(A35SSC_M33_INITSVTOR_CR,
+			stm32mp_syscfg_write(A35SSC_M33_INITNSVTOR_CR,
 					     fdt32_to_cpu(*fdt_fw_addr),
 					     INITVTOR_MASK);
-			DMSG("Cortex-M33 secure Fw boot address: %#x",
+			DMSG("Cortex-M33 non-secure Fw boot address: %#x",
 			     fdt32_to_cpu(*fdt_fw_addr));
 		}
-	}
-
-	/*
-	 * Non-secure firmware boot address
-	 * This address is the default boot address of the non secure firmware.
-	 * It must point to a memory region that will contain the non secure
-	 * firmware.
-	 * Notice that, if the trustZone is disable, the non secure firmware can
-	 * be loaded by an other component than OP-TEE (e.g U-boot, Linux).
-	 */
-
-	fdt_fw_addr = fdt_getprop(fdt, node, "st,ns_fw_boot_addr", NULL);
-	if (fdt_fw_addr) {
-		stm32mp_syscfg_write(A35SSC_M33_INITNSVTOR_CR,
-				     fdt32_to_cpu(*fdt_fw_addr), INITVTOR_MASK);
-		DMSG("Cortex-M33 non-secure Fw boot address: %#x",
-		     fdt32_to_cpu(*fdt_fw_addr));
 	}
 
 	res = __stm32_rproc_stop(rproc);

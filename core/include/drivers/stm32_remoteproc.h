@@ -33,5 +33,7 @@ TEE_Result stm32_rproc_mem_protect(uint32_t firmware_id, bool secure_access);
 
 TEE_Result stm32_rproc_start(uint32_t firmware_id);
 TEE_Result stm32_rproc_stop(uint32_t firmware_id);
+TEE_Result stm32_rproc_set_boot_address(uint32_t firmware_id,
+					paddr_t address, bool secure);
 
 #endif /* __DRIVERS_STM32_REMOTEPROC_H */
