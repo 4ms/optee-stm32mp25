@@ -12,16 +12,25 @@ try:
 except ImportError:
     print("""
 ***
-ERROR: pyelftools python module is not installed or version < 0.25.
+ERROR: "pyelftools" python module is not installed or version < 0.25.
 ***
 """)
     raise
 
-from Cryptodome.Hash import SHA256
-from Cryptodome.Signature import pkcs1_15
-from Cryptodome.PublicKey import RSA
-from Cryptodome.Signature import DSS
-from Cryptodome.PublicKey import ECC
+try:
+    from Cryptodome.Hash import SHA256
+    from Cryptodome.Signature import pkcs1_15
+    from Cryptodome.PublicKey import RSA
+    from Cryptodome.Signature import DSS
+    from Cryptodome.PublicKey import ECC
+except ImportError:
+    print("""
+***
+ERROR: "pycryptodomex" python module should be installed.
+***
+""")
+    raise
+
 import os
 import sys
 import struct
