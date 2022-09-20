@@ -109,8 +109,9 @@ TEE_Result e32_parser_load_elf_image(uint8_t *fw, size_t fw_size,
 }
 
 /* Helper to find resource table in an ELF image */
-int e32_parser_find_rsc_table(uint8_t *fw, size_t fw_size,
-			      Elf32_Addr *rsc_addr, Elf32_Word *rsc_size)
+TEE_Result e32_parser_find_rsc_table(uint8_t *fw, size_t fw_size,
+				     Elf32_Addr *rsc_addr,
+				     Elf32_Word *rsc_size)
 {
 	Elf32_Shdr *shdr = NULL;
 	int i = 0;

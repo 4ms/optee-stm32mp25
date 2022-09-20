@@ -53,7 +53,8 @@ TEE_Result e32_parser_load_elf_image(uint8_t *fw,  size_t fw_size,
 							    uint32_t mem_size,
 							    void *priv),
 				     void *priv_data);
-int e32_parser_find_rsc_table(uint8_t *fw, size_t fw_size, Elf32_Addr *rsc_addr,
-			      Elf32_Word *rsc_size);
+TEE_Result e32_parser_find_rsc_table(uint8_t *fw, size_t fw_size,
+				     Elf32_Addr *rsc_addr,
+				     Elf32_Word *rsc_size);
 
 #endif /*ELF_PARSER*/
