@@ -166,6 +166,19 @@ TEE_Result stm32_bsec_find_otp_in_nvmem_layout(const char *name,
 					       size_t *otp_bit_len);
 
 /*
+ * Find and get OTP location from its phandle.
+ * @phandle: sub-node phandle to look up.
+ * @otp_id: pointer to read OTP number or NULL.
+ * @otp_bit_offset: pointer to read offset in OTP in bits or NULL.
+ * @otp_bit_len: pointer to read OTP length in bits or NULL.
+ * Return a TEE_Result compliant status
+ */
+TEE_Result stm32_bsec_find_otp_by_phandle(const uint32_t phandle,
+					  uint32_t *otp_id,
+					  uint8_t *otp_bit_offset,
+					  size_t *otp_bit_len);
+
+/*
  * get BSEC global state.
  * @state: global state
  *           [1:0] BSEC state
