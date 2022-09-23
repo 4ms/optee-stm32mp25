@@ -368,6 +368,7 @@ static TEE_Result stm32_exti_probe(const void *fdt, int node,
 }
 
 static const struct dt_device_match stm32_exti_match_table[] = {
+	{ .compatible = "st,stm32mp1-exti" },
 	{ .compatible = "st,stm32mp13-exti" },
 	{ }
 };
