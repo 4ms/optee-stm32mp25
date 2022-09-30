@@ -41,6 +41,8 @@ struct stm32_rproc_mem {
  * @nregions:   number of memory regions
  * sboot_addr:	secure boot address
  * nsboot_addr: non secure boot address
+ * ns_loading:	specify if the firmware is loaded by the OPTEE or by the
+ *		non secure context
  */
 struct stm32_rproc_instance {
 	const struct stm32_rproc_compat_data *cdata;
@@ -51,6 +53,7 @@ struct stm32_rproc_instance {
 	size_t nregions;
 	paddr_t sboot_addr;
 	paddr_t nsboot_addr;
+	unsigned int ns_loading;
 };
 
 /**
@@ -71,8 +74,12 @@ void *stm32_rproc_get(uint32_t fw_id)
 	struct stm32_rproc_instance *rproc = NULL;
 
 	SLIST_FOREACH(rproc, &rproc_list, link) {
-		if (rproc->cdata->firmware_id == fw_id)
-			return rproc;
+		if (rproc->cdata->firmware_id == fw_id) {
+			if (!rproc->ns_loading)
+				return rproc;
+			else
+				return NULL;
+		}
 	}
 
 	return NULL;
@@ -416,25 +423,14 @@ static TEE_Result stm32_rproc_probe(const void *fdt, int node,
 {
 	struct stm32_rproc_instance *rproc = NULL;
 	TEE_Result res = TEE_ERROR_GENERIC;
-	const fdt32_t *fdt_fw_addr = NULL;
+	uint32_t m33_cr_right = A35SSC_M33_TZEN_CR_M33CFG_SEC |
+				A35SSC_M33_TZEN_CR_M33CFG_PRIV;
 
 	rproc = calloc(1, sizeof(*rproc));
 	if (!rproc)
 		return TEE_ERROR_OUT_OF_MEMORY;
 
 	rproc->cdata = comp_data;
-
-	/*
-	 * Allow only OPTEE to configure M33 config registers.
-	 * TODO: give access right to non-secure in case OPTEE  does not manage
-	 * the M33 FW load.
-	 */
-
-	stm32mp_syscfg_write(A35SSC_M33CFG_ACCESS_CR,
-			     A35SSC_M33_TZEN_CR_M33CFG_SEC |
-			     A35SSC_M33_TZEN_CR_M33CFG_PRIV,
-			     A35SSC_M33_TZEN_CR_M33CFG_SEC |
-			     A35SSC_M33_TZEN_CR_M33CFG_PRIV);
 
 	/* Get memory regions */
 	res = stm32_rproc_parse_mems(rproc, fdt, node);
@@ -460,28 +456,23 @@ static TEE_Result stm32_rproc_probe(const void *fdt, int node,
 
 	if (!IS_ENABLED(CFG_RPROC_PTA)) {
 		/*
-		 * Set a Non-secure firmware boot address
-		 * This is a temporary warkaround to set a default boot address
-		 * for non secure firmware that are loaded by an other component
-		 * than OP-TEE (e.g U-boot, Linux).
-		 * TODO: Suppress DT property and provide acees right to
-		 * A35SSC_M33_INITNSVTOR_CR register to the non secure context
-		 * instead.
+		 * The remote firmware will be loaded by the non secure
+		 * Provide access rights to A35SSC_M33 registers
+		 * to the non secure context
 		 */
-		fdt_fw_addr = fdt_getprop(fdt, node, "st,ns_fw_boot_addr",
-					  NULL);
-		if (fdt_fw_addr) {
-			stm32mp_syscfg_write(A35SSC_M33_INITNSVTOR_CR,
-					     fdt32_to_cpu(*fdt_fw_addr),
-					     INITVTOR_MASK);
-			DMSG("Cortex-M33 non-secure Fw boot address: %#x",
-			     fdt32_to_cpu(*fdt_fw_addr));
-		}
+		rproc->ns_loading = 1;
+		m33_cr_right = A35SSC_M33_TZEN_CR_M33CFG_PRIV;
 	}
 
-	res = __stm32_rproc_stop(rproc);
-	if (res)
-		goto err;
+	stm32mp_syscfg_write(A35SSC_M33CFG_ACCESS_CR, m33_cr_right,
+			     A35SSC_M33_TZEN_CR_M33CFG_SEC |
+			     A35SSC_M33_TZEN_CR_M33CFG_PRIV);
+
+	if (!rproc->ns_loading) {
+		res = __stm32_rproc_stop(rproc);
+		if (res)
+			goto err;
+	}
 
 	SLIST_INSERT_HEAD(&rproc_list, rproc, link);
 
