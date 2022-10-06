@@ -418,6 +418,7 @@ static TEE_Result stm32_rproc_probe(const void *fdt, int node,
 {
 	struct stm32_rproc_instance *rproc = NULL;
 	TEE_Result res = TEE_ERROR_GENERIC;
+	const fdt32_t *fdt_ns_loading = NULL;
 	uint32_t m33_cr_right = A35SSC_M33_TZEN_CR_M33CFG_SEC |
 				A35SSC_M33_TZEN_CR_M33CFG_PRIV;
 
@@ -449,7 +450,10 @@ static TEE_Result stm32_rproc_probe(const void *fdt, int node,
 			goto err;
 	}
 
-	if (!IS_ENABLED(CFG_RPROC_PTA)) {
+	/* Loading mode */
+	fdt_ns_loading = fdt_getprop(fdt, node, "st,non-secure-loading", NULL);
+
+	if (!IS_ENABLED(CFG_RPROC_PTA) || fdt_ns_loading) {
 		/*
 		 * The remote firmware will be loaded by the non secure
 		 * Provide access rights to A35SSC_M33 registers
