@@ -2153,7 +2153,7 @@ static struct clk ck_pll1p = {
 		.mux_id		= NO_MUX,
 	},
 	.name		= "ck_pll1p",
-	.flags		= 0,
+	.flags		= CLK_SET_RATE_PARENT,
 	.num_parents	= 1,
 	.parents	= { &ck_pll1_vco },
 };
@@ -2168,7 +2168,7 @@ static struct clk ck_pll1p_div = {
 		.div_id	= DIV_MPU,
 	},
 	.name	= "ck_pll1p_div",
-	.flags	= 0,
+	.flags	= CLK_SET_RATE_PARENT,
 	.num_parents	= 1,
 	.parents	= { &ck_pll1p },
 };
@@ -2219,7 +2219,7 @@ static struct clk ck_mpu = {
 		.mux_id	= MUX_MPU,
 	},
 	.name		= "ck_mpu",
-	.flags		= 0,
+	.flags		= CLK_OPS_PARENT_ENABLE | CLK_SET_RATE_PARENT,
 	.num_parents	= 4,
 	.parents	= { &ck_hsi, &ck_hse, &ck_pll1p, &ck_pll1p_div },
 };
