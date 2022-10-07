@@ -45,6 +45,8 @@ struct clk_stm32_priv {
 	const uint32_t nb_gates;
 	const struct div_cfg *div;
 	const uint32_t nb_div;
+	bool clk_ignore_unused;
+	bool (*is_ignore_unused)(struct clk *clk);
 	bool (*is_critical)(struct clk *clk);
 	void *pdata;
 };
@@ -253,5 +255,7 @@ TEE_Result clk_stm32_init(struct clk_stm32_priv *priv, uintptr_t base);
 
 void stm32mp_clk_provider_probe_final(const void *fdt, int node,
 				      struct clk_stm32_priv *priv);
+
+void clk_stm32_clock_ignore_unused(void);
 
 #endif /* CLK_STM32_CORE_H */

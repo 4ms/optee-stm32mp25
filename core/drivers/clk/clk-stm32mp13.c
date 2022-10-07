@@ -2583,6 +2583,24 @@ static bool clk_stm32_clock_is_critical(struct clk *clk __maybe_unused)
 	return false;
 }
 
+static bool clk_stm32_clock_is_ignored_unused(__maybe_unused struct clk *clk)
+{
+	struct clk *clk_ignore_unused[] = {
+		&ck_uart4_k,
+		&ck_mco1,
+		&ck_syscfg
+	 };
+	size_t i = 0;
+
+	for (i = 0; i < ARRAY_SIZE(clk_ignore_unused); i++) {
+		struct clk *clk_ignored_unused = clk_ignore_unused[i];
+
+		if (clk == clk_ignored_unused)
+			return true;
+	}
+	return false;
+}
+
 static void clk_stm32_init_oscillators(const void *fdt, int node)
 {
 	size_t i = 0;
@@ -2628,6 +2646,7 @@ static struct clk_stm32_priv stm32mp13_clock_data = {
 	.pdata			= &stm32mp13_clock_pdata,
 	.nb_clk_refs		= STM32MP13_ALL_CLK_NB,
 	.clk_refs		= stm32mp13_clk_provided,
+	.is_ignore_unused	= clk_stm32_clock_is_ignored_unused,
 	.is_critical		= clk_stm32_clock_is_critical,
 };
 

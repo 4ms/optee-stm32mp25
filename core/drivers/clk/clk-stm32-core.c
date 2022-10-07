@@ -479,6 +479,27 @@ TEE_Result clk_stm32_set_parent_by_index(struct clk *clk, size_t pidx)
 	return res;
 }
 
+static bool clk_stm32_get_ignore_unused_property(void)
+{
+	int node = 0;
+	const char *prop = NULL;
+	const void *fdt = NULL;
+
+	fdt = get_embedded_dt();
+	if (!fdt)
+		panic();
+
+	node = fdt_path_offset(fdt, "/chosen");
+	if (node < 0)
+		return false;
+
+	prop = fdt_getprop(fdt, node, "bootargs", NULL);
+	if (!prop)
+		return false;
+
+	return strcmp(prop, "clk_ignore_unused") == 0;
+}
+
 int clk_stm32_parse_fdt_by_name(const void *fdt, int node, const char *name,
 				uint32_t *tab, uint32_t *nb)
 {
@@ -501,6 +522,8 @@ TEE_Result clk_stm32_init(struct clk_stm32_priv *priv, uintptr_t base)
 	stm32_clock_data = priv;
 
 	priv->base = base;
+
+	priv->clk_ignore_unused = clk_stm32_get_ignore_unused_property();
 
 	return TEE_SUCCESS;
 }
@@ -588,6 +611,85 @@ static void clk_stm32_register_clocks(struct clk_stm32_priv *priv)
 
 		if (priv->is_critical && priv->is_critical(clk))
 			clk_enable(clk);
+	}
+}
+
+#ifdef CFG_STM32_CLK_DEBUG
+static void clk_stm32_display_clock_ignore_unused(void)
+{
+	struct clk_stm32_priv *priv = clk_stm32_get_priv();
+	unsigned int i = 0;
+
+	printf("\nCLOCK CLK_IGNORE_UNUSED:\n");
+
+	printf("\tSTATUS = %s\n",
+	       priv->clk_ignore_unused ? "ENABLED" : "DISABLED");
+
+	printf("CLOCK WITH CLK_IGNORE_UNUSED FLAGS:\n");
+	for (i = 0; i < priv->nb_clk_refs; i++) {
+		struct clk *clk = priv->clk_refs[i];
+
+		if (priv->is_ignore_unused && priv->is_ignore_unused(clk))
+			printf("\t%s\n", clk_get_name(clk));
+	}
+
+	printf("CLOCK DISABLED IF CLK_IGNORE_UNUSED IS DISABLED:\n");
+	for (i = 0; i < priv->nb_clk_refs; i++) {
+		struct clk *clk = priv->clk_refs[i];
+
+		if (!clk)
+			continue;
+
+		/* if counter > 0 */
+		if (clk_is_enabled(clk))
+			continue;
+
+		if (priv->is_ignore_unused && priv->is_ignore_unused(clk))
+			continue;
+
+		if (clk->ops->is_enabled && clk->ops->is_enabled(clk) &&
+		    clk->ops->disable) {
+			printf("\t%s, EN = %d COUNTER = %d\n",
+			       clk_get_name(clk),
+			       clk->ops->is_enabled(clk),
+			       clk->enabled_count.val);
+		}
+	}
+	printf("\n");
+}
+#endif
+
+void clk_stm32_clock_ignore_unused(void)
+{
+	struct clk_stm32_priv *priv = clk_stm32_get_priv();
+	unsigned int i = 0;
+
+#ifdef CFG_STM32_CLK_DEBUG
+	clk_stm32_display_clock_ignore_unused();
+#endif
+
+	if (priv->clk_ignore_unused)
+		return;
+
+	for (i = 0; i < priv->nb_clk_refs; i++) {
+		struct clk *clk = priv->clk_refs[i];
+
+		if (!clk)
+			continue;
+
+		/* if counter > 0 */
+		if (clk_is_enabled(clk))
+			continue;
+
+		if (priv->is_ignore_unused && priv->is_ignore_unused(clk))
+			continue;
+
+		if (clk->ops->is_enabled && clk->ops->is_enabled(clk) &&
+		    clk->ops->disable) {
+			DMSG("%s: disabling %s ...\n", __func__,
+			     clk_get_name(clk));
+			clk->ops->disable(clk);
+		}
 	}
 }
 
