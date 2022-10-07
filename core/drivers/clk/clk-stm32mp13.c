@@ -1786,6 +1786,7 @@ static const struct clk_ops clk_stm32_pll_ops = {
 	.get_rate	= clk_stm32_pll_get_rate,
 	.enable		= clk_stm32_pll_enable,
 	.disable	= clk_stm32_pll_disable,
+	.is_enabled	= clk_stm32_pll_is_enabled,
 };
 
 static struct
@@ -1862,12 +1863,14 @@ static const struct clk_ops clk_stm32_pll1_ops = {
 	.get_rate	= clk_stm32_pll_get_rate,
 	.enable		= clk_stm32_pll_enable,
 	.disable	= clk_stm32_pll_disable,
+	.is_enabled	= clk_stm32_pll_is_enabled,
 };
 
 static const struct clk_ops clk_stm32_pll1p_ops = {
 	.get_rate	= clk_stm32_composite_get_rate,
 	.enable		= clk_stm32_composite_gate_enable,
 	.disable	= clk_stm32_composite_gate_disable,
+	.is_enabled	= clk_stm32_composite_gate_is_enabled,
 };
 
 static const struct clk_ops clk_stm32_mpu_ops = {
