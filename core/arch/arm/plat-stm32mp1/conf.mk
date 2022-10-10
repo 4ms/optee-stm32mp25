@@ -117,6 +117,7 @@ $(call force,CFG_STM32MP_CLK_CORE,y)
 $(call force,CFG_STM32MP1_SCMI_SIP,n)
 $(call force,CFG_STM32MP1_SHARED_RESOURCES,n)
 $(call force,CFG_STM32MP13_CLK,y)
+$(call force,CFG_STM32MP13_RSTCTRL,y)
 $(call force,CFG_TEE_CORE_NB_CORE,1)
 $(call force,CFG_WITH_NSEC_GPIOS,n)
 CFG_EXTERNAL_DT ?= n
@@ -130,6 +131,7 @@ $(call force,CFG_DRIVERS_CLK_FIXED,n)
 $(call force,CFG_SECONDARY_INIT_CNTFRQ,y)
 $(call force,CFG_STM32MP1_SHARED_RESOURCES,y)
 $(call force,CFG_STM32MP15_CLK,y)
+$(call force,CFG_STM32MP15_RSTCTRL,y)
 CFG_CORE_RESERVED_SHM ?= y
 CFG_EXTERNAL_DT ?= y
 CFG_TEE_CORE_NB_CORE ?= 2
@@ -149,6 +151,7 @@ CFG_CORE_RESERVED_SHM ?= n
 ifeq ($(CFG_EMBED_DTB_SOURCE_FILE),)
 # Some drivers mandate DT support
 $(call force,CFG_DRIVERS_CLK_DT,n)
+$(call force,CFG_DRIVERS_RSTCTRL,n)
 $(call force,CFG_STM32_CRYP,n)
 $(call force,CFG_STM32_GPIO,n)
 $(call force,CFG_STM32_I2C,n)
@@ -215,8 +218,11 @@ ifeq ($(call cfg-one-enabled, CFG_STM32_CRYP),y)
 $(call force,CFG_STM32_CRYPTO_DRIVER,y)
 endif
 
-CFG_DRIVERS_RSTCTRL ?= $(CFG_STM32_RSTCTRL)
-$(eval $(call cfg-depends-all,CFG_STM32_RSTCTRL,CFG_DRIVERS_RSTCTRL))
+ifeq ($(call cfg-one-enabled, CFG_STM32MP13_RSTCTRL \
+                              CFG_STM32MP15_RSTCTRL),y)
+$(call force,CFG_DRIVERS_RSTCTRL,y)
+$(call force,CFG_STM32_RSTCTRL,y)
+endif
 
 CFG_WDT ?= $(CFG_STM32_IWDG)
 
