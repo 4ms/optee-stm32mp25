@@ -9,7 +9,7 @@
 #include <assert.h>
 #include <drivers/clk.h>
 #include <drivers/stm32_bsec.h>
-#include <drivers/stm32_gpio.h>
+#include <drivers/stm32mp1_rcc_util.h>
 #include <kernel/panic.h>
 #include <stdint.h>
 #include <types_ext.h>
@@ -23,9 +23,6 @@ vaddr_t stm32mp_bkpreg(unsigned int idx);
  */
 void stm32mp_syscfg_enable_io_compensation(void);
 void stm32mp_syscfg_disable_io_compensation(void);
-
-/* Platform util for the RCC drivers */
-vaddr_t stm32_rcc_base(void);
 
 /* Platform util for the GIC */
 vaddr_t get_gicd_base(void);
@@ -63,9 +60,6 @@ static inline void stm32mp_register_online_cpu(void)
 uint32_t may_spin_lock(unsigned int *lock);
 void may_spin_unlock(unsigned int *lock, uint32_t exceptions);
 
-/* Helper from platform RCC clock driver */
-struct clk *stm32mp_rcc_clock_id_to_clk(unsigned long clock_id);
-
 #ifdef CFG_STM32MP1_SHARED_RESOURCES
 /* Return true if @clock_id is shared by secure and non-secure worlds */
 bool stm32mp_nsec_can_access_clock(unsigned long clock_id);
@@ -76,8 +70,6 @@ static inline bool stm32mp_nsec_can_access_clock(unsigned long clock_id
 	return true;
 }
 #endif /* CFG_STM32MP1_SHARED_RESOURCES */
-
-extern const struct clk_ops stm32mp1_clk_ops;
 
 #if defined(CFG_STPMIC1)
 /* Return true if non-secure world can manipulate regulator @pmic_regu_name */
@@ -98,9 +90,6 @@ static inline bool stm32mp_nsec_can_access_reset(unsigned int reset_id __unused)
 	return true;
 }
 #endif /* CFG_STM32MP1_SHARED_RESOURCES */
-
-/* Return rstctrl instance related to RCC reset controller DT binding ID */
-struct rstctrl *stm32mp_rcc_reset_id_to_rstctrl(unsigned int binding_id);
 
 /*
  * Structure and API function for BSEC driver to get some platform data.
@@ -235,9 +224,6 @@ void stm32mp_register_non_secure_periph_iomem(vaddr_t base);
 /* Return true if and only if resource @id is registered as secure */
 bool stm32mp_periph_is_secure(enum stm32mp_shres id);
 
-/* Register parent clocks of @clock (ID used in clock DT bindings) as secure */
-void stm32mp_register_clock_parents_secure(unsigned long clock_id);
-
 #else /* CFG_STM32MP1_SHARED_RESOURCES */
 
 static inline void stm32mp_register_secure_periph(enum stm32mp_shres id
@@ -287,11 +273,6 @@ static inline bool stm32mp_gpio_bank_is_shared(unsigned int bank __unused)
 static inline bool stm32mp_gpio_bank_is_non_secure(unsigned int bank __unused)
 {
 	return false;
-}
-
-static inline void stm32mp_register_clock_parents_secure(unsigned long clock_id
-							 __unused)
-{
 }
 
 #endif /* CFG_STM32MP1_SHARED_RESOURCES */
