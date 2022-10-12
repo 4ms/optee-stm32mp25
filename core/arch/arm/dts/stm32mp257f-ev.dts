@@ -16,6 +16,7 @@
 	compatible = "st,stm32mp257f-ev", "st,stm32mp257";
 
 	aliases {
+		serial0 = &usart2;
 	};
 
 	chosen {
@@ -33,5 +34,11 @@
 };
 
 &risaf5 {
+	status = "okay";
+};
+
+&usart2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&usart2_pins_a>;
 	status = "okay";
 };
