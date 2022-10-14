@@ -29,6 +29,14 @@ vaddr_t stm32_rcc_base(void);
 /* Platform util for the GIC */
 vaddr_t get_gicd_base(void);
 
+#ifdef CFG_TEE_CORE_DEBUG
+void stm32mp_dump_core_registers(bool force_display);
+#else
+static inline void stm32mp_dump_core_registers(bool force_display __unused)
+{
+}
+#endif
+
 /*
  * Platform util functions for the GPIO driver
  * @bank: Target GPIO bank ID as per DT bindings

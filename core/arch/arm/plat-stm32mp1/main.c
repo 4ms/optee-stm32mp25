@@ -510,3 +510,47 @@ TEE_Result stm32_get_iwdg_otp_config(paddr_t pbase,
 	return TEE_SUCCESS;
 }
 #endif /*CFG_STM32_IWDG*/
+
+static const char *const dump_table[] = {
+	"usr_sp",
+	"usr_lr",
+	"irq_spsr",
+	"irq_sp",
+	"irq_lr",
+	"fiq_spsr",
+	"fiq_sp",
+	"fiq_lr",
+	"svc_spsr",
+	"svc_sp",
+	"svc_lr",
+	"abt_spsr",
+	"abt_sp",
+	"abt_lr",
+	"und_spsr",
+	"und_sp",
+	"und_lr",
+#ifdef CFG_SM_NO_CYCLE_COUNTING
+	"pmcr"
+#endif
+};
+
+void stm32mp_dump_core_registers(bool force_display)
+{
+	static bool display = false;
+	size_t i = U(0);
+	uint32_t __maybe_unused *reg = NULL;
+	struct sm_nsec_ctx *sm_nsec_ctx = sm_get_nsec_ctx();
+
+	if (force_display)
+		display = true;
+
+	if (!display)
+		return;
+
+	MSG("CPU : %zu\n", get_core_pos());
+
+	reg = (uint32_t *)&sm_nsec_ctx->ub_regs.usr_sp;
+	for (i = U(0); i < ARRAY_SIZE(dump_table); i++)
+		MSG("%10s : 0x%08x\n", dump_table[i], reg[i]);
+}
+DECLARE_KEEP_PAGER(stm32mp_dump_core_registers);
