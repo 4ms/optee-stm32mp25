@@ -142,6 +142,10 @@ CFG_MMAP_REGIONS ?= 23
 CFG_DTB_MAX_SIZE ?= (256 * 1024)
 CFG_CORE_ASLR ?= n
 
+# Default disable shared memory as it is not used. Do not force disable it
+# on STM32MP15 for legacy purpose.
+CFG_CORE_RESERVED_SHM ?= n
+
 ifeq ($(CFG_EMBED_DTB_SOURCE_FILE),)
 # Some drivers mandate DT support
 $(call force,CFG_DRIVERS_CLK_DT,n)
