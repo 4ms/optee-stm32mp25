@@ -1620,3 +1620,23 @@ static TEE_Result stm32mp1_clk_early_init(void)
 
 service_init(stm32mp1_clk_early_init);
 #endif /*CFG_DRIVERS_CLK_DT*/
+
+static TEE_Result stm32mp1_rcc_mco_probe(const void *fdt, int node,
+					 const void *compat_data __unused)
+{
+	static struct stm32_pinctrl_list *pinctrl_cfg = NULL;
+
+	/* Get pinctrl config loaded */
+	return stm32_pinctrl_dt_get_by_index(fdt, node, 0, &pinctrl_cfg);
+}
+
+static const struct dt_device_match stm32mp1_rcc_mco_match_table[] = {
+	{ .compatible = "st,stm32mp1-rcc-mco" },
+	{ }
+};
+
+DEFINE_DT_DRIVER(stm32mp1_rcc_mco_dt_driver) = {
+	.name = "stm32mp1_rcc_mco",
+	.match_table = stm32mp1_rcc_mco_match_table,
+	.probe = stm32mp1_rcc_mco_probe,
+};
