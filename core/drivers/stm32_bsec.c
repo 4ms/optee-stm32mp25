@@ -22,6 +22,13 @@
 #include <types_ext.h>
 #include <util.h>
 
+#ifdef CFG_STM32MP13
+#define DT_BSEC_COMPAT "st,stm32mp13-bsec"
+#endif
+#ifdef CFG_STM32MP15
+#define DT_BSEC_COMPAT "st,stm32mp15-bsec"
+#endif
+
 #define BSEC_OTP_MASK			GENMASK_32(4, 0)
 #define BSEC_OTP_BANK_SHIFT		U(5)
 
@@ -445,6 +452,10 @@ TEE_Result stm32_bsec_permanent_lock_otp(uint32_t otp_id)
 	else
 		result = check_no_error(otp_id, false /* not-disturbed */);
 
+#ifdef CFG_STM32MP13
+	io_write32(base + BSEC_OTP_CTRL_OFF, addr | BSEC_READ | BSEC_LOCK);
+#endif
+
 	power_down_safmem();
 
 out:
@@ -628,6 +639,23 @@ TEE_Result stm32_bsec_get_state(uint32_t *state)
 			*state = BSEC_STATE_SEC_OPEN;
 	}
 
+	if (IS_ENABLED(CFG_STM32MP13)) {
+		unsigned int start = OEM_ENC_KEY_OTP_BASE;
+		unsigned int end = start + OEM_ENC_KEY_OTP_COUNT;
+		unsigned int idx = 0;
+
+		for (idx = start; idx < end; idx++) {
+			TEE_Result res = TEE_ERROR_GENERIC;
+			bool locked = false;
+
+			res = stm32_bsec_read_sp_lock(idx, &locked);
+			if (res || !locked)
+				return TEE_SUCCESS;
+		}
+
+		*state |= BSEC_HARDWARE_KEY;
+	}
+
 	return TEE_SUCCESS;
 }
 
@@ -716,7 +744,7 @@ static void initialize_bsec_from_dt(void)
 	struct dt_node_info bsec_info = { };
 
 	fdt = get_embedded_dt();
-	node = fdt_node_offset_by_compatible(fdt, 0, "st,stm32mp15-bsec");
+	node = fdt_node_offset_by_compatible(fdt, 0, DT_BSEC_COMPAT);
 	if (node < 0)
 		panic();
 
