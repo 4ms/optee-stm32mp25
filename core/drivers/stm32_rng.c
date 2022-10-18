@@ -14,6 +14,7 @@
 #include <kernel/dt_driver.h>
 #include <kernel/boot.h>
 #include <kernel/panic.h>
+#include <kernel/pm.h>
 #include <kernel/thread.h>
 #include <libfdt.h>
 #include <mm/core_memprot.h>
@@ -70,6 +71,7 @@ struct stm32_rng_instance {
 	bool clock_error;
 	bool error_conceal;
 	uint64_t error_to_ref;
+	uint32_t pm_cr;
 };
 
 /* Expect at most a single RNG instance */
@@ -367,6 +369,62 @@ TEE_Result hw_get_random_bytes(void *out, size_t size)
 }
 #endif
 
+static TEE_Result stm32_rng_pm_resume(void)
+{
+	vaddr_t rng_base = get_base();
+
+	/* Clean error indications */
+	io_write32(rng_base + RNG_SR, 0);
+
+	if (stm32_rng->ddata->has_cond_reset) {
+		/*
+		 * Correct configuration in bits [29:4] must be set in the same
+		 * access that set RNG_CR_CONDRST bit. Else config setting is
+		 * not taken into account. CONFIGLOCK bit must also be unset but
+		 * it is not handled at the moment.
+		 */
+		io_write32(rng_base + RNG_CR,
+			   stm32_rng->pm_cr | RNG_CR_CONDRST);
+
+		io_clrsetbits32(rng_base + RNG_CR, RNG_CR_CONDRST,
+				RNG_CR_RNGEN);
+	} else {
+		io_write32(rng_base + RNG_CR, RNG_CR_RNGEN | stm32_rng->pm_cr);
+	}
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result stm32_rng_pm_suspend(void)
+{
+	stm32_rng->pm_cr = io_read32(get_base() + RNG_CR);
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result
+stm32_rng_pm(enum pm_op op, unsigned int pm_hint __unused,
+	     const struct pm_callback_handle *pm_handle __unused)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+
+	assert(stm32_rng);
+
+	res = clk_enable(stm32_rng->clock);
+	if (res)
+		return res;
+
+	if (op == PM_OP_RESUME)
+		res = stm32_rng_pm_resume();
+	else
+		res = stm32_rng_pm_suspend();
+
+	clk_disable(stm32_rng->clock);
+
+	return res;
+}
+DECLARE_KEEP_PAGER(stm32_rng_pm);
+
 #ifdef CFG_EMBED_DTB
 static TEE_Result stm32_rng_parse_fdt(const void *fdt, int node)
 {
@@ -445,6 +503,8 @@ static TEE_Result stm32_rng_probe(const void *fdt, int offs,
 		else
 			stm32mp_register_secure_periph_iomem(base_pa);
 	}
+
+	register_pm_core_service_cb(stm32_rng_pm, &stm32_rng, "rng-service");
 
 	return TEE_SUCCESS;
 
