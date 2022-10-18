@@ -23,9 +23,9 @@
 #include <string.h>
 #include <tee/tee_cryp_utl.h>
 
-#define RNG_CR			0x00U
-#define RNG_SR			0x04U
-#define RNG_DR			0x08U
+#define RNG_CR			U(0x00)
+#define RNG_SR			U(0x04)
+#define RNG_DR			U(0x08)
 
 #define RNG_CR_RNGEN		BIT(2)
 #define RNG_CR_IE		BIT(3)
@@ -43,6 +43,8 @@
 #define RNG_READY_TIMEOUT_US	U(10000)
 #endif
 #define RNG_RESET_TIMEOUT_US	U(1000)
+
+#define RNG_FIFO_BYTE_DEPTH	U(16)
 
 struct stm32_rng_instance {
 	struct io_pa_va base;
@@ -92,8 +94,6 @@ static void conceal_seed_error(vaddr_t rng_base)
 			panic("RNG noise");
 	}
 }
-
-#define RNG_FIFO_BYTE_DEPTH		16u
 
 static TEE_Result read_available(vaddr_t rng_base, uint8_t *out, size_t *size)
 {
