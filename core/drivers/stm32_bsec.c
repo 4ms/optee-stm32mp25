@@ -177,10 +177,16 @@ static bool is_secured_mode(void)
 
 static bool is_closed_mode(void)
 {
+	uint32_t otp_cfg = 0;
 	uint32_t close_mode = 0;
+	TEE_Result res = TEE_ERROR_GENERIC;
 	const uint32_t mask = CFG0_CLOSED_MASK;
 
-	if (stm32_bsec_read_otp(&close_mode, CFG0_OTP))
+	res = stm32_bsec_find_otp_in_nvmem_layout("cfg0_otp", &otp_cfg, NULL);
+	if (res)
+		panic("CFG0 OTP not found");
+
+	if (stm32_bsec_read_otp(&close_mode, otp_cfg))
 		panic("Unable to read OTP");
 
 	return (close_mode & mask) == mask;
@@ -636,6 +642,10 @@ TEE_Result stm32_bsec_find_otp_in_nvmem_layout(const char *name,
 
 TEE_Result stm32_bsec_get_state(uint32_t *state)
 {
+	uint32_t otp_enc_id = 0;
+	size_t otp_bit_len = 0;
+	TEE_Result res = TEE_SUCCESS;
+
 	if (!state)
 		return TEE_ERROR_BAD_PARAMETERS;
 
@@ -648,13 +658,17 @@ TEE_Result stm32_bsec_get_state(uint32_t *state)
 			*state = BSEC_STATE_SEC_OPEN;
 	}
 
-	if (IS_ENABLED(CFG_STM32MP13)) {
-		unsigned int start = OEM_ENC_KEY_OTP_BASE;
-		unsigned int end = start + OEM_ENC_KEY_OTP_COUNT;
+	if (!IS_ENABLED(CFG_STM32MP13))
+		return TEE_SUCCESS;
+
+	res = stm32_bsec_find_otp_in_nvmem_layout("oem_enc_key",
+						  &otp_enc_id, &otp_bit_len);
+	if (!res && otp_bit_len) {
+		unsigned int start = otp_enc_id / BSEC_BITS_PER_WORD;
+		size_t otp_nb = ROUNDUP_DIV(otp_bit_len, BSEC_BITS_PER_WORD);
 		unsigned int idx = 0;
 
-		for (idx = start; idx < end; idx++) {
-			TEE_Result res = TEE_ERROR_GENERIC;
+		for (idx = start; idx < start + otp_nb; idx++) {
 			bool locked = false;
 
 			res = stm32_bsec_read_sp_lock(idx, &locked);

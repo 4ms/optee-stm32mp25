@@ -138,16 +138,6 @@
 
 #define OTP_MAX_SIZE			(STM32MP1_OTP_MAX_ID + 1U)
 
-#define CFG0_OTP			0
-#define PART_NUMBER_OTP			1
-#define MONOTONIC_OTP			4
-#define NAND_OTP			9
-#define UID0_OTP			13
-#define UID1_OTP			14
-#define UID2_OTP			15
-#define HW2_OTP				18
-#define OEM_ENC_KEY_OTP			92
-
 /* Bit map for BSEC word CFG0_OTP */
 #ifdef CFG_STM32MP13
 #define CFG0_OTP_BIT_LENGTH			U(16)
@@ -169,10 +159,6 @@
 #define HW2_OTP_IWDG_HW_ENABLE_SHIFT	U(3)
 #define HW2_OTP_IWDG_FZ_STOP_SHIFT	U(5)
 #define HW2_OTP_IWDG_FZ_STANDBY_SHIFT	U(7)
-
-/* OTP layout for OEM_ENC_KEY_OTP on STM32MP13x */
-#define OEM_ENC_KEY_OTP_BASE		U(92)
-#define OEM_ENC_KEY_OTP_COUNT		U(4)
 
 /* GIC resources */
 #define GIC_SIZE			0x2000
