@@ -127,13 +127,13 @@ static TEE_Result pwr_list_voltages(const struct regul_desc *desc,
 	return TEE_SUCCESS;
 }
 
-static void pwr_regul_lock(const struct regul_desc *desc __unused)
+void stm32mp1_pwr_regul_lock(const struct regul_desc *desc __unused)
 {
 	if (thread_get_id_may_fail() != THREAD_ID_INVALID)
 		mutex_lock(&pwr_regul_mu);
 }
 
-static void pwr_regul_unlock(const struct regul_desc *desc __unused)
+void stm32mp1_pwr_regul_unlock(const struct regul_desc *desc __unused)
 {
 	if (thread_get_id_may_fail() != THREAD_ID_INVALID)
 		mutex_unlock(&pwr_regul_mu);
@@ -144,8 +144,8 @@ struct regul_ops pwr_ops = {
 	.get_state = pwr_get_state,
 	.get_voltage = pwr_get_voltage,
 	.list_voltages = pwr_list_voltages,
-	.lock = pwr_regul_lock,
-	.unlock = pwr_regul_unlock,
+	.lock = stm32mp1_pwr_regul_lock,
+	.unlock = stm32mp1_pwr_regul_unlock,
 };
 
 #define DEFINE_REG(id, name, supply) { \

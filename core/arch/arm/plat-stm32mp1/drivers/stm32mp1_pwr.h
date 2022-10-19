@@ -6,6 +6,7 @@
 #ifndef __STM32MP1_PWR_H
 #define __STM32MP1_PWR_H
 
+#include <drivers/regulator.h>
 #include <types_ext.h>
 #include <util.h>
 
@@ -26,5 +27,8 @@ enum pwr_regulator {
 };
 
 vaddr_t stm32_pwr_base(void);
+
+void stm32mp1_pwr_regul_lock(const struct regul_desc *desc __unused);
+void stm32mp1_pwr_regul_unlock(const struct regul_desc *desc __unused);
 
 #endif /*__STM32MP1_PWR_H*/
