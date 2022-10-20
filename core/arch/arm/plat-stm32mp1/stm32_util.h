@@ -27,6 +27,7 @@ bool stm32mp_supports_second_core(void);
 
 /* Backup registers and RAM utils */
 vaddr_t stm32mp_bkpreg(unsigned int idx);
+vaddr_t stm32mp_bkpsram_base(void);
 
 /*
  * SYSCFG IO compensation.

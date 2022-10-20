@@ -338,6 +338,13 @@ vaddr_t stm32mp_bkpreg(unsigned int idx)
 	return bkpreg_base() + (idx * sizeof(uint32_t));
 }
 
+vaddr_t stm32mp_bkpsram_base(void)
+{
+	struct io_pa_va base = { .pa = BKPSRAM_BASE };
+
+	return io_pa_or_va(&base, BKPSRAM_SIZE);
+}
+
 #ifdef CFG_STM32_IWDG
 TEE_Result stm32_get_iwdg_otp_config(paddr_t pbase,
 				     struct stm32_iwdg_otp_data *otp_data)

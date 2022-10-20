@@ -252,6 +252,13 @@
 #define DBGMCU_IDC_REV_ID_MASK		GENMASK_32(31, 16)
 #define DBGMCU_IDC_REV_ID_SHIFT		U(16)
 
+/* BKPSRAM layout */
+#ifdef CFG_STM32MP13
+#define BKPSRAM_SIZE			U(0x2000)
+#else
+#define BKPSRAM_SIZE			U(0x1000)
+#endif
+
 /* SYSRAM layout */
 #define SYSRAM_SIZE			0x40000
 #define SYSRAM_NS_SIZE			(SYSRAM_SIZE - SYSRAM_SEC_SIZE)
