@@ -109,6 +109,9 @@ $(call force,CFG_ARM_GIC_PM,y)
 $(call force,CFG_DRIVERS_CLK,y)
 $(call force,CFG_GIC,y)
 $(call force,CFG_INIT_CNTVOFF,y)
+$(call force,CFG_PM,y)
+$(call force,CFG_PM_ARM32,y)
+$(call force,CFG_PM_STUBS,y)
 $(call force,CFG_PSCI_ARM32,y)
 $(call force,CFG_REGULATOR_DRIVERS,y)
 $(call force,CFG_SECURE_TIME_SOURCE_CNTPCT,y)
@@ -136,6 +139,7 @@ endif # CFG_STM32MP13
 
 ifeq ($(CFG_STM32MP15),y)
 $(call force,CFG_BOOT_SECONDARY_REQUEST,y)
+$(call force,CFG_DDR_LOWPOWER,y)
 $(call force,CFG_DRIVERS_CLK_FIXED,n)
 $(call force,CFG_SECONDARY_INIT_CNTFRQ,y)
 $(call force,CFG_STM32MP1_SHARED_RESOURCES,y)
@@ -295,6 +299,9 @@ CFG_SCMI_MSG_SMT_THREAD_ENTRY ?= y
 CFG_SCMI_MSG_REGULATOR_CONSUMER ?= y
 $(call force,CFG_SCMI_MSG_VOLTAGE_DOMAIN,y)
 endif
+
+# Default use stm32mp1 PM mailbox context version 3
+CFG_STM32MP1_PM_CONTEXT_VERSION ?= 3
 
 ifneq ($(CFG_WITH_SOFTWARE_PRNG),y)
 CFG_HWRNG_PTA ?= y
