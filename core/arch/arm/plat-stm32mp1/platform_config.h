@@ -51,6 +51,8 @@
 #define APB6_SIZE			0x0000d000
 #endif
 
+#define AHB2_BASE			0x48000000
+#define AHB2_SIZE			0x01040000
 #define AHB4_BASE			0x50000000
 #define AHB4_SIZE			0x00020000
 #ifdef CFG_STM32MP13
