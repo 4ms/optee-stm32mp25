@@ -141,6 +141,11 @@
 			secure-interrupt-names = "wakeup";
 		};
 
+		pwr_irq: pwr@50001010 {
+			compatible = "st,stm32mp1,pwr-irq";
+			status = "disabled";
+		};
+
 		exti: interrupt-controller@5000d000 {
 			compatible = "st,stm32mp13-exti", "syscon";
 			interrupt-controller;
