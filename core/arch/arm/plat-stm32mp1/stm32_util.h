@@ -56,6 +56,7 @@ uint32_t stm32mp_syscfg_get_chip_dev_id(void);
 TEE_Result stm32mp_syscfg_erase_sram3(void);
 
 /* Platform util for the GIC */
+vaddr_t get_gicc_base(void);
 vaddr_t get_gicd_base(void);
 
 #if TRACE_LEVEL >= TRACE_DEBUG

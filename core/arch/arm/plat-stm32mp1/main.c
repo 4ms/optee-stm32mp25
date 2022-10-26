@@ -286,6 +286,13 @@ vaddr_t stm32_rcc_base(void)
 	return io_pa_or_va_secure(&base, 1);
 }
 
+vaddr_t get_gicc_base(void)
+{
+	struct io_pa_va base = { .pa = GIC_BASE + GICC_OFFSET };
+
+	return io_pa_or_va_secure(&base, 1);
+}
+
 vaddr_t get_gicd_base(void)
 {
 	struct io_pa_va base = { .pa = GIC_BASE + GICD_OFFSET };
