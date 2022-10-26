@@ -20,6 +20,10 @@
 	model = "STMicroelectronics STM32MP157D eval daughter";
 	compatible = "st,stm32mp157d-ed1", "st,stm32mp157";
 
+	aliases {
+		serial0 = &uart4;
+	};
+
 	chosen {
 		stdout-path = "serial0:115200n8";
 	};
@@ -27,10 +31,6 @@
 	memory@c0000000 {
 		device_type = "memory";
 		reg = <0xC0000000 0x40000000>;
-	};
-
-	aliases {
-		serial0 = &uart4;
 	};
 
 	vin: vin {
