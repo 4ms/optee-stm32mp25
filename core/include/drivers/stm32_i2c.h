@@ -256,14 +256,6 @@ void stm32_i2c_suspend(struct i2c_handle_s *hi2c);
 void stm32_i2c_resume(struct i2c_handle_s *hi2c);
 
 /*
- * Return true if I2C bus is enabled for secure world only, false otherwise
- */
-static inline bool i2c_is_secure(struct i2c_handle_s *hi2c)
-{
-	return hi2c->dt_status == DT_STATUS_OK_SEC;
-}
-
-/*
  * i2c_get_handle_by_node - Fills the child i2c handle structure
  * with an i2c handle structure given by the i2c provider,
  * linked to the parameter node
