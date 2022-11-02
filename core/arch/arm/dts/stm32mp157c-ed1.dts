@@ -114,7 +114,7 @@
 		st,adc-channels = <0 1 6>;
 		/* 16.5 ck_cycles sampling time */
 		st,min-sample-time-nsecs = <400>;
-		status = "okay";
+		status = "disabled";
 	};
 };
 
@@ -138,7 +138,7 @@
 };
 
 &crc1 {
-	status = "okay";
+	status = "disabled";
 };
 
 &dac {
@@ -147,15 +147,15 @@
 	vref-supply = <&vdda>;
 	status = "disabled";
 	dac1: dac@1 {
-		status = "okay";
+		status = "disabled";
 	};
 	dac2: dac@2 {
-		status = "okay";
+		status = "disabled";
 	};
 };
 
 &dts {
-	status = "okay";
+	status = "disabled";
 };
 
 &gpu {
@@ -163,7 +163,7 @@
 };
 
 &hash1 {
-	status = "okay";
+	status = "disabled";
 };
 
 &i2c4 {
@@ -310,7 +310,7 @@
 			interrupts = <IT_PONKEY_F 0>, <IT_PONKEY_R 0>;
 			interrupt-names = "onkey-falling", "onkey-rising";
 			power-off-time-sec = <10>;
-			status = "okay";
+			status = "disabled";
 		};
 
 		watchdog {
@@ -321,7 +321,7 @@
 };
 
 &ipcc {
-	status = "okay";
+	status = "disabled";
 };
 
 &iwdg1 {
@@ -330,8 +330,7 @@
 
 &iwdg2 {
 	timeout-sec = <32>;
-	status = "okay";
-	secure-status = "disabled";
+	status = "disabled";
 };
 
 &m4_rproc {
@@ -341,7 +340,7 @@
 	mbox-names = "vq0", "vq1", "shutdown", "detach";
 	interrupt-parent = <&exti>;
 	interrupts = <68 1>;
-	status = "okay";
+	status = "disabled";
 };
 
 &pwr_regulators {
@@ -463,7 +462,7 @@
 	sd-uhs-sdr25;
 	sd-uhs-sdr50;
 	sd-uhs-ddr50;
-	status = "okay";
+	status = "disabled";
 };
 
 &sdmmc2 {
@@ -479,16 +478,16 @@
 	vmmc-supply = <&v3v3>;
 	vqmmc-supply = <&vdd>;
 	mmc-ddr-3_3v;
-	status = "okay";
+	status = "disabled";
 };
 
 &timers6 {
-	status = "okay";
+	status = "disabled";
 	/* spare dmas for other usage */
 	/delete-property/dmas;
 	/delete-property/dma-names;
 	timer@5 {
-		status = "okay";
+		status = "disabled";
 	};
 };
 
