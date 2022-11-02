@@ -188,7 +188,7 @@ $(foreach f, $(ta-srcfiles), \
 	$(eval $(call copy-file, $(f), $(out-dir)/export-$(sm)/src)))
 
 # Copy keys
-ta-keys = keys/default_ta.pem
+ta-keys = keys/default_ta.pem keys/default_rproc.pem
 $(foreach f, $(ta-keys), \
 	$(eval $(call copy-file, $(f), $(out-dir)/export-$(sm)/keys)))
 
