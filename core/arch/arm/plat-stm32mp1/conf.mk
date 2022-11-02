@@ -121,7 +121,6 @@ $(call force,CFG_STM32MP1_SCMI_SIP,n)
 $(call force,CFG_STM32MP1_SHARED_RESOURCES,n)
 $(call force,CFG_STM32MP13_CLK,y)
 $(call force,CFG_STM32MP13_RSTCTRL,y)
-$(call force,CFG_STPMIC1,n)
 $(call force,CFG_TEE_CORE_NB_CORE,1)
 $(call force,CFG_WITH_NSEC_GPIOS,n)
 CFG_EXTERNAL_DT ?= n
@@ -167,9 +166,9 @@ $(call force,CFG_STM32_REGULATOR_GPIO,n)
 $(call force,CFG_STM32_RTC,n)
 $(call force,CFG_STM32_VREFBUF,y)
 $(call force,CFG_STM32_TAMP,n)
-$(call force,CFG_STPMIC1,n)
 $(call force,CFG_STM32MP1_SCMI_SIP,n)
 $(call force,CFG_SCMI_PTA,n)
+$(call force,CFG_STPMIC1,n)
 else
 $(call force,CFG_DRIVERS_CLK_DT,y)
 endif
