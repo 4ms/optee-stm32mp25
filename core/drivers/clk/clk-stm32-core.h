@@ -131,7 +131,7 @@ TEE_Result stm32_div_set_rate(int div_id, unsigned long rate,
 uint32_t stm32_div_get_value(int div_id);
 TEE_Result stm32_div_set_value(uint32_t div_id, uint32_t value);
 
-int clk_stm32_parse_fdt_by_name(const void *fdt, int node, const char *name,
+int fdt_clk_stm32_parse_by_name(const void *fdt, int node, const char *name,
 				uint32_t *tab, uint32_t *nb);
 
 unsigned long clk_stm32_divider_get_rate(struct clk *clk,

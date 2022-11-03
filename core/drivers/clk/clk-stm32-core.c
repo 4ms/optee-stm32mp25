@@ -529,7 +529,7 @@ static bool clk_stm32_get_ignore_unused_property(void)
 	return strcmp(prop, "clk_ignore_unused") == 0;
 }
 
-int clk_stm32_parse_fdt_by_name(const void *fdt, int node, const char *name,
+int fdt_clk_stm32_parse_by_name(const void *fdt, int node, const char *name,
 				uint32_t *tab, uint32_t *nb)
 {
 	const fdt32_t *cell = NULL;

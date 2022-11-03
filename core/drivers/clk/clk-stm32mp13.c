@@ -1584,7 +1584,7 @@ static TEE_Result stm32_clk_parse_fdt_mco_pins(const void *fdt, int node,
 	return stm32_pinctrl_dt_get_by_index(fdt, node, 0, &pdata->pinctrl_cfg);
 }
 
-static int clk_stm32_parse_oscillator_fdt(const void *fdt, int node,
+static int fdt_clk_stm32_parse_oscillator(const void *fdt, int node,
 					  const char *name,
 					  struct stm32_osci_dt_cfg *osci)
 {
@@ -1627,7 +1627,7 @@ static int clk_stm32_parse_oscillator_fdt(const void *fdt, int node,
 	return -FDT_ERR_NOTFOUND;
 }
 
-static int stm32_clk_parse_fdt_all_oscillator(const void *fdt,
+static int fdt_stm32_clk_parse_all_oscillator(const void *fdt,
 					      int node __maybe_unused,
 					      struct stm32_clk_platdata *pdata)
 {
@@ -1645,7 +1645,7 @@ static int stm32_clk_parse_fdt_all_oscillator(const void *fdt,
 
 		osc_data = clk_oscillator_get_data(i);
 
-		fdt_err = clk_stm32_parse_oscillator_fdt(fdt, osc_node,
+		fdt_err = fdt_clk_stm32_parse_oscillator(fdt, osc_node,
 							 osc_data->name, osci);
 		if (fdt_err < 0)
 			osci->freq = 0UL;
@@ -1654,7 +1654,7 @@ static int stm32_clk_parse_fdt_all_oscillator(const void *fdt,
 	return 0;
 }
 
-static int clk_stm32_load_vco_config_fdt(const void *fdt, int subnode,
+static int fdt_clk_stm32_load_vco_config(const void *fdt, int subnode,
 					 struct stm32_pll_vco *vco)
 {
 	int ret = 0;
@@ -1685,14 +1685,14 @@ static int clk_stm32_load_vco_config_fdt(const void *fdt, int subnode,
 	return 0;
 }
 
-static int clk_stm32_load_output_config_fdt(const void *fdt, int subnode,
+static int fdt_clk_stm32_load_output_config(const void *fdt, int subnode,
 					    struct stm32_pll_output *output)
 {
 	return _fdt_read_uint32_array(fdt, subnode, "st,pll_div_pqr",
 				      output->output, (int)PLL_DIV_PQR_NB);
 }
 
-static int clk_stm32_parse_pll_fdt(const void *fdt, int subnode,
+static int fdt_clk_stm32_parse_pll(const void *fdt, int subnode,
 				   struct stm32_pll_dt_cfg *pll)
 {
 	const fdt32_t *cuint = NULL;
@@ -1716,18 +1716,18 @@ static int clk_stm32_parse_pll_fdt(const void *fdt, int subnode,
 	if (subnode_vco < 0)
 		return -FDT_ERR_NOTFOUND;
 
-	err = clk_stm32_load_vco_config_fdt(fdt, subnode_vco, &pll->vco);
+	err = fdt_clk_stm32_load_vco_config(fdt, subnode_vco, &pll->vco);
 	if (err != 0)
 		return err;
 
-	err = clk_stm32_load_output_config_fdt(fdt, subnode_pll, &pll->output);
+	err = fdt_clk_stm32_load_output_config(fdt, subnode_pll, &pll->output);
 	if (err != 0)
 		return err;
 
 	return 0;
 }
 
-static int stm32_clk_parse_fdt_all_pll(const void *fdt, int node,
+static int fdt_stm32_clk_parse_all_pll(const void *fdt, int node,
 				       struct stm32_clk_platdata *pdata)
 {
 	size_t i = 0;
@@ -1744,7 +1744,7 @@ static int stm32_clk_parse_fdt_all_pll(const void *fdt, int node,
 		if (subnode < 0)
 			continue;
 
-		err = clk_stm32_parse_pll_fdt(fdt, subnode, pll);
+		err = fdt_clk_stm32_parse_pll(fdt, subnode, pll);
 		if (err != 0)
 			panic();
 	}
@@ -1752,7 +1752,7 @@ static int stm32_clk_parse_fdt_all_pll(const void *fdt, int node,
 	return 0;
 }
 
-static int stm32_clk_parse_fdt_opp(const void *fdt, int node,
+static int fdt_stm32_clk_parse_opp(const void *fdt, int node,
 				   const char *opp_name,
 				   struct stm32_clk_opp_cfg *opp_cfg)
 {
@@ -1784,7 +1784,7 @@ static int stm32_clk_parse_fdt_opp(const void *fdt, int node,
 							"st,clkdiv",
 							UINT32_MAX);
 
-		ret = clk_stm32_parse_pll_fdt(fdt, subnode, &opp_cfg->pll_cfg);
+		ret = fdt_clk_stm32_parse_pll(fdt, subnode, &opp_cfg->pll_cfg);
 		if (ret)
 			return ret;
 
@@ -1795,7 +1795,7 @@ static int stm32_clk_parse_fdt_opp(const void *fdt, int node,
 	return 0;
 }
 
-static int stm32_clk_parse_fdt_all_opp(const void *fdt, int node,
+static int fdt_stm32_clk_parse_all_opp(const void *fdt, int node,
 				       struct stm32_clk_platdata *pdata)
 {
 	struct stm32_clk_opp_dt_cfg *opp = pdata->opp;
@@ -1808,15 +1808,15 @@ static int stm32_clk_parse_fdt_all_opp(const void *fdt, int node,
 	if (node < 0)
 		return node;
 
-	ret = stm32_clk_parse_fdt_opp(fdt, node, "st,ck_mpu", opp->mpu_opp);
+	ret = fdt_stm32_clk_parse_opp(fdt, node, "st,ck_mpu", opp->mpu_opp);
 	if (ret)
 		return ret;
 
-	ret = stm32_clk_parse_fdt_opp(fdt, node, "st,ck_axi", opp->axi_opp);
+	ret = fdt_stm32_clk_parse_opp(fdt, node, "st,ck_axi", opp->axi_opp);
 	if (ret)
 		return ret;
 
-	ret = stm32_clk_parse_fdt_opp(fdt, node, "st,ck_mlahbs",
+	ret = fdt_stm32_clk_parse_opp(fdt, node, "st,ck_mlahbs",
 				      opp->mlahbs_opp);
 	if (ret)
 		return ret;
@@ -1824,29 +1824,29 @@ static int stm32_clk_parse_fdt_all_opp(const void *fdt, int node,
 	return 0;
 }
 
-static int stm32_clk_parse_fdt(const void *fdt, int node,
+static int fdt_stm32_clk_parse(const void *fdt, int node,
 			       struct stm32_clk_platdata *pdata)
 {
 	int err = 0;
 
-	err = stm32_clk_parse_fdt_all_oscillator(fdt, node, pdata);
+	err = fdt_stm32_clk_parse_all_oscillator(fdt, node, pdata);
 	if (err != 0)
 		return err;
 
-	err = stm32_clk_parse_fdt_all_pll(fdt, node, pdata);
+	err = fdt_stm32_clk_parse_all_pll(fdt, node, pdata);
 	if (err != 0)
 		return err;
 
-	err = stm32_clk_parse_fdt_all_opp(fdt, node, pdata);
+	err = fdt_stm32_clk_parse_all_opp(fdt, node, pdata);
 	if (err != 0)
 		return err;
 
-	err = clk_stm32_parse_fdt_by_name(fdt, node, "st,clkdiv", pdata->clkdiv,
+	err = fdt_clk_stm32_parse_by_name(fdt, node, "st,clkdiv", pdata->clkdiv,
 					  &pdata->nclkdiv);
 	if (err != 0)
 		return err;
 
-	err = clk_stm32_parse_fdt_by_name(fdt, node, "st,clksrc", pdata->clksrc,
+	err = fdt_clk_stm32_parse_by_name(fdt, node, "st,clksrc", pdata->clksrc,
 					  &pdata->nclksrc);
 	if (err != 0)
 		return err;
@@ -3485,7 +3485,7 @@ static TEE_Result stm32mp13_clk_probe(const void *fdt, int node,
 	struct clk_stm32_priv *priv = &stm32mp13_clock_data;
 	struct stm32_clk_platdata *pdata = &stm32mp13_clock_pdata;
 
-	fdt_rc = stm32_clk_parse_fdt(fdt, node, pdata);
+	fdt_rc = fdt_stm32_clk_parse(fdt, node, pdata);
 	if (fdt_rc) {
 		EMSG("Failed to parse clock node: %d", fdt_rc);
 		return TEE_ERROR_GENERIC;
