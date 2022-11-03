@@ -7,6 +7,7 @@
 /dts-v1/;
 
 #include <dt-bindings/clock/stm32mp25-clksrc.h>
+#include <dt-bindings/regulator/st,stm32mp25-regulator.h>
 #include <dt-bindings/reset/stm32mp25-resets.h>
 #include <dt-bindings/soc/stm32mp-provisioning.h>
 #include <dt-bindings/soc/stm32mp25-rif.h>
@@ -48,6 +49,10 @@
 	};
 };
 
+&cpu0 {
+	cpu-supply = <&vddcpu>;
+};
+
 &i2c7 {
 	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&i2c7_pins_a>;
@@ -56,6 +61,84 @@
 	i2c-scl-falling-time-ns = <20>;
 	clock-frequency = <400000>;
 	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	pmic2: stpmic2@33 {
+		compatible = "st,stpmic2";
+		reg = <0x33>;
+		status = "okay";
+
+		regulators {
+			compatible = "st,stpmic2-regulators";
+
+			vddcpu: buck1 {
+				regulator-name = "vddcpu";
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <910000>;
+				regulator-always-on;
+			};
+			vddcore: buck2 {
+				regulator-name = "vddcore";
+				regulator-min-microvolt = <820000>;
+				regulator-max-microvolt = <820000>;
+				regulator-always-on;
+			};
+			vddgpu_pmic: buck3 {
+				regulator-name = "vddgpu_pmic";
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <900000>;
+				regulator-always-on;
+			};
+			vddio_pmic: buck4 {
+				regulator-name = "vddio_pmic";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+			};
+			v1v8: buck5 {
+				regulator-name = "v1v8";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+				regulator-always-on;
+			};
+			v3v3: buck7 {
+				regulator-name = "v3v3";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+			};
+			vdda1v8_aon: ldo1 {
+				regulator-name = "vdda1v8_aon";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+				regulator-always-on;
+			};
+			vdd_emmc: ldo2 {
+				regulator-name = "vdd_emmc";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+			};
+			vdd3v3_usb: ldo4 {
+				regulator-name = "vdd3v3_usb";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+			};
+			vdd_sdcard: ldo7 {
+				regulator-name = "vdd_sdcard";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+			};
+			vddio_sdcard: ldo8 {
+				regulator-name = "vddio_sdcard";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <3300000>;
+				st,regulator-bypass-microvolt = <3300000>;
+			};
+		};
+	};
 };
 
 &risaf2 {
@@ -64,6 +147,83 @@
 
 &risaf5 {
 	status = "okay";
+};
+
+&pwr {
+	status = "okay";
+
+	vdd33ucpd: vdd33ucpd {
+		status = "okay";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vdd33ucpd-supply = <&vdd3v3_usb>;
+		regulator-always-on;
+	};
+
+	vdd33usb: vdd33usb {
+		status = "okay";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vdd33usb-supply = <&vdd3v3_usb>;
+	};
+
+	vdda18adc: vdda18adc {
+		status = "okay";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		vdda18adc-supply = <&v1v8>;
+		regulator-always-on;
+	};
+
+	vddgpu: vddgpu {
+		status = "okay";
+		vddgpu-supply = <&vddgpu_pmic>;
+	};
+
+	vddio1: vddio1 {
+		status = "okay";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <3300000>;
+		vddio1-supply = <&vddio_sdcard>;
+	};
+
+	vddio2: vddio2 {
+		status = "okay";
+		vddio2-supply = <&v1v8>;
+		regulator-always-on;
+	};
+
+	vddio3: vddio3 {
+		status = "okay";
+		vddio3-supply = <&vddio_pmic>;
+		regulator-always-on;
+	};
+
+	vddio4: vddio4 {
+		status = "okay";
+		vddio4-supply = <&vddio_pmic>;
+		regulator-always-on;
+	};
+
+	vddio: vddio {
+		status = "okay";
+		vdd-supply = <&vddio_pmic>;
+	};
+};
+
+&scmi_regu {
+	scmi_v3v3: voltd-v3v3 {
+		reg = <VOLTD_SCMI_STPMIC2_BUCK7>;
+		voltd-supply = <&v3v3>;
+	};
+	scmi_vdd_emmc: voltd-vdd-emmc {
+		reg = <VOLTD_SCMI_STPMIC2_LDO2>;
+		voltd-supply = <&vdd_emmc>;
+	};
+	scmi_vdd_sdcard: voltd-vdd_sdcard {
+		reg = <VOLTD_SCMI_STPMIC2_LDO7>;
+		voltd-supply = <&vdd_sdcard>;
+	};
 };
 
 &usart2 {
