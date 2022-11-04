@@ -128,6 +128,12 @@
 	st,non-secure-otp-provisioning;
 };
 
+&pwr_irq {
+	pinctrl-names = "default";
+	pinctrl-0 = <&wakeup_pins>;
+	status = "okay";
+};
+
 &rcc {
 	compatible = "st,stm32mp13-rcc", "syscon";
 
