@@ -7,6 +7,7 @@
 /dts-v1/;
 
 #include <dt-bindings/clock/stm32mp13-clksrc.h>
+#include <dt-bindings/regulator/st,stm32mp13-regulator.h>
 #include <dt-bindings/soc/stm32mp13-etzpc.h>
 #include "stm32mp135.dtsi"
 #include "stm32mp13xf.dtsi"
@@ -158,13 +159,13 @@
 
 			vddcpu: buck1 {
 				regulator-name = "vddcpu";
-				regulator-min-microvolt = <1200000>;
+				regulator-min-microvolt = <1250000>;
 				regulator-max-microvolt = <1350000>;
 				regulator-always-on;
 				regulator-over-current-protection;
 
 				lp-stop {
-					regulator-suspend-microvolt = <1200000>;
+					regulator-suspend-microvolt = <1250000>;
 				};
 				lplv-stop {
 					regulator-suspend-microvolt = <900000>;
@@ -302,6 +303,8 @@
 			v3v3_sw: pwr_sw2 {
 				regulator-name = "v3v3_sw";
 				regulator-active-discharge = <1>;
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
 			};
 		};
 	};
@@ -478,6 +481,41 @@
 
 &rtc {
 	status = "okay";
+};
+
+&scmi_regu {
+	scmi_vddcpu: voltd-vddcpu {
+		reg = <VOLTD_SCMI_STPMIC1_BUCK1>;
+		voltd-supply = <&vddcpu>;
+	};
+	scmi_vdd: voltd-vdd {
+		reg = <VOLTD_SCMI_STPMIC1_BUCK3>;
+		voltd-supply = <&vdd>;
+	};
+	scmi_vddcore: voltd-vddcore {
+		reg = <VOLTD_SCMI_STPMIC1_BUCK4>;
+		voltd-supply = <&vddcore>;
+	};
+	scmi_vdd_adc: voltd-vdd_adc {
+		reg = <VOLTD_SCMI_STPMIC1_LDO1>;
+		voltd-supply = <&vdd_adc>;
+	};
+	scmi_vdd_usb: voltd-vdd_usb {
+		reg = <VOLTD_SCMI_STPMIC1_LDO4>;
+		voltd-supply = <&vdd_usb>;
+	};
+	scmi_vdd_sd: voltd-vdd_sd {
+		reg = <VOLTD_SCMI_STPMIC1_LDO5>;
+		voltd-supply = <&vdd_sd>;
+	};
+	scmi_v1v8_periph: voltd-v1v8_periph {
+		reg = <VOLTD_SCMI_STPMIC1_LDO6>;
+		voltd-supply = <&v1v8_periph>;
+	};
+	scmi_v3v3_sw: voltd-v3v3_sw {
+		reg = <VOLTD_SCMI_STPMIC1_PWR_SW2>;
+		voltd-supply = <&v3v3_sw>;
+	};
 };
 
 &uart4 {
