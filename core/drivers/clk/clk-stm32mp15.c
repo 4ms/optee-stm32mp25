@@ -2084,3 +2084,10 @@ DEFINE_DT_DRIVER(stm32mp1_rcc_mco_dt_driver) = {
 	.match_table = stm32mp1_rcc_mco_match_table,
 	.probe = stm32mp1_rcc_mco_probe,
 };
+
+void stm32_reset_system(void)
+{
+	vaddr_t rcc = stm32_rcc_base();
+
+	io_write32(rcc + RCC_MP_GRSTCSETR, RCC_MP_GRSTCSETR_MPSYSRST);
+}

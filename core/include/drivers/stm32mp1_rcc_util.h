@@ -8,6 +8,7 @@
 
 /* Platform util for the RCC drivers */
 vaddr_t stm32_rcc_base(void);
+void stm32_reset_system(void);
 
 #ifdef CFG_DRIVERS_CLK
 /* Helper from platform RCC clock driver */
