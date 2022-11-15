@@ -64,6 +64,7 @@ srcs-$(CFG_VERSAL_PM) += versal_pm.c
 
 subdirs-y += crypto
 subdirs-y += firewall
+subdirs-$(CFG_DRIVERS_ADC) += adc
 subdirs-$(CFG_BNXT_FW) += bnxt
 subdirs-$(CFG_DRIVERS_CLK) += clk
 subdirs-$(CFG_DRIVERS_RSTCTRL) += rstctrl
