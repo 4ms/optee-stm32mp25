@@ -88,22 +88,6 @@ int psci_affinity_info(uint32_t affinity, uint32_t lowest_affinity_level)
 	}
 }
 
-#ifndef CFG_PM
-/* Implements stm32_pm_cpu_power_down_wfi() when CFG_PM is disable */
-void __noreturn stm32_pm_cpu_power_down_wfi(void)
-{
-	dcache_op_level1(DCACHE_OP_CLEAN);
-
-	io_write32(stm32_rcc_base() + RCC_MP_GRSTCSETR,
-		   RCC_MP_GRSTCSETR_MPUP1RST);
-
-	dsb();
-	isb();
-	wfi();
-	panic();
-}
-#endif
-
 #if CFG_TEE_CORE_NB_CORE == 1
 /*
  * Function called when a CPU is booted through the OP-TEE.
@@ -418,6 +402,20 @@ void __noreturn psci_system_off(void)
 	stm32_enter_cstop_shutdown(soc_mode);
 }
 #else /* CFG_PM */
+/* Implements stm32_pm_cpu_power_down_wfi() when CFG_PM is disable */
+void __noreturn stm32_pm_cpu_power_down_wfi(void)
+{
+	dcache_op_level1(DCACHE_OP_CLEAN);
+
+	io_write32(stm32_rcc_base() + RCC_MP_GRSTCSETR,
+		   RCC_MP_GRSTCSETR_MPUP1RST);
+
+	dsb();
+	isb();
+	wfi();
+	panic();
+}
+
 /* Override default psci_system_off() with platform specific sequence */
 void __noreturn psci_system_off(void)
 {
