@@ -69,6 +69,7 @@ enum dt_driver_type {
 	DT_DRIVER_RSTCTRL,
 	DT_DRIVER_PINCTRL,
 	DT_DRIVER_I2C,
+	DT_DRIVER_ADC,
 };
 
 /*

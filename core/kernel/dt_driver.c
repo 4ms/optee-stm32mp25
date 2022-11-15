@@ -107,6 +107,7 @@ static void assert_type_is_valid(enum dt_driver_type type)
 	case DT_DRIVER_UART:
 	case DT_DRIVER_PINCTRL:
 	case DT_DRIVER_I2C:
+	case DT_DRIVER_ADC:
 		return;
 	default:
 		assert(0);
@@ -128,6 +129,7 @@ TEE_Result dt_driver_register_provider(const void *fdt, int nodeoffset,
 	assert_type_is_valid(type);
 	switch (type) {
 	case DT_DRIVER_CLK:
+	case DT_DRIVER_ADC:
 	case DT_DRIVER_RSTCTRL:
 		provider_cells = fdt_get_dt_driver_cells(fdt, nodeoffset, type);
 		if (provider_cells < 0) {
@@ -190,6 +192,9 @@ int fdt_get_dt_driver_cells(const void *fdt, int nodeoffset,
 	int len = 0;
 
 	switch (type) {
+	case DT_DRIVER_ADC:
+		cells_name = "#io-channel-cells";
+		break;
 	case DT_DRIVER_CLK:
 		cells_name = "#clock-cells";
 		break;
