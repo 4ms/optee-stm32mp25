@@ -5,6 +5,7 @@
 
 #include <arm.h>
 #include <boot_api.h>
+#include <config.h>
 #include <console.h>
 #include <drivers/clk.h>
 #include <drivers/rstctrl.h>
@@ -110,7 +111,7 @@ void __noreturn stm32_pm_cpu_power_down_wfi(void)
  */
 void stm32mp_register_online_cpu(void)
 {
-	assert(core_state[0] == CORE_OFF);
+	assert(core_state[0] == CORE_OFF || core_state[0] == CORE_RET);
 	core_state[0] = CORE_ON;
 }
 #else
@@ -120,15 +121,27 @@ void stm32mp_register_online_cpu(void)
 	uint32_t exceptions = lock_state_access();
 
 	if (pos == 0) {
-		assert(core_state[pos] == CORE_OFF);
+		assert((core_state[pos] == CORE_OFF) ||
+		       (core_state[pos] == CORE_RET));
 	} else {
+		if (!stm32mp_supports_second_core())
+			return;
+
 		if (core_state[pos] != CORE_AWAKE) {
 			core_state[pos] = CORE_OFF;
 			unlock_state_access(exceptions);
-			stm32_pm_cpu_power_down_wfi();
+			if (IS_ENABLED(CFG_PM))
+				stm32_pm_cpu_power_down_wfi();
 			panic();
 		}
+
+		/* Balance BKPREG clock gating */
 		clk_disable(stm32mp_rcc_clock_id_to_clk(RTCAPB));
+
+		/* Clear hold in pen flag */
+		io_write32(stm32mp_bkpreg(BCKR_CORE1_MAGIC_NUMBER),
+			   BOOT_API_A7_RESET_MAGIC_NUMBER);
+
 	}
 
 	core_state[pos] = CORE_ON;
@@ -226,7 +239,9 @@ int psci_cpu_off(void)
 		panic();
 
 	thread_mask_exceptions(THREAD_EXCP_ALL);
-	stm32_pm_cpu_power_down_wfi();
+	if (IS_ENABLED(CFG_PM))
+		stm32_pm_cpu_power_down_wfi();
+
 	panic();
 }
 #endif
@@ -412,7 +427,9 @@ void __noreturn psci_system_off(void)
 	}
 
 	if (stm32mp_with_pmic()) {
-		stm32mp_get_pmic();
+		console_flush();
+		mdelay(10);
+		stm32mp_pm_get_pmic();
 		stpmic1_switch_off();
 		udelay(100);
 	}
@@ -424,7 +441,9 @@ void __noreturn psci_system_off(void)
 /* Override default psci_system_reset() with platform specific sequence */
 void __noreturn psci_system_reset(void)
 {
-	DMSG("core %u", get_core_pos());
+	IMSG("Forced system reset");
+	console_flush();
+	mdelay(10);
 	stm32_reset_system();
 	udelay(100);
 	panic();
@@ -441,7 +460,7 @@ int psci_features(uint32_t psci_fid)
 		return PSCI_RET_SUCCESS;
 	case PSCI_CPU_ON:
 	case PSCI_CPU_OFF:
-		if (CFG_TEE_CORE_NB_CORE > 1)
+		if (stm32mp_supports_second_core())
 			return PSCI_RET_SUCCESS;
 		return PSCI_RET_NOT_SUPPORTED;
 	case PSCI_SYSTEM_OFF:
