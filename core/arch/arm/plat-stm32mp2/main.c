@@ -11,6 +11,7 @@
 #include <drivers/stm32_iac.h>
 #include <drivers/stm32_risaf.h>
 #include <drivers/stm32_uart.h>
+#include <drivers/stm32mp_dt_bindings.h>
 #include <initcall.h>
 #include <kernel/dt.h>
 #include <kernel/boot.h>
@@ -202,4 +203,33 @@ void plat_bsec_get_static_cfg(struct stm32_bsec_static_cfg *cfg)
 	cfg->upper_start = STM32MP2_UPPER_OTP_START;
 	cfg->max_id = STM32MP2_OTP_MAX_ID;
 }
-#endif
+
+#define BSEC3_DEBUG_ALL		GENMASK_32(11, 1)
+static TEE_Result init_debug(void)
+{
+	TEE_Result res = TEE_SUCCESS;
+	struct clk *dbg_clk = stm32mp_rcc_clock_id_to_clk(CK_SYSDBG);
+	uint32_t state = 0;
+
+	assert(dbg_clk);
+
+	res = stm32_bsec_get_state(&state);
+	if (res)
+		return res;
+
+	if (state != BSEC_STATE_SEC_CLOSED) {
+		if (IS_ENABLED(CFG_WARN_INSECURE))
+			IMSG("WARNING: All debug access are allowed");
+
+		res = stm32_bsec_write_debug_conf(BSEC3_DEBUG_ALL);
+		if (res)
+			panic("Debug configuration failed");
+
+		/* Enable DBG as used to access coprocessor debug registers */
+		clk_enable(dbg_clk);
+	}
+
+	return res;
+}
+early_init_late(init_debug);
+#endif /* CFG_STM32_BSEC3 */
