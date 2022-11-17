@@ -294,7 +294,8 @@
 };
 
 &rng1 {
-	status = "okay";
+	status = "disabled";
+	secure-status = "okay";
 };
 
 &rtc {

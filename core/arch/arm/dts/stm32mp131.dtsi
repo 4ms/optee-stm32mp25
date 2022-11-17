@@ -443,6 +443,14 @@
 				status = "disabled";
 			};
 
+			rng: rng@54004000 {
+				compatible = "st,stm32mp13-rng";
+				reg = <0x54004000 0x400>;
+				clocks = <&rcc RNG1_K>;
+				resets = <&rcc RNG1_R>;
+				status = "disabled";
+			};
+
 			stgen: stgen@5c008000 {
 				compatible = "st,stm32-stgen";
 				reg = <0x5C008000 0x1000>;

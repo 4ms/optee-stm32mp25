@@ -479,6 +479,12 @@
 	};
 };
 
+&rng {
+	status = "disabled";
+	secure-status = "okay";
+	clock-error-detect;
+};
+
 &rtc {
 	status = "okay";
 };
