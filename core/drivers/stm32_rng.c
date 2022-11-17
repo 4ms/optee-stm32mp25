@@ -21,7 +21,13 @@
 #include <string.h>
 #include <tee/tee_cryp_utl.h>
 
+#ifdef CFG_STM32MP15
 #define DT_RNG_COMPAT		"st,stm32-rng"
+#endif
+#ifdef CFG_STM32MP13
+#define DT_RNG_COMPAT		"st,stm32mp13-rng"
+#endif
+
 #define RNG_CR			0x00U
 #define RNG_SR			0x04U
 #define RNG_DR			0x08U
