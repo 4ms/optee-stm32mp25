@@ -307,13 +307,15 @@ void stm32_enter_cstop(uint32_t mode)
 				panic();
 
 #ifndef CFG_STM32MP13
-		/* Keep retention in standby */
-		to = timeout_init_us(TIMEOUT_US_10MS);
-		io_setbits32(pwr_base + PWR_CR2_OFF, PWR_CR2_RREN);
+		if (stm32mp1_is_retram_during_standby()) {
+			/* Keep retention in standby */
+			to = timeout_init_us(TIMEOUT_US_10MS);
+			io_setbits32(pwr_base + PWR_CR2_OFF, PWR_CR2_RREN);
 
-		while (!(io_read32(pwr_base + PWR_CR2_OFF) & PWR_CR2_RRRDY))
-			if (timeout_elapsed(to))
-				panic();
+			while (!(io_read32(pwr_base + PWR_CR2_OFF) & PWR_CR2_RRRDY))
+				if (timeout_elapsed(to))
+					panic();
+		}
 #endif
 	}
 }

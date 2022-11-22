@@ -22,9 +22,11 @@
 #define DT_PWR_COMPAT			"st,stm32mp1,pwr-reg"
 #define SYSTEM_SUSPEND_SUPPORTED_MODES	"system_suspend_supported_soc_modes"
 #define SYSTEM_OFF_MODE			"system_off_soc_mode"
+#define RETRAM_ENABLED			"st,retram-enabled-in-standby-ddr-sr"
 
 static uint32_t deepest_suspend_mode;
 static uint32_t system_off_mode;
+static bool retram_enabled;
 static uint8_t stm32mp1_supported_soc_modes[STM32_PM_MAX_SOC_MODE];
 
 /* Boot with all domains ON */
@@ -37,6 +39,11 @@ static bool stm32mp1_pm_dom[STM32MP1_PD_MAX_PM_DOMAIN] = {
 int plat_get_lp_mode_count(void)
 {
 	return STM32_PM_MAX_SOC_MODE;
+}
+
+bool stm32mp1_is_retram_during_standby(void)
+{
+	return retram_enabled;
 }
 
 bool need_to_backup_cpu_context(unsigned int soc_mode)
@@ -202,8 +209,12 @@ static TEE_Result stm32mp1_init_lp_states(void)
 	if (fdt)
 		pwr_node = dt_get_pwr_node(fdt);
 
-	if (pwr_node >= 0)
+	if (pwr_node >= 0) {
+		if (fdt_getprop(fdt, pwr_node, RETRAM_ENABLED, NULL))
+			retram_enabled = true;
+
 		cuint = fdt_getprop(fdt, pwr_node, SYSTEM_OFF_MODE, NULL);
+	}
 
 	if (!fdt || (pwr_node < 0) || !cuint) {
 		IMSG("No power configuration found in DT");

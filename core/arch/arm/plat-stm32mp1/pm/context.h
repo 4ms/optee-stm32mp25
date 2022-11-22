@@ -96,6 +96,7 @@ uint32_t stm32mp1_get_lp_soc_mode(uint32_t psci_mode);
 int stm32mp1_set_lp_deepest_soc_mode(uint32_t psci_mode, uint32_t soc_mode);
 
 uintptr_t stm32mp_pm_retram_resume_ep(void);
+bool stm32mp1_is_retram_during_standby(void);
 
 int stm32mp_ccm_encrypt_teeram(struct retram_resume_ctx *ctx,
 			       void *dst, void *src, size_t size);
