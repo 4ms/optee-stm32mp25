@@ -364,134 +364,13 @@ void stm32_exit_cstop(void)
 /*
  * GIC support required in low power sequences and reset sequences
  */
-#define GICC_IAR			0x00C
-#define GICC_IT_ID_MASK			0x3ff
 #define GICC_EOIR			0x010
-#define GICC_HPPIR			0x018
-#define GICC_AHPPIR			0x028
-#define GIC_PENDING_G1_INTID		1022U
-#define GIC_SPURIOUS_INTERRUPT		1023U
-#define GIC_NUM_INTS_PER_REG		32
-#define GIC_MAX_SPI_ID			1020
-#define GICD_ICENABLER(n)		(0x180 + (n) * 4)
-
-static void clear_pending_interrupts(void)
-{
-	uint32_t id = 0;
-	vaddr_t gicc_base = get_gicc_base();
-	vaddr_t gicd_base = get_gicd_base();
-
-	do {
-		id = io_read32(gicc_base + GICC_HPPIR) & GICC_IT_ID_MASK;
-
-		/*
-		 * Find out which interrupt it is under the
-		 * assumption that the GICC_CTLR.AckCtl bit is 0.
-		 */
-		if (id == GIC_PENDING_G1_INTID)
-			id = io_read32(gicc_base + GICC_AHPPIR) & GICC_IT_ID_MASK;
-
-		if (id < GIC_MAX_SPI_ID) {
-			size_t idx = id / GIC_NUM_INTS_PER_REG;
-			uint32_t mask = 1 << (id % GIC_NUM_INTS_PER_REG);
-
-			io_write32(gicc_base + GICC_EOIR, id);
-
-			io_write32(gicd_base + GICD_ICENABLER(idx), mask);
-
-			dsb_ishst();
-		}
-	} while (id < GIC_MAX_SPI_ID);
-}
 
 void stm32mp_gic_set_end_of_interrupt(uint32_t it)
 {
 	vaddr_t gicc_base = get_gicc_base();
 
 	io_write32(gicc_base + GICC_EOIR, it);
-}
-
-static void __noreturn wait_cpu_reset(void)
-{
-	psci_armv7_cpu_off();
-
-	for ( ; ; ) {
-		clear_pending_interrupts();
-		wfi();
-	}
-}
-
-static void __noreturn reset_cores(void)
-{
-	vaddr_t rcc_base = stm32_rcc_base();
-#ifdef CFG_STM32MP13
-	uint32_t reset_mask = RCC_MP_GRSTCSETR_MPUP0RST;
-#else
-	uint32_t reset_mask = RCC_MP_GRSTCSETR_MPUP0RST |
-			      RCC_MP_GRSTCSETR_MPUP1RST;
-#endif
-	uint32_t target_mask = 0;
-
-	/* Mask timer interrupts */
-	stm32mp_mask_timer();
-
-	if (get_core_pos() == 0)
-		target_mask = TARGET_CPU1_GIC_MASK;
-	else
-		target_mask = TARGET_CPU0_GIC_MASK;
-
-	itr_raise_sgi(GIC_SEC_SGI_1, target_mask);
-
-	clear_pending_interrupts();
-
-	io_write32(rcc_base + RCC_MP_GRSTCSETR, reset_mask);
-
-	wait_cpu_reset();
-}
-
-/*
- * stm32_pm_cpus_reset - Reset only cpus
- */
-void __noreturn stm32_cores_reset(void)
-{
-	reset_cores();
-}
-DECLARE_KEEP_PAGER(stm32_cores_reset);
-
-static __maybe_unused void reset_other_core(void)
-{
-	vaddr_t __maybe_unused rcc_base = stm32_rcc_base();
-	uint32_t __maybe_unused reset_mask = 0;
-	uint32_t __maybe_unused target_mask = 0;
-
-	if (!stm32mp_supports_second_core())
-		return;
-
-#ifdef CFG_STM32MP15
-	if (get_core_pos() == 0) {
-		reset_mask = RCC_MP_GRSTCSETR_MPUP1RST;
-		target_mask = TARGET_CPU1_GIC_MASK;
-	} else {
-		reset_mask = RCC_MP_GRSTCSETR_MPUP0RST;
-		target_mask = TARGET_CPU0_GIC_MASK;
-	}
-#endif
-
-	itr_raise_sgi(GIC_SEC_SGI_1, target_mask);
-}
-
-/*
- * Override default plat_panic() function to trap all cores
- * and let hardware watchdog fire.
- */
-void __noreturn plat_panic(void)
-{
-	DMSG("Panic on CPU %u", get_core_pos());
-
-	reset_other_core();
-
-	while (true)
-		cpu_idle();
 }
 
 /*
@@ -579,7 +458,7 @@ static struct itr_handler rcc_wakeup_handler = {
 DECLARE_KEEP_PAGER(rcc_wakeup_handler);
 
 /* SGI9 (secure SGI 1) informs targeted CPU it shall reset */
-static enum itr_return sgi9_it_handler(struct itr_handler *handler)
+static enum itr_return sgi9_it_handler(struct itr_handler *hdl  __unused)
 {
 	DMSG("Halting CPU %u", get_core_pos());
 
@@ -587,13 +466,8 @@ static enum itr_return sgi9_it_handler(struct itr_handler *handler)
 
 	stm32mp_dump_core_registers(false);
 
-	stm32mp_gic_set_end_of_interrupt(handler->it);
-
-	clear_pending_interrupts();
-
-	wait_cpu_reset();
-
-	panic("Core reset");
+	while (true)
+		cpu_idle();
 
 	return ITRR_HANDLED;
 }
@@ -603,6 +477,25 @@ static struct itr_handler sgi9_reset_handler = {
 	.handler = sgi9_it_handler,
 };
 DECLARE_KEEP_PAGER(sgi9_reset_handler);
+
+void __noreturn plat_panic(void)
+{
+	stm32mp_mask_timer();
+
+	if (stm32mp_supports_second_core()) {
+		uint32_t target_mask = 0;
+
+		if (get_core_pos() == 0)
+			target_mask = TARGET_CPU1_GIC_MASK;
+		else
+			target_mask = TARGET_CPU0_GIC_MASK;
+
+		itr_raise_sgi(GIC_SEC_SGI_1, target_mask);
+	}
+
+	while (true)
+		cpu_idle();
+}
 
 static TEE_Result init_low_power(void)
 {
