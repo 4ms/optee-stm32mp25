@@ -443,6 +443,16 @@
 				status = "disabled";
 			};
 
+			vrefbuf: vrefbuf@50025000 {
+				compatible = "st,stm32mp13-vrefbuf";
+				reg = <0x50025000 0x8>;
+				regulator-name = "vrefbuf";
+				regulator-min-microvolt = <1650000>;
+				regulator-max-microvolt = <2500000>;
+				clocks = <&rcc VREF>;
+				status = "disabled";
+			};
+
 			rng: rng@54004000 {
 				compatible = "st,stm32mp13-rng";
 				reg = <0x54004000 0x400>;
