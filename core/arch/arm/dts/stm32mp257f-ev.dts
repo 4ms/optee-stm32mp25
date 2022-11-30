@@ -27,3 +27,11 @@
 		reg = <0x80000000 0x80000000>;
 	};
 };
+
+&risaf2 {
+	status = "okay";
+};
+
+&risaf5 {
+	status = "okay";
+};
