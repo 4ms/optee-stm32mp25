@@ -6,8 +6,17 @@
 
 /dts-v1/;
 
+#include <dt-bindings/clock/stm32mp25-clksrc.h>
+#include <dt-bindings/reset/stm32mp25-resets.h>
+#include <dt-bindings/soc/stm32mp25-rif.h>
+#include <dt-bindings/soc/stm32mp25-risab.h>
+#include <dt-bindings/soc/stm32mp25-risaf.h>
+#include <dt-bindings/soc/stm32mp25-rifsc.h>
 #include "stm32mp257.dtsi"
 #include "stm32mp25xf.dtsi"
+#include "stm32mp257f-ev-ca35tdcid-rcc.dtsi"
+#include "stm32mp257f-ev-ca35tdcid-resmem.dtsi"
+#include "stm32mp257f-ev-ca35tdcid-rif.dtsi"
 #include "stm32mp25-pinctrl.dtsi"
 #include "stm32mp25xxai-pinctrl.dtsi"
 
@@ -25,7 +34,7 @@
 
 	memory@80000000 {
 		device_type = "memory";
-		reg = <0x80000000 0x80000000>;
+		reg = <0x0 0x80000000 0x1 0x00000000>;
 	};
 };
 
