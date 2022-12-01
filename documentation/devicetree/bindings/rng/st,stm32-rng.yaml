@@ -33,6 +33,9 @@ properties:
   clock-error-detect:
     description: If set enable the clock detection management
 
+  st,rng-config:
+    description: RNG configuration ID. Must be set at board level.
+
 required:
   - compatible
   - reg
