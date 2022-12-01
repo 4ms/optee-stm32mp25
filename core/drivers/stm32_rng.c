@@ -67,11 +67,12 @@ struct stm32_rng_instance {
 	const struct stm32_rng_driver_data *ddata;
 	unsigned int lock;
 	unsigned int refcount;
+	uint64_t error_to_ref;
+	uint32_t pm_cr;
+	uint32_t rng_config;
 	bool release_post_boot;
 	bool clock_error;
 	bool error_conceal;
-	uint64_t error_to_ref;
-	uint32_t pm_cr;
 };
 
 /* Expect at most a single RNG instance */
@@ -273,7 +274,7 @@ static TEE_Result init_rng(void)
 
 		/* Update configuration fields */
 		io_clrsetbits32(rng_base + RNG_CR, RNG_NIST_CONFIG_MASK,
-				RNG_NIST_CONFIG_B | RNG_CR_CONDRST |
+				stm32_rng->rng_config | RNG_CR_CONDRST |
 				cr_ced_mask);
 		io_clrsetbits32(rng_base + RNG_CR, RNG_CR_CLKDIV,
 				(clock_div << RNG_CR_CLKDIV_SHIFT));
@@ -439,7 +440,9 @@ DECLARE_KEEP_PAGER(stm32_rng_pm);
 static TEE_Result stm32_rng_parse_fdt(const void *fdt, int node)
 {
 	TEE_Result res = TEE_ERROR_GENERIC;
+	const fdt32_t *cuint = NULL;
 	struct dt_node_info dt_rng = { };
+	unsigned int config_id = 0;
 
 	_fdt_fill_device_info(fdt, &dt_rng, node);
 	if (dt_rng.reg == DT_INFO_INVALID_REG)
@@ -465,6 +468,32 @@ static TEE_Result stm32_rng_parse_fdt(const void *fdt, int node)
 	stm32_rng->release_post_boot = IS_ENABLED(CFG_WITH_SOFTWARE_PRNG) &&
 				       !IS_ENABLED(CFG_PM);
 
+	if (!stm32_rng->ddata->has_cond_reset)
+		goto end;
+
+	cuint = fdt_getprop(fdt, node, "st,rng-config", NULL);
+	if (!cuint) {
+		IMSG("No RNG configuration specified, defaulting to NIST B");
+		stm32_rng->rng_config = RNG_NIST_CONFIG_B;
+		goto end;
+	}
+
+	config_id = (unsigned int)fdt32_to_cpu(*cuint);
+	switch (config_id) {
+	case 0:
+		stm32_rng->rng_config = RNG_NIST_CONFIG_A;
+		break;
+	case 1:
+		stm32_rng->rng_config = RNG_NIST_CONFIG_B;
+		break;
+	case 2:
+		stm32_rng->rng_config = RNG_NIST_CONFIG_C;
+		break;
+	default:
+		panic("RNG config not supported");
+	}
+
+end:
 	return TEE_SUCCESS;
 }
 
@@ -480,12 +509,12 @@ static TEE_Result stm32_rng_probe(const void *fdt, int offs,
 	if (!stm32_rng)
 		panic();
 
+	stm32_rng->ddata = (struct stm32_rng_driver_data *)compat_data;
+	assert(stm32_rng->ddata);
+
 	res = stm32_rng_parse_fdt(fdt, offs);
 	if (res)
 		goto err;
-
-	stm32_rng->ddata = compat_data;
-	assert(stm32_rng->ddata);
 
 	res = clk_enable(stm32_rng->clock);
 	if (res)
