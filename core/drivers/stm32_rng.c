@@ -301,6 +301,13 @@ static TEE_Result init_rng(void)
 		/* No need to wait for RNG_CR_CONDRST toggle as we enable clk */
 		io_clrsetbits32(rng_base + RNG_CR, RNG_CR_CONDRST,
 				RNG_CR_RNGEN);
+
+		DMSG("RNG control register %#"PRIx32,
+		     io_read32(rng_base + RNG_CR));
+		DMSG("RNG noise source control register %#"PRIx32,
+		     io_read32(rng_base + RNG_NSCR));
+		DMSG("RNG health test register %#"PRIx32,
+		     io_read32(rng_base + RNG_HTCR));
 	} else {
 		io_setbits32(rng_base + RNG_CR, RNG_CR_RNGEN | cr_ced_mask);
 	}
