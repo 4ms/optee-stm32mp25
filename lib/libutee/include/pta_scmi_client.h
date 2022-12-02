@@ -108,10 +108,9 @@
  */
 #define PTA_SCMI_CAPS_OCALL2_THREAD			BIT32(31)
 
-#define PTA_SCMI_CAPS_VALID_MASK	(PTA_SCMI_CAPS_SMT_HEADER | \
+#define PTA_SCMI_CAPS_MASK		(PTA_SCMI_CAPS_SMT_HEADER | \
 					 PTA_SCMI_CAPS_MSG_HEADER | \
 					 PTA_SCMI_CAPS_OCALL2_THREAD)
-
 /*
  * enum optee_scmi_ocall_cmd
  * enum optee_scmi_ocall_reply

@@ -24,7 +24,20 @@ struct msg_shm {
 
 static bool valid_caps(unsigned int caps)
 {
-	return (caps & ~PTA_SCMI_CAPS_VALID_MASK) == 0;
+	return (caps & ~PTA_SCMI_CAPS_MASK) == 0;
+}
+
+static uint32_t supported_caps(void)
+{
+	uint32_t caps = 0;
+
+	if (IS_ENABLED2(_CFG_SCMI_PTA_SMT_HEADER))
+		caps |= PTA_SCMI_CAPS_SMT_HEADER | PTA_SCMI_CAPS_OCALL2_THREAD;
+
+	if (IS_ENABLED2(_CFG_SCMI_PTA_MSG_HEADER))
+		caps |= PTA_SCMI_CAPS_MSG_HEADER | PTA_SCMI_CAPS_OCALL2_THREAD;
+
+	return caps;
 }
 
 static TEE_Result cmd_capabilities(uint32_t ptypes,
@@ -34,17 +47,11 @@ static TEE_Result cmd_capabilities(uint32_t ptypes,
 						    TEE_PARAM_TYPE_NONE,
 						    TEE_PARAM_TYPE_NONE,
 						    TEE_PARAM_TYPE_NONE);
-	uint32_t caps = 0;
 
 	if (ptypes != exp_ptypes)
 		return TEE_ERROR_BAD_PARAMETERS;
 
-	if (IS_ENABLED(CFG_SCMI_MSG_SMT))
-		caps |= PTA_SCMI_CAPS_SMT_HEADER | PTA_SCMI_CAPS_OCALL2_THREAD;
-	if (IS_ENABLED(CFG_SCMI_MSG_SHM_MSG))
-		caps |= PTA_SCMI_CAPS_MSG_HEADER | PTA_SCMI_CAPS_OCALL2_THREAD;
-
-	param[0].value.a = caps;
+	param[0].value.a = supported_caps();
 	param[0].value.b = 0;
 
 	return TEE_SUCCESS;
@@ -289,14 +296,11 @@ static TEE_Result cmd_get_channel_handle(uint32_t ptypes,
 	if (ptypes != exp_ptypes || !valid_caps(caps))
 		return TEE_ERROR_BAD_PARAMETERS;
 
+	if (!(caps & supported_caps()))
+		return TEE_ERROR_NOT_SUPPORTED;
+
 	if (IS_ENABLED(CFG_SCMI_MSG_DRIVERS)) {
 		struct scmi_msg_channel *channel = NULL;
-
-		if ((!IS_ENABLED(CFG_SCMI_MSG_SMT) &&
-		     caps & PTA_SCMI_CAPS_SMT_HEADER) ||
-		    (!IS_ENABLED(CFG_SCMI_MSG_SHM_MSG) &&
-		     caps & PTA_SCMI_CAPS_MSG_HEADER))
-			return TEE_ERROR_NOT_SUPPORTED;
 
 		channel = plat_scmi_get_channel(channel_id);
 		if (!channel)
