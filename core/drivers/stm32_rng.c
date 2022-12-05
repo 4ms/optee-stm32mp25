@@ -299,8 +299,11 @@ static TEE_Result init_rng(void)
 		 * Write health test and noise source control configuration
 		 * according to current RNG NIST configuration
 		 */
-		io_write32(rng_base + RNG_NSCR, stm32_rng->noise_ctrl_conf);
-		io_write32(rng_base + RNG_HTCR, stm32_rng->health_test_conf);
+		if (stm32_rng->noise_ctrl_conf)
+			io_write32(rng_base + RNG_NSCR, stm32_rng->noise_ctrl_conf);
+
+		if(stm32_rng->health_test_conf)
+			io_write32(rng_base + RNG_HTCR, stm32_rng->health_test_conf);
 
 		/* No need to wait for RNG_CR_CONDRST toggle as we enable clk */
 		io_clrsetbits32(rng_base + RNG_CR, RNG_CR_CONDRST,
