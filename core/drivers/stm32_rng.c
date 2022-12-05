@@ -26,6 +26,8 @@
 #define RNG_CR			U(0x00)
 #define RNG_SR			U(0x04)
 #define RNG_DR			U(0x08)
+#define RNG_NSCR		U(0x0C)
+#define RNG_HTCR		U(0x10)
 
 #define RNG_CR_RNGEN		BIT(2)
 #define RNG_CR_IE		BIT(3)
@@ -50,8 +52,14 @@
 #define RNG_FIFO_BYTE_DEPTH	U(16)
 
 #define RNG_NIST_CONFIG_A	U(0x0F00F00)
+#define RNG_HEALTH_CONFIG_A	U(0xAB39)
+#define RNG_NOISE_CTRL_CONFIG_A	U(0x0492)
 #define RNG_NIST_CONFIG_B	U(0x1801000)
+#define RNG_HEALTH_CONFIG_B	U(0xAAC7)
+#define RNG_NOISE_CTRL_CONFIG_B	U(0x3FFFF)
 #define RNG_NIST_CONFIG_C	U(0x0F00D00)
+#define RNG_HEALTH_CONFIG_C	U(0xAAC7)
+#define RNG_NOISE_CTRL_CONFIG_C	U(0x3FFFF)
 #define RNG_NIST_CONFIG_MASK	GENMASK_32(25, 8)
 
 #define RNG_MAX_NOISE_CLK_FREQ	U(3000000)
@@ -69,6 +77,10 @@ struct stm32_rng_instance {
 	unsigned int refcount;
 	uint64_t error_to_ref;
 	uint32_t pm_cr;
+	uint32_t pm_health;
+	uint32_t pm_noise_ctrl;
+	uint32_t health_test_conf;
+	uint32_t noise_ctrl_conf;
 	uint32_t rng_config;
 	bool release_post_boot;
 	bool clock_error;
@@ -279,6 +291,13 @@ static TEE_Result init_rng(void)
 		io_clrsetbits32(rng_base + RNG_CR, RNG_CR_CLKDIV,
 				(clock_div << RNG_CR_CLKDIV_SHIFT));
 
+		/*
+		 * Write health test and noise source control configuration
+		 * according to current RNG NIST configuration
+		 */
+		io_write32(rng_base + RNG_NSCR, stm32_rng->noise_ctrl_conf);
+		io_write32(rng_base + RNG_HTCR, stm32_rng->health_test_conf);
+
 		/* No need to wait for RNG_CR_CONDRST toggle as we enable clk */
 		io_clrsetbits32(rng_base + RNG_CR, RNG_CR_CONDRST,
 				RNG_CR_RNGEN);
@@ -397,6 +416,10 @@ static TEE_Result stm32_rng_pm_resume(void)
 		io_write32(rng_base + RNG_CR,
 			   stm32_rng->pm_cr | RNG_CR_CONDRST);
 
+		/* Restore health test and noise control configuration */
+		io_write32(rng_base + RNG_NSCR, stm32_rng->pm_noise_ctrl);
+		io_write32(rng_base + RNG_HTCR, stm32_rng->pm_health);
+
 		io_clrsetbits32(rng_base + RNG_CR, RNG_CR_CONDRST,
 				RNG_CR_RNGEN);
 	} else {
@@ -409,6 +432,8 @@ static TEE_Result stm32_rng_pm_resume(void)
 static TEE_Result stm32_rng_pm_suspend(void)
 {
 	stm32_rng->pm_cr = io_read32(get_base() + RNG_CR);
+	stm32_rng->pm_health = io_read32(get_base() + RNG_HTCR);
+	stm32_rng->pm_noise_ctrl = io_read32(get_base() + RNG_NSCR);
 
 	return TEE_SUCCESS;
 }
@@ -475,6 +500,8 @@ static TEE_Result stm32_rng_parse_fdt(const void *fdt, int node)
 	if (!cuint) {
 		IMSG("No RNG configuration specified, defaulting to NIST B");
 		stm32_rng->rng_config = RNG_NIST_CONFIG_B;
+		stm32_rng->health_test_conf = RNG_HEALTH_CONFIG_B;
+		stm32_rng->noise_ctrl_conf = RNG_NOISE_CTRL_CONFIG_B;
 		goto end;
 	}
 
@@ -482,12 +509,18 @@ static TEE_Result stm32_rng_parse_fdt(const void *fdt, int node)
 	switch (config_id) {
 	case 0:
 		stm32_rng->rng_config = RNG_NIST_CONFIG_A;
+		stm32_rng->health_test_conf = RNG_HEALTH_CONFIG_A;
+		stm32_rng->noise_ctrl_conf = RNG_NOISE_CTRL_CONFIG_A;
 		break;
 	case 1:
 		stm32_rng->rng_config = RNG_NIST_CONFIG_B;
+		stm32_rng->health_test_conf = RNG_HEALTH_CONFIG_B;
+		stm32_rng->noise_ctrl_conf = RNG_NOISE_CTRL_CONFIG_B;
 		break;
 	case 2:
 		stm32_rng->rng_config = RNG_NIST_CONFIG_C;
+		stm32_rng->health_test_conf = RNG_HEALTH_CONFIG_C;
+		stm32_rng->noise_ctrl_conf = RNG_NOISE_CTRL_CONFIG_C;
 		break;
 	default:
 		panic("RNG config not supported");
