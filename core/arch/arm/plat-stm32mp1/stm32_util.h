@@ -13,6 +13,7 @@
 #include <kernel/panic.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <tee_api_types.h>
 #include <types_ext.h>
 
 /* SoC versioning and device ID */
@@ -299,4 +300,21 @@ static inline bool stm32mp_gpio_bank_is_non_secure(unsigned int bank __unused)
 }
 
 #endif /* CFG_STM32MP1_SHARED_RESOURCES */
+
+/*
+ * CPU operating point
+ */
+
+/* Return the number of CPU operating points */
+size_t stm32mp1_cpu_opp_count(void);
+
+/* Get level value identifying CPU operating point @opp_index */
+unsigned int stm32mp1_cpu_opp_level(size_t opp_index);
+
+/* Request to switch to CPU operating point related to @level */
+TEE_Result stm32mp1_cpu_opp_set_level(unsigned int level);
+
+/* Get level related to current CPU operating point */
+TEE_Result stm32mp1_cpu_opp_read_level(unsigned int *level);
+
 #endif /*__STM32_UTIL_H__*/
