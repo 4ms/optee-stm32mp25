@@ -140,6 +140,7 @@ endif # CFG_STM32MP13
 ifeq ($(CFG_STM32MP15),y)
 $(call force,CFG_BOOT_SECONDARY_REQUEST,y)
 $(call force,CFG_DDR_LOWPOWER,y)
+$(call force,CFG_SCMI_MSG_PERF_DOMAIN,n)
 $(call force,CFG_DRIVERS_CLK_FIXED,n)
 $(call force,CFG_SECONDARY_INIT_CNTFRQ,y)
 $(call force,CFG_STM32MP1_SHARED_RESOURCES,y)
@@ -301,6 +302,7 @@ CFG_SCMI_MSG_SMT ?= y
 CFG_SCMI_MSG_SMT_THREAD_ENTRY ?= y
 CFG_SCMI_MSG_REGULATOR_CONSUMER ?= y
 $(call force,CFG_SCMI_MSG_VOLTAGE_DOMAIN,y)
+CFG_SCMI_MSG_PERF_DOMAIN ?= y
 endif
 
 # Default use stm32mp1 PM mailbox context version 3
