@@ -810,6 +810,7 @@ static void save_dt_nvmem_layout(void *fdt, int bsec_node)
 		const char *s = NULL;
 		int len = 0;
 		struct nvmem_layout *layout_cell = &nvmem_layout[cell_cnt];
+		uint32_t bits[2] = { };
 
 		string = fdt_get_name(fdt, node, &len);
 		if (!string || !len)
@@ -830,6 +831,11 @@ static void save_dt_nvmem_layout(void *fdt, int bsec_node)
 		}
 		layout_cell->otp_id = reg_offset / sizeof(uint32_t);
 		layout_cell->bit_len = reg_length * CHAR_BIT;
+
+		if (!_fdt_read_uint32_array(fdt, node, "bits", bits, 2)) {
+			layout_cell->bit_offset += bits[0];
+			layout_cell->bit_len = bits[1];
+		}
 
 		s = strchr(string, '@');
 		if (s)
