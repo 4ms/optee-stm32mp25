@@ -234,6 +234,7 @@
 			};
 			part_number_otp: part_number_otp@4 {
 				reg = <0x4 0x2>;
+				bits = <0 12>;
 			};
 			monotonic_otp: monotonic_otp@10 {
 				reg = <0x10 0x4>;
