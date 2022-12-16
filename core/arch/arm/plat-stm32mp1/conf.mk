@@ -181,6 +181,7 @@ $(call force,CFG_DRIVERS_RSTCTRL,n)
 $(call force,CFG_REGULATOR_FIXED,n)
 $(call force,CFG_STM32_CRYP,n)
 $(call force,CFG_STM32_GPIO,n)
+$(call force,CFG_STM32_HASH,n)
 $(call force,CFG_STM32_I2C,n)
 $(call force,CFG_STM32_IWDG,n)
 $(call force,CFG_STM32_REGULATOR_GPIO,n)
@@ -234,6 +235,7 @@ CFG_STM32_BSEC ?= y
 CFG_STM32_CRYP ?= y
 CFG_STM32_ETZPC ?= y
 CFG_STM32_GPIO ?= y
+CFG_STM32_HASH ?= y
 CFG_STM32_I2C ?= y
 CFG_STM32_IWDG ?= y
 CFG_STM32_REGULATOR_GPIO ?= y
@@ -266,7 +268,8 @@ endif
 
 # If any crypto driver is enabled, enable the crypto-framework layer
 ifeq ($(call cfg-one-enabled, CFG_STM32_CRYP \
-	                      CFG_STM32_SAES),y)
+	                      CFG_STM32_SAES \
+			      CFG_STM32_HASH),y)
 $(call force,CFG_STM32_CRYPTO_DRIVER,y)
 endif
 
