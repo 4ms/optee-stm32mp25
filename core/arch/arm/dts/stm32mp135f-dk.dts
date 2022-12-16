@@ -157,6 +157,10 @@
 	st,protreg = < (TZPROT(2)|TZPROT(3)) >;
 };
 
+&hash {
+	status = "okay";
+};
+
 &i2c4 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&i2c4_pins_a>;
