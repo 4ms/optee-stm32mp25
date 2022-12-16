@@ -183,7 +183,8 @@ static bool is_closed_mode(void)
 	TEE_Result res = TEE_ERROR_GENERIC;
 	const uint32_t mask = CFG0_CLOSED_MASK;
 
-	res = stm32_bsec_find_otp_in_nvmem_layout("cfg0_otp", &otp_cfg, NULL);
+	res = stm32_bsec_find_otp_in_nvmem_layout("cfg0_otp", &otp_cfg,
+						  NULL, NULL);
 	if (res)
 		panic("CFG0 OTP not found");
 
@@ -605,9 +606,16 @@ bool stm32_bsec_nsec_can_access_otp(uint32_t otp_id)
 	       nsec_access_granted(otp_id - otp_upper_base());
 }
 
+/*
+ * @name: Name of the nvmem node in the DT
+ * @otp_id: BSEC base index for the OTP words
+ * @bit_offset: Bit offset in the OTP word
+ * @bit_len: Bit size of the OTP word
+ */
 struct nvmem_layout {
 	char *name;
 	uint32_t otp_id;
+	size_t bit_offset;
 	size_t bit_len;
 };
 
@@ -616,6 +624,7 @@ static size_t nvmem_layout_count;
 
 TEE_Result stm32_bsec_find_otp_in_nvmem_layout(const char *name,
 					       uint32_t *otp_id,
+					       uint8_t *otp_bit_offset,
 					       size_t *otp_bit_len)
 {
 	size_t i = 0;
@@ -630,11 +639,15 @@ TEE_Result stm32_bsec_find_otp_in_nvmem_layout(const char *name,
 		if (otp_id)
 			*otp_id = nvmem_layout[i].otp_id;
 
+		if (otp_bit_offset)
+			*otp_bit_offset = nvmem_layout[i].bit_offset;
+
 		if (otp_bit_len)
 			*otp_bit_len = nvmem_layout[i].bit_len;
 
-		DMSG("nvmem %s = %zu: %"PRId32" %zu", name, i,
-		     nvmem_layout[i].otp_id, nvmem_layout[i].bit_len);
+		DMSG("nvmem %s = %zu: %"PRIu32" bit offset: %zu, length: %zu",
+		     name, i, nvmem_layout[i].otp_id,
+		     nvmem_layout[i].bit_offset, nvmem_layout[i].bit_len);
 
 		return TEE_SUCCESS;
 	}
@@ -665,8 +678,8 @@ TEE_Result stm32_bsec_get_state(uint32_t *state)
 	if (!IS_ENABLED(CFG_STM32MP13))
 		return TEE_SUCCESS;
 
-	res = stm32_bsec_find_otp_in_nvmem_layout("oem_enc_key",
-						  &otp_enc_id, &otp_bit_len);
+	res = stm32_bsec_find_otp_in_nvmem_layout("oem_enc_key", &otp_enc_id,
+						  NULL, &otp_bit_len);
 	if (!res && otp_bit_len) {
 		unsigned int start = otp_enc_id / BSEC_BITS_PER_WORD;
 		size_t otp_nb = ROUNDUP_DIV(otp_bit_len, BSEC_BITS_PER_WORD);
@@ -830,11 +843,9 @@ static void save_dt_nvmem_layout(void *fdt, int bsec_node)
 			continue;
 		}
 
-		if (reg_offset % sizeof(uint32_t)) {
-			DMSG("Misaligned nvmem %s: ignored", string);
-			continue;
-		}
 		layout_cell->otp_id = reg_offset / sizeof(uint32_t);
+		layout_cell->bit_offset = (reg_offset % sizeof(uint32_t))
+					  * CHAR_BIT;
 		layout_cell->bit_len = reg_length * CHAR_BIT;
 
 		if (!_fdt_read_uint32_array(fdt, node, "bits", bits, 2)) {
@@ -852,9 +863,9 @@ static void save_dt_nvmem_layout(void *fdt, int bsec_node)
 
 		memcpy(layout_cell->name, string, len);
 		cell_cnt++;
-		DMSG("nvmem[%d] = %s %"PRId32" %zu", cell_cnt,
-		     layout_cell->name, layout_cell->otp_id,
-		     layout_cell->bit_len);
+		DMSG("nvmem[%d] = %s %" PRIu32 "bit offset: %zu, length: %zu",
+		     cell_cnt, layout_cell->name, layout_cell->otp_id,
+		     layout_cell->bit_offset, layout_cell->bit_len);
 	}
 
 	if (cell_cnt != cell_max) {

@@ -371,7 +371,8 @@ TEE_Result stm32_get_iwdg_otp_config(paddr_t pbase,
 		panic();
 	}
 
-	if (stm32_bsec_find_otp_in_nvmem_layout("hw2_otp", &otp_id, &bit_len))
+	if (stm32_bsec_find_otp_in_nvmem_layout("hw2_otp", &otp_id, NULL,
+						&bit_len))
 		panic();
 
 	if (bit_len != 32)
@@ -493,7 +494,7 @@ static int get_part_number(uint32_t *part_nb)
 		return -1;
 
 	if (stm32_bsec_find_otp_in_nvmem_layout("part_number_otp",
-						&otp, &bit_len))
+						&otp, NULL, &bit_len))
 		return -1;
 
 	if (stm32_bsec_read_otp(&part_number, otp))

@@ -299,7 +299,8 @@ static TEE_Result stm32mp_syscfg_set_hslv(void)
 	 *   => TF-A enables the low power mode only if VDD < 2.7V (in DT)
 	 *      but this value needs to be consistent with board design.
 	 */
-	res = stm32_bsec_find_otp_in_nvmem_layout("hw2_otp", &otp_id, NULL);
+	res = stm32_bsec_find_otp_in_nvmem_layout("hw2_otp", &otp_id,
+						  NULL, NULL);
 	if (res)
 		panic();
 

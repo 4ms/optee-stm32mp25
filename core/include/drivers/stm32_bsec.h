@@ -149,12 +149,15 @@ bool stm32_bsec_nsec_can_access_otp(uint32_t otp_id);
  * Find and get OTP location from its name.
  * @name: sub-node name to look up.
  * @otp_id: pointer to read OTP number or NULL.
+ * @otp_bit_offset: pointer to read offset in OTP in bits or NULL.
  * @otp_bit_len: pointer to read OTP length in bits or NULL.
  * Return a TEE_Result compliant status
  */
 TEE_Result stm32_bsec_find_otp_in_nvmem_layout(const char *name,
 					       uint32_t *otp_id,
+					       uint8_t *otp_bit_offset,
 					       size_t *otp_bit_len);
+
 /*
  * get BSEC global state.
  * @state: global state
