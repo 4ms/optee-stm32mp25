@@ -7,6 +7,7 @@
 #define STM32_PKA_H
 
 #include <drivers/clk.h>
+#include <drivers/rstctrl.h>
 #include <kernel/mutex.h>
 #include <mm/core_memprot.h>
 #include <stdint.h>
@@ -43,7 +44,7 @@ struct stm32_pka_point {
 struct stm32_pka_platdata {
 	struct io_pa_va pa_or_va;
 	struct clk *clk;
-	unsigned int reset_id;
+	struct rstctrl *reset;
 	struct mutex *lock; /* Protect PKA HW instance access */
 };
 

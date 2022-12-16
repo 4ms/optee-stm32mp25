@@ -1518,8 +1518,7 @@ static TEE_Result stm32_pka_parse_fdt(struct stm32_pka_platdata *pdata,
 
 	_fdt_fill_device_info(fdt, &info, node);
 
-	if (info.reset == DT_INFO_INVALID_RESET ||
-	    info.reg_size == DT_INFO_INVALID_REG_SIZE ||
+	if (info.reg_size == DT_INFO_INVALID_REG_SIZE ||
 	    info.reg == DT_INFO_INVALID_REG)
 		return TEE_ERROR_BAD_PARAMETERS;
 
@@ -1528,7 +1527,9 @@ static TEE_Result stm32_pka_parse_fdt(struct stm32_pka_platdata *pdata,
 	if (!pdata->pa_or_va.va)
 		panic();
 
-	pdata->reset_id = (unsigned int)info.reset;
+	res = rstctrl_dt_get_by_index(fdt, node, 0, &pdata->reset);
+	if (res != TEE_SUCCESS && res != TEE_ERROR_ITEM_NOT_FOUND)
+		return res;
 
 	res = clk_dt_get_by_index(fdt, node, 0, &pdata->clk);
 	if (res)
@@ -1581,11 +1582,13 @@ static TEE_Result stm32_pka_probe(const void *fdt, int node,
 
 	clk_enable(pka_pdata.clk);
 
-	if (stm32_reset_assert(pka_pdata.reset_id, TIMEOUT_US_1MS) != 0)
+	if (pka_pdata.reset &&
+	    rstctrl_assert_to(pka_pdata.reset, TIMEOUT_US_1MS) != 0)
 		panic();
 
 	udelay(PKA_RESET_DELAY);
-	if (stm32_reset_deassert(pka_pdata.reset_id, TIMEOUT_US_1MS) != 0)
+	if (pka_pdata.reset &&
+	    rstctrl_deassert_to(pka_pdata.reset, TIMEOUT_US_1MS) != 0)
 		panic();
 
 #if TRACE_LEVEL >= TRACE_FLOW
