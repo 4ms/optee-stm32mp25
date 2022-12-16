@@ -7,6 +7,7 @@
 #define STM32_HASH_H
 
 #include <drivers/clk.h>
+#include <drivers/rstctrl.h>
 #include <mm/core_memprot.h>
 #include <stdint.h>
 
@@ -17,7 +18,7 @@ struct stm32_hash_compat {
 struct stm32_hash_platdata {
 	struct io_pa_va base;
 	struct clk *clock;
-	unsigned int reset;
+	struct rstctrl *reset;
 	struct stm32_hash_compat *compat;
 };
 

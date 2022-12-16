@@ -7,6 +7,7 @@
 #include <config.h>
 #include <drivers/clk.h>
 #include <drivers/clk_dt.h>
+#include <drivers/rstctrl.h>
 #include <io.h>
 #include <kernel/delay.h>
 #include <kernel/dt.h>
@@ -799,7 +800,9 @@ static TEE_Result stm32_hash_parse_fdt(struct stm32_hash_platdata *pdata,
 	if (!pdata->base.va)
 		panic();
 
-	pdata->reset = (unsigned int)dt_info.reset;
+	res = rstctrl_dt_get_by_index(fdt, node, 0, &pdata->reset);
+	if ( res != TEE_SUCCESS && res != TEE_ERROR_ITEM_NOT_FOUND)
+		return res;
 
 	res = clk_dt_get_by_index(fdt, node, 0, &pdata->clock);
 	if (res)
@@ -870,10 +873,12 @@ static TEE_Result stm32_hash_probe(const void *fdt, int node,
 	FMSG("STM32 HASH V%u/%u", (rev & _HASH_VERR_MAJREV) >> 4,
 	     rev & _HASH_VERR_MINREV);
 
-	if (stm32_reset_assert(stm32_hash->pdata.reset, RESET_TIMEOUT_US_1MS))
+	if (stm32_hash->pdata.reset &&
+	    rstctrl_assert_to(stm32_hash->pdata.reset, RESET_TIMEOUT_US_1MS))
 		panic();
 
-	if (stm32_reset_deassert(stm32_hash->pdata.reset, RESET_TIMEOUT_US_1MS))
+	if (stm32_hash->pdata.reset &&
+	    rstctrl_deassert_to(stm32_hash->pdata.reset, RESET_TIMEOUT_US_1MS))
 		panic();
 
 	mutex_init(&stm32_hash->lock);
