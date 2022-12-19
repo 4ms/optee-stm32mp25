@@ -3590,7 +3590,7 @@ static bool clk_stm32_clock_is_critical(__maybe_unused struct clk *clk)
 		&ck_icn_s_vderam,
 		&ck_icn_s_lpsram1,
 		&ck_icn_s_lpsram2,
-		&ck_icn_s_lpsram3,
+		&ck_icn_s_lpsram3
 	};
 	size_t i = 0;
 
