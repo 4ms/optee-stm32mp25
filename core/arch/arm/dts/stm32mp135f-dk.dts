@@ -501,6 +501,10 @@
 	status = "okay";
 };
 
+&saes {
+	status = "okay";
+};
+
 &scmi_regu {
 	scmi_vddcpu: voltd-vddcpu {
 		reg = <VOLTD_SCMI_STPMIC1_BUCK1>;
