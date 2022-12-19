@@ -6,6 +6,7 @@
 #include <config.h>
 #include <drivers/clk.h>
 #include <drivers/clk_dt.h>
+#include <drivers/rstctrl.h>
 #include <io.h>
 #include <kernel/boot.h>
 #include <kernel/delay.h>
@@ -1390,12 +1391,12 @@ static TEE_Result stm32_saes_parse_fdt(struct stm32_saes_platdata *pdata,
 				       const void *fdt, int node)
 {
 	struct dt_node_info dt_saes = { };
+	TEE_Result res;
 
 	_fdt_fill_device_info(fdt, &dt_saes, node);
 
 	if (dt_saes.reg == DT_INFO_INVALID_REG ||
-	    dt_saes.reg_size == DT_INFO_INVALID_REG_SIZE ||
-	    dt_saes.reset == DT_INFO_INVALID_RESET)
+	    dt_saes.reg_size == DT_INFO_INVALID_REG_SIZE)
 		return TEE_ERROR_BAD_PARAMETERS;
 
 	pdata->base.pa = dt_saes.reg;
@@ -1403,7 +1404,9 @@ static TEE_Result stm32_saes_parse_fdt(struct stm32_saes_platdata *pdata,
 	if (!pdata->base.va)
 		panic();
 
-	pdata->reset_id = (unsigned int)dt_saes.reset;
+	res = rstctrl_dt_get_by_index(fdt, node, 0, &pdata->reset);
+	if (res != TEE_SUCCESS && res != TEE_ERROR_ITEM_NOT_FOUND)
+		return res;
 
 	return clk_dt_get_by_index(fdt, node, 0, &pdata->clk);
 }
@@ -1450,10 +1453,12 @@ static TEE_Result stm32_saes_probe(const void *fdt, int node,
 
 	clk_enable(saes_pdata.clk);
 
-	if (stm32_reset_assert(saes_pdata.reset_id, TIMEOUT_US_1MS) != 0)
+	if (saes_pdata.reset &&
+	    rstctrl_assert_to(saes_pdata.reset, TIMEOUT_US_1MS) != 0)
 		panic();
 
-	if (stm32_reset_deassert(saes_pdata.reset_id, TIMEOUT_US_1MS) != 0)
+	if (saes_pdata.reset &&
+	    rstctrl_deassert_to(saes_pdata.reset, TIMEOUT_US_1MS) != 0)
 		panic();
 
 	base = io_pa_or_va(&saes_pdata.base, 1);
