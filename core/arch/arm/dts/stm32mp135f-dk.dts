@@ -347,6 +347,10 @@
 	st,non-secure-otp-provisioning;
 };
 
+&pka {
+	status = "okay";
+};
+
 &pwr_irq {
 	pinctrl-names = "default";
 	pinctrl-0 = <&wakeup_pins>;
