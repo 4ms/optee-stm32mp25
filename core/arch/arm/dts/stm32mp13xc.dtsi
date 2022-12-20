@@ -27,3 +27,14 @@
 		status = "disabled";
 	};
 };
+
+&etzpc {
+	pka: pka@54006000 {
+		compatible = "st,stm32mp13-pka64";
+		reg = <0x54006000 0x2000>;
+		interrupts = <GIC_SPI 105 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&rcc PKA>;
+		resets = <&rcc PKA_R>;
+		status = "disabled";
+	};
+};
