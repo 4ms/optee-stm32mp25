@@ -53,6 +53,12 @@ register_phys_mem(MEM_AREA_RAM_NSEC, DDR_BASE, SMALL_PAGE_SIZE);
 
 /* Map TEE physical RAM as read-only for content storage when suspending */
 register_phys_mem(MEM_AREA_ROM_SEC, TEE_RAM_START, TEE_RAM_PH_SIZE);
+
+/* Map MCU RETRAM as read write for Cortex-M4 firmware management */
+register_phys_mem(MEM_AREA_IO_SEC, RETRAM_BASE, RETRAM_SIZE);
+
+/* Map MCU SRAM as read write for Cortex-M4 firmware management */
+register_phys_mem(MEM_AREA_IO_SEC, MCUSRAM_BASE, MCUSRAM_SIZE);
 #endif /* CFG_STM32MP15 */
 
 #define _ID2STR(id)		(#id)
