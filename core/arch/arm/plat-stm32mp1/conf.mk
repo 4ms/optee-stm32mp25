@@ -69,6 +69,7 @@ $(error Invalid platform flavor $(PLATFORM_FLAVOR))
 endif
 CFG_EMBED_DTB_SOURCE_FILE ?= $(flavor_dts_file-$(PLATFORM_FLAVOR))
 endif
+CFG_EMBED_DTB_SOURCE_FILE ?= stm32mp157c-dk2.dts
 
 ifneq ($(filter $(CFG_EMBED_DTB_SOURCE_FILE),$(flavorlist-no_cryp)),)
 $(call force,CFG_STM32_CRYP,n)
@@ -112,6 +113,7 @@ include core/arch/arm/cpu/cortex-a7.mk
 
 $(call force,CFG_ARM_GIC_PM,y)
 $(call force,CFG_DRIVERS_CLK,y)
+$(call force,CFG_DRIVERS_CLK_DT,y)
 $(call force,CFG_GIC,y)
 $(call force,CFG_INIT_CNTVOFF,y)
 $(call force,CFG_PM,y)
@@ -205,33 +207,6 @@ CFG_EARLY_TA_COMPRESS ?= n
 
 # Embed public part of this key in OP-TEE OS
 CFG_RPROC_SIGN_KEY ?= keys/default_rproc.pem
-
-ifeq ($(CFG_EMBED_DTB_SOURCE_FILE),)
-# Some drivers mandate DT support
-$(call force,CFG_DRIVERS_CLK_DT,n)
-$(call force,CFG_DRIVERS_RSTCTRL,n)
-$(call force,CFG_REGULATOR_FIXED,n)
-$(call force,CFG_STM32_CRYP,n)
-$(call force,CFG_STM32_GPIO,n)
-$(call force,CFG_STM32_HASH,n)
-$(call force,CFG_STM32_HUK_FROM_DT,n)
-$(call force,CFG_STM32_I2C,n)
-$(call force,CFG_STM32_IWDG,n)
-$(call force,CFG_STM32_LPTIMER,n)
-$(call force,CFG_STM32_PKA,n)
-$(call force,CFG_STM32_REGULATOR_GPIO,n)
-$(call force,CFG_STM32_RTC,n)
-$(call force,CFG_STM32_SAES,n)
-$(call force,CFG_STM32_TIM,n)
-$(call force,CFG_STM32_VREFBUF,y)
-$(call force,CFG_STM32_TAMP,n)
-$(call force,CFG_STM32MP1_REGULATOR_IOD,n)
-$(call force,CFG_STM32MP1_SCMI_SIP,n)
-$(call force,CFG_SCMI_PTA,n)
-$(call force,CFG_STPMIC1,n)
-else
-$(call force,CFG_DRIVERS_CLK_DT,y)
-endif
 
 ifneq ($(filter $(CFG_EMBED_DTB_SOURCE_FILE),$(flavorlist-512M)),)
 CFG_DRAM_SIZE    ?= 0x20000000
