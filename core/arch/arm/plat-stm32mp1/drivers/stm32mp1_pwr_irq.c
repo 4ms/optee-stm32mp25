@@ -77,6 +77,8 @@ static enum itr_return pwr_it_threaded_handler(void)
 	struct stm32_pwr_data *priv = pwr_data;
 	uint32_t i = 0;
 
+	VERBOSE_PWR("");
+
 	for (i = 0; i < PWR_NB_WAKEUPPINS; i++) {
 		if (priv->pending[i]) {
 			VERBOSE_PWR("handle pending wkup irq:%"PRIu32, i);
@@ -114,6 +116,8 @@ static enum itr_return pwr_it_handler(struct itr_handler *handler)
 	struct stm32_pwr_data *priv = (struct stm32_pwr_data *)handler->data;
 	uint32_t wkupfr = 0;
 	uint32_t i = 0;
+
+	VERBOSE_PWR("");
 
 	itr_disable(priv->gic_hdl->it);
 
