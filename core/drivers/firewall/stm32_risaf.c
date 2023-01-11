@@ -241,10 +241,18 @@ static TEE_Result risaf_configure_region(struct stm32_risaf_instance *risaf,
 			_RISAF_REG_CFGR_ALL_MASK,
 			cfg & _RISAF_REG_CFGR_ALL_MASK);
 
-	if (((cfg & _RISAF_REG_CFGR_ENC) == _RISAF_REG_CFGR_ENC) &&
-	    !risaf->pdata.enc_supported) {
-		EMSG("RISAF %#"PRIxPTR": encryption feature error", risaf->pdata.base.pa);
-		return -1;
+	if ((cfg & _RISAF_REG_CFGR_ENC) == _RISAF_REG_CFGR_ENC) {
+		if (!risaf->pdata.enc_supported) {
+			EMSG("RISAF %#"PRIxPTR": encryption feature error",
+			     risaf->pdata.base.pa);
+			return TEE_ERROR_GENERIC;
+		}
+
+		if ((cfg & _RISAF_REG_CFGR_SEC) != _RISAF_REG_CFGR_SEC) {
+			EMSG("RISAF %#"PRIxPTR": encryption on non secure area",
+			     risaf->pdata.base.pa);
+			return TEE_ERROR_GENERIC;
+		}
 	}
 
 	DMSG("RISAF %#"PRIxPTR": region %02d - start 0x%08x - end 0x%08x - cfg 0x%08x - cidcfg 0x%08x",
