@@ -19,4 +19,6 @@ unsigned long clk_stm32_clock_frequency_calculator(uint32_t ckintsel);
 unsigned long clk_stm32_read_hsi_frequency(void);
 unsigned long clk_stm32_read_msi_frequency(void);
 
+TEE_Result clk_stm32_init_calib(const void *fdt, int node);
+
 #endif /*__DRIVERS_STM32MP2_RCC_UTIL_H__*/
