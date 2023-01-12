@@ -18,7 +18,7 @@
  * @type: type (rising, falling or both) to set
  * Return a TEE_Result compliant return value
  */
-void stm32_exti_set_type(uint32_t exti, uint32_t type);
+void stm32_exti_set_type(uint32_t exti_line, uint32_t type);
 
 /*
  * Mask EXTI Interrupt (IMR)
