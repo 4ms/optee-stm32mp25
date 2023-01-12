@@ -149,6 +149,7 @@ $(call force,CFG_SCMI_MSG_PERF_DOMAIN,n)
 $(call force,CFG_DRIVERS_CLK_FIXED,n)
 $(call force,CFG_SECONDARY_INIT_CNTFRQ,y)
 $(call force,CFG_STM32MP1_SHARED_RESOURCES,y)
+$(call force,CFG_STM32_PKA,n)
 $(call force,CFG_STM32_SAES,n)
 $(call force,CFG_STM32_VREFBUF,n)
 $(call force,CFG_STM32MP15_CLK,y)
@@ -184,6 +185,7 @@ $(call force,CFG_STM32_GPIO,n)
 $(call force,CFG_STM32_HASH,n)
 $(call force,CFG_STM32_I2C,n)
 $(call force,CFG_STM32_IWDG,n)
+$(call force,CFG_STM32_PKA,n)
 $(call force,CFG_STM32_REGULATOR_GPIO,n)
 $(call force,CFG_STM32_RTC,n)
 $(call force,CFG_STM32_SAES,n)
@@ -238,6 +240,7 @@ CFG_STM32_GPIO ?= y
 CFG_STM32_HASH ?= y
 CFG_STM32_I2C ?= y
 CFG_STM32_IWDG ?= y
+CFG_STM32_PKA ?= y
 CFG_STM32_REGULATOR_GPIO ?= y
 CFG_STM32_RNG ?= y
 CFG_STM32_RSTCTRL ?= y
@@ -269,7 +272,8 @@ endif
 # If any crypto driver is enabled, enable the crypto-framework layer
 ifeq ($(call cfg-one-enabled, CFG_STM32_CRYP \
 	                      CFG_STM32_SAES \
-			      CFG_STM32_HASH),y)
+	                      CFG_STM32_HASH \
+	                      CFG_STM32_PKA),y)
 $(call force,CFG_STM32_CRYPTO_DRIVER,y)
 endif
 
