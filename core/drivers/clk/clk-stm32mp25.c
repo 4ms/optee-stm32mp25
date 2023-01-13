@@ -58,6 +58,7 @@
 #define A35_SS_PLL_ENABLE_LOCKP			BIT(1)
 #define A35_SS_PLL_ENABLE_NRESET_SWPLL_FF	BIT(2)
 
+#define TIMEOUT_US_100MS			U(100000)
 #define TIMEOUT_US_200MS			U(200000)
 #define TIMEOUT_US_1S				U(1000000)
 
@@ -3626,6 +3627,236 @@ static TEE_Result clk_stm32_apply_rcc_config(struct stm32_clk_platdata *pdata)
 		   RCC_C1MSRDCR_C1MSRD_MASK);
 
 	return TEE_SUCCESS;
+}
+
+static unsigned long clk_stm32_clock_frequency_calculator_get_ref(void)
+{
+	uint32_t val = 0;
+	struct clk *clk = NULL;
+
+	val = io_read32(stm32_rcc_base() + RCC_FCALCREFCFGR) &
+			   RCC_FCALCREFCFGR_FCALCREFCKSEL_MASK;
+
+	val = io_read32(stm32_rcc_base() + RCC_MUXSELCFGR) >>  (val * 4) &
+			RCC_MUXSELCFGR_MUXSEL0_MASK;
+
+	switch (val) {
+	case 0x0:
+		clk = &ck_hsi;
+		break;
+	case 0x1:
+		clk = &ck_hse;
+		break;
+
+	case 0x3:
+		clk = &ck_msi;
+		break;
+
+	default:
+		panic();
+		break;
+	}
+
+	return clk_get_rate(clk);
+}
+
+unsigned long clk_stm32_clock_frequency_calculator(uint32_t ckintsel)
+{
+	unsigned long ref_freq = clk_stm32_clock_frequency_calculator_get_ref();
+	unsigned long freq = 0UL;
+	uintptr_t rcc_base = stm32_rcc_base();
+	uint32_t fcalctwc_val = 0xf;
+	uint32_t min_fcalctwc = 1;
+	uint32_t regval = 0;
+	uint64_t timeout = 0U;
+	bool freq_meas_complete_flag = false;
+	bool fcalcsts_bit = false;
+
+	TEE_Result fstatus = TEE_SUCCESS;
+
+	while ((fcalctwc_val >= min_fcalctwc) && !freq_meas_complete_flag) {
+		/*
+		 * Set the FCALCRSTN bit in the RCC Clock Frequency Calculator
+		 * and Observation 1 clock Configuration Register
+		 * (RCC_FCALCOBS1CFGR) to enable the clock frequency calculator.
+		 */
+		io_setbits32(rcc_base + RCC_FCALCOBS1CFGR,
+			     RCC_FCALCOBS1CFGR_FCALCRSTN);
+
+		/*
+		 * Set the CKINTSEL (or CKEXTSEL if FCALCCKEXTSEL bit is set)
+		 * field in the RCC Clock Frequency Calculator and Observation 0
+		 * Clock Configuration Register (RCC_FCALCOBS0CFGR) to select
+		 * the clock frequency calculator input clock (i.e. ckin).
+		 */
+		regval = io_read32(rcc_base + RCC_FCALCOBS0CFGR) &
+				   ~(RCC_FCALCOBS0CFGR_CKINTSEL_MASK);
+		regval |= ckintsel;
+		io_write32(rcc_base + RCC_FCALCOBS0CFGR, regval);
+
+		/*
+		 * Set the FCALCCKEN field in the RCC Clock Frequency Calculator
+		 * and Observation 0 Clock Configuration Register
+		 * (RCC_FCALCOBS0CFGR) to enable the selected input clock at the
+		 * input of clock frequency calculator.
+		 */
+		io_setbits32(rcc_base + RCC_FCALCOBS0CFGR,
+			     RCC_FCALCOBS0CFGR_FCALCCKEN);
+
+		/*
+		 * Set the clock frequency time window value via the FCALCTWC
+		 * field in the RCC Clock Frequency Calculator Control
+		 * Register 2 (RCC_FCALCCR2)
+		 */
+		regval = io_read32(rcc_base + RCC_FCALCCR2);
+		regval &= ~(0xf << RCC_FCALCCR2_FCALCTWC_SHIFT);
+		regval |= (fcalctwc_val << RCC_FCALCCR2_FCALCTWC_SHIFT);
+		io_write32(rcc_base + RCC_FCALCCR2, regval);
+
+		/*
+		 * Set the FCALCTYP field to 0x0C in the RCC Clock Frequency
+		 * Calculator Control Register 2 (RCC_FCALCCR2) to select the
+		 * frequency value type.
+		 */
+		regval = io_read32(rcc_base + RCC_FCALCCR2);
+		regval |= (0xc << RCC_FCALCCR2_FCALCTYP_SHIFT);
+		io_write32(rcc_base + RCC_FCALCCR2, regval);
+
+		/*
+		 * Select the application mode via the FCALCMD field in the
+		 * RCC Clock Frequency Calculator Control Register 2
+		 * (RCC_FCALCCR2).
+		 */
+		regval = io_read32(rcc_base + RCC_FCALCCR2);
+		regval |= (0x3 << RCC_FCALCCR2_FCALCMD_SHIFT);
+		io_write32(rcc_base + RCC_FCALCCR2, regval);
+
+		/*
+		 * Set the FCALCRUN bit in the RCC Clock Frequency Calculator
+		 * Control Register 1 (RCC_FCALCCR1).
+		 */
+		io_write32(rcc_base + RCC_FCALCCR1, 1);
+
+		/*
+		 * Poll the FCALCSTS bit in the RCC Clock Frequency Calculator
+		 * Status Register (RCC_FCALCSR) until the calculation is done.
+		 */
+		fcalcsts_bit = false;
+
+		/*
+		 * Timeout value (in ms) to be tuned according to lowest
+		 * frequency to be measured
+		 */
+		timeout = timeout_init_us(TIMEOUT_US_100MS);
+
+		while (!fcalcsts_bit) {
+			regval = io_read32(rcc_base + RCC_FCALCSR);
+
+			if (regval & RCC_FCALCSR_FVAL_MASK) {
+				if (regval & RCC_FCALCSR_FCALCSTS)
+					fcalcsts_bit = true;
+			}
+
+			/*
+			 * Detect timeout (time expired whereas counter
+			 * still zero)
+			 */
+			else if (timeout_elapsed(timeout))
+				break;
+		}
+
+		/*
+		 * Read the measured value via the FVAL field in the RCC Clock
+		 * Frequency Calculator Status Register (RCC_FCALCSR).
+		 * If FVAL[16] is 1 then the measured value is false.
+		 */
+
+		/* Detect overflow */
+		if (regval & RCC_FCALCSR_FVAL_OVERFLOW) {
+			/* Set status for next measurement iteration */
+			fstatus = TEE_SUCCESS;
+		} else if (timeout_elapsed(timeout)) {
+			/* Set status for leaving measurement algorithm */
+			fstatus = TEE_ERROR_GENERIC;
+		} else {
+			if (!(regval & RCC_FCALCSR_FVAL_MASK)) {
+				/*
+				 * Set status for leaving measurement
+				 * algorithm
+				 */
+				fstatus = TEE_ERROR_GENERIC;
+			} else {
+				uint64_t ckin_freq_val = 0UL;
+				uint32_t denom_val = 0;
+
+				denom_val = (1 << (fcalctwc_val + 1)) + 5;
+
+				/* Compute measured frequency */
+				ckin_freq_val = (uint64_t)((regval &
+						RCC_FCALCSR_FVAL_MASK) - 16) *
+						(uint64_t)ref_freq;
+
+				ckin_freq_val /= (uint64_t)denom_val;
+
+				freq = (uint32_t)ckin_freq_val;
+				freq_meas_complete_flag = true;
+				fstatus = TEE_SUCCESS;
+			}
+		}
+
+		/*
+		 * Re-initialisation :
+		 * Clear the FCALCRUN bit in the RCC Clock Frequency Calculator
+		 * Control Register 1 (RCC_FCALCCR1)
+		 */
+		io_write32(rcc_base + RCC_FCALCCR1, 0);
+
+		/*
+		 * Clear the FCALCRSTN bit in the RCC Clock Frequency Calculator
+		 * and Observation 1 clock Configuration Register
+		 * (RCC_FCALCOBS1CFGR) to disable the clock frequency
+		 * calculator.
+		 */
+		io_clrbits32(rcc_base + RCC_FCALCOBS1CFGR,
+			     RCC_FCALCOBS1CFGR_FCALCRSTN);
+
+		/* Waiting for status register to be cleared */
+		timeout = timeout_init_us(TIMEOUT_US_100MS);
+
+		regval = io_read32(rcc_base + RCC_FCALCSR);
+
+		while ((regval & 0xffff) != 0) {
+			regval = io_read32(rcc_base + RCC_FCALCSR);
+
+			/* Detect timeout */
+			if (timeout_elapsed(timeout)) {
+				fstatus = TEE_ERROR_GENERIC;
+				break;
+			}
+		}
+
+		/* Decrease FCALCTWC value */
+		fcalctwc_val -= 1;
+
+		/* Check status */
+		if (fstatus == TEE_ERROR_GENERIC)
+			return 0UL;
+	}
+
+	return freq;
+}
+
+#define RCC_CKINTSEL_HSI	0
+#define RCC_CKINTSEL_MSI	2
+
+unsigned long clk_stm32_read_hsi_frequency(void)
+{
+	return clk_stm32_clock_frequency_calculator(RCC_CKINTSEL_HSI);
+}
+
+unsigned long clk_stm32_read_msi_frequency(void)
+{
+	return clk_stm32_clock_frequency_calculator(RCC_CKINTSEL_MSI);
 }
 
 struct stm32_pll_dt_cfg mp25_pll[PLL_NB];

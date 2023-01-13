@@ -15,4 +15,8 @@ struct clk *stm32mp_rcc_clock_id_to_clk(unsigned long clock_id);
 /* Return rstctrl instance related to RCC reset controller DT binding ID */
 struct rstctrl *stm32mp_rcc_reset_id_to_rstctrl(unsigned int binding_id);
 
+unsigned long clk_stm32_clock_frequency_calculator(uint32_t ckintsel);
+unsigned long clk_stm32_read_hsi_frequency(void);
+unsigned long clk_stm32_read_msi_frequency(void);
+
 #endif /*__DRIVERS_STM32MP2_RCC_UTIL_H__*/
