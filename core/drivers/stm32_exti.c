@@ -15,10 +15,9 @@
 #include <tee_api_types.h>
 
 /* Registers */
-#define _EXTI_CR1	0x60U
-#define _EXTI_CR2	0x64U
-#define _EXTI_CR3	0x68U
-#define _EXTI_CR4	0x6CU
+#define _EXTI_CR(n)		(0x060U + (n) * 4)
+
+#define _EXTI_MAX_CR		4U
 
 struct stm32_exti_bank {
 	uint32_t imr_ofst;
@@ -34,12 +33,11 @@ struct stm32_exti_bank {
 	uint32_t tz_bkp;
 };
 
-#ifdef CFG_PM
-static uint32_t port_sel_bkp[4];
-#endif
-
 struct stm32_exti_pdata {
 	vaddr_t base;
+#ifdef CFG_PM
+	uint32_t port_sel_cache[_EXTI_MAX_CR];
+#endif
 };
 
 static struct stm32_exti_pdata stm32_exti;
@@ -237,7 +235,7 @@ void stm32_exti_set_tz(uint32_t exti_line)
 
 void stm32_exti_set_gpio_port_sel(uint8_t bank, uint8_t pin)
 {
-	uint32_t reg = _EXTI_CR1 + (pin / 4) * 4;
+	uint32_t reg = _EXTI_CR(pin / 4);
 	uint32_t shift = (pin % 4) * 8;
 	uint32_t val = bank << shift;
 	uint32_t mask = 0xff << shift;
@@ -253,8 +251,8 @@ void stm32_exti_set_gpio_port_sel(uint8_t bank, uint8_t pin)
 #ifdef CFG_PM
 static void stm32_exti_pm_suspend(void)
 {
+	uint32_t base = stm32_exti.base;
 	uint32_t mask = 0;
-	uint32_t base_cr = 0;
 	uint32_t i = 0;
 
 	/* Save ftsr, rtsr and tzen registers */
@@ -288,15 +286,13 @@ static void stm32_exti_pm_suspend(void)
 	io_mask32(stm32_exti.base + stm32mp1_exti_b3.imr_ofst, mask, mask);
 
 	/* Save EXTI port selection */
-	for (i = 0; i < 4; i++) {
-		base_cr = stm32_exti.base + _EXTI_CR1;
-		port_sel_bkp[i] = io_read32(base_cr + i * 4);
-	}
+	for (i = 0; i < _EXTI_MAX_CR; i++)
+		stm32_exti.port_sel_cache[i] = io_read32(base + _EXTI_CR(i));
 }
 
 static void stm32_exti_pm_resume(void)
 {
-	uint32_t base_cr = 0;
+	uint32_t base = stm32_exti.base;
 	uint32_t i = 0;
 
 	/* Restore ftsr and rtsr registers */
@@ -328,10 +324,8 @@ static void stm32_exti_pm_resume(void)
 		   stm32mp1_exti_b3.imr_cache);
 
 	/* Restore EXTI port selection */
-	for (i = 0; i < 4; i++) {
-		base_cr = stm32_exti.base + _EXTI_CR1;
-		io_write32(base_cr + i * 4, port_sel_bkp[i]);
-	}
+	for (i = 0; i < _EXTI_MAX_CR; i++)
+		io_write32(base + _EXTI_CR(i), stm32_exti.port_sel_cache[i]);
 }
 
 static TEE_Result
