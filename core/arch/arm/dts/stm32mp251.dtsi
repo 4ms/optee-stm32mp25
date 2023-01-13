@@ -530,7 +530,6 @@
 			#interrupt-cells = <2>;
 			#address-cells = <0>;
 			reg = <0x44220000 0x400>;
-			status = "disabled";
 
 			exti-interrupt-map {
 				#address-cells = <0>;
@@ -783,7 +782,6 @@
 			#interrupt-cells = <2>;
 			#address-cells = <0>;
 			reg = <0x46230000 0x400>;
-			status = "disabled";
 
 			exti-interrupt-map {
 				#address-cells = <0>;
