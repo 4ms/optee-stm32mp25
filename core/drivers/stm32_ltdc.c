@@ -428,7 +428,7 @@ static TEE_Result stm32_ltdc_probe(const void *fdt, int node,
 	    dt_info.reg_size == DT_INFO_INVALID_REG_SIZE ||
 	    dt_info.clock == DT_INFO_INVALID_CLOCK ||
 	    dt_info.interrupt == DT_INFO_INVALID_INTERRUPT)
-		goto err;
+		goto err1;
 
 	ldev->io_base.pa = dt_info.reg;
 	if (ldev->io_base.pa == 0)
@@ -438,7 +438,7 @@ static TEE_Result stm32_ltdc_probe(const void *fdt, int node,
 
 	res = clk_dt_get_by_index(fdt, node, 0, &ldev->clock);
 	if (res)
-		goto err;
+		goto err1;
 
 	clk_enable(ldev->clock);
 
@@ -447,7 +447,7 @@ static TEE_Result stm32_ltdc_probe(const void *fdt, int node,
 	if (hwid != ID_HWVER_40100) {
 		EMSG("LTDC hardware version not supported: 0x%x", hwid);
 		res = TEE_ERROR_NOT_SUPPORTED;
-		goto err;
+		goto err2;
 	}
 
 	cuint = fdt_getprop(fdt, node, "interrupts", &len);
@@ -462,7 +462,7 @@ static TEE_Result stm32_ltdc_probe(const void *fdt, int node,
 				   (void *)ldev);
 	if (!ldev->itr0) {
 		res = TEE_ERROR_OUT_OF_MEMORY;
-		goto err;
+		goto err2;
 	}
 
 	ldev->itr1 = itr_alloc_add((size_t)interrupt1,
@@ -471,7 +471,7 @@ static TEE_Result stm32_ltdc_probe(const void *fdt, int node,
 				   (void *)ldev);
 	if (!ldev->itr1) {
 		res = TEE_ERROR_OUT_OF_MEMORY;
-		goto err;
+		goto err2;
 	}
 
 	itr_enable(ldev->itr0->it);
@@ -479,7 +479,7 @@ static TEE_Result stm32_ltdc_probe(const void *fdt, int node,
 
 	res = stm32_pinctrl_dt_get_by_index(fdt, node, 0, &ldev->pinctrl_list);
 	if (res)
-		goto err;
+		goto err2;
 
 	ltdc_dev.device = ldev;
 	display_register_device(&ltdc_dev);
@@ -488,7 +488,11 @@ static TEE_Result stm32_ltdc_probe(const void *fdt, int node,
 	stm32_ltdc_final(ldev);
 
 	return TEE_SUCCESS;
-err:
+err2:
+	itr_free(ldev->itr1);
+	itr_free(ldev->itr0);
+	clk_disable(ldev->clock);
+err1:
 	free(ldev);
 
 	return res;
