@@ -621,6 +621,19 @@ static TEE_Result stm32_pmic_probe(const void *fdt, int node,
 	struct itr_handler *hdl = NULL;
 	size_t it = 0;
 	uint32_t *it_id = NULL;
+	int len = 0;
+	uint32_t phandle = 0;
+
+	if (IS_ENABLED(CFG_STM32MP13)) {
+		cuint = fdt_getprop(fdt, node, "wakeup-parent", &len);
+		if (!cuint || len != sizeof(uint32_t))
+			panic("Missing wakeup-parent");
+
+		phandle = fdt32_to_cpu(*cuint);
+		if (!dt_driver_get_provider_by_phandle(phandle,
+						       DT_DRIVER_NOTYPE))
+			return TEE_ERROR_DEFER_DRIVER_INIT;
+	}
 
 	res = i2c_dt_get_by_subnode(fdt, node, &i2c_pmic_handle);
 	if (res)
