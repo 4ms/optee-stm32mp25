@@ -436,8 +436,18 @@ stm32mp1_pwr_irq_user_dt_probe(const void *fdt, int node,
 	const fdt32_t *cuint = NULL;
 	size_t it = 0;
 	uint32_t *it_id = NULL;
+	int len = 0;
+	uint32_t phandle = 0;
 
 	VERBOSE_PWR("Init pwr irq user");
+
+	cuint = fdt_getprop(fdt, node, "wakeup-parent", &len);
+	if (!cuint || len != sizeof(uint32_t))
+		panic("Missing wakeup-parent");
+
+	phandle = fdt32_to_cpu(*cuint);
+	if (!dt_driver_get_provider_by_phandle(phandle, DT_DRIVER_NOTYPE))
+		return TEE_ERROR_DEFER_DRIVER_INIT;
 
 	cuint = fdt_getprop(fdt, node, "st,wakeup-pin-number", NULL);
 	if (!cuint)
