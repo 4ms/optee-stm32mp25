@@ -11,6 +11,7 @@
 #include <initcall.h>
 #include <io.h>
 #include <kernel/dt.h>
+#include <kernel/dt_driver.h>
 #include <kernel/notif.h>
 #include <kernel/panic.h>
 #include <kernel/spinlock.h>
@@ -387,6 +388,11 @@ stm32mp1_pwr_irq_probe(const void *fdt, int node,
 
 	if (IS_ENABLED(CFG_CORE_ASYNC_NOTIF))
 		notif_register_driver(&stm32_pwr_notif);
+
+	res = dt_driver_register_provider(fdt, node, NULL,
+					  NULL, DT_DRIVER_NOTYPE);
+	if (res)
+		panic("Can't register provider");
 
 	VERBOSE_PWR("Init pwr irq done");
 
