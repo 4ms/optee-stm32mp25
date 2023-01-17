@@ -72,6 +72,7 @@
 
 	typec_wakeup: typec_wakeup {
 		compatible = "st,stm32mp1,pwr-irq-user";
+		wakeup-parent = <&pwr_irq>;
 		/* Alert pin on PI2, wakeup_pin_5 */
 		st,wakeup-pin-number = <5>;
 		st,notif-it-id = <1>;
