@@ -9,7 +9,6 @@
 #include <crypto/crypto.h>
 #include <drivers/clk.h>
 #include <drivers/gic.h>
-#include <drivers/stm32_rng.h>
 #include <drivers/stm32_rtc.h>
 #include <drivers/stm32mp_dt_bindings.h>
 #include <drivers/stm32mp1_ddrc.h>
