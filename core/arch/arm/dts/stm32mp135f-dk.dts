@@ -187,6 +187,7 @@
 		compatible = "st,stpmic1";
 		reg = <0x33>;
 		status = "okay";
+		wakeup-parent = <&pwr_irq>;
 		st,wakeup-pin-number = <1>;
 		st,notif-it-id = <0>;
 
