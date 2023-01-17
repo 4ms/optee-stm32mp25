@@ -32,6 +32,7 @@
 
 	magic_wol: magic_wol {
 		compatible = "st,stm32mp1,pwr-irq-user";
+		wakeup-parent = <&pwr_irq>;
 		st,wakeup-pin-number = <2>;
 		status = "okay";
 	};
