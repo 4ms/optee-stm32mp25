@@ -355,6 +355,7 @@ stm32mp1_pwr_irq_probe(const void *fdt, int node,
 	return TEE_SUCCESS;
 err:
 	free(pwr_data);
+	pwr_data = NULL;
 
 	return res;
 }
