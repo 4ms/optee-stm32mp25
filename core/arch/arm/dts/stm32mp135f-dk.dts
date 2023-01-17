@@ -528,8 +528,7 @@
 };
 
 &rng {
-	status = "disabled";
-	secure-status = "okay";
+	status = "okay";
 	clock-error-detect;
 };
 

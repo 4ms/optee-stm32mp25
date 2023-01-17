@@ -604,8 +604,7 @@
 };
 
 &rng1 {
-	status = "disabled";
-	secure-status = "okay";
+	status = "okay";
 };
 
 &rtc {
