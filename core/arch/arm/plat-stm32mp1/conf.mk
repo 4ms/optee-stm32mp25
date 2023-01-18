@@ -72,6 +72,8 @@ endif
 
 ifneq ($(filter $(CFG_EMBED_DTB_SOURCE_FILE),$(flavorlist-no_cryp)),)
 $(call force,CFG_STM32_CRYP,n)
+$(call force,CFG_STM32_PKA,n)
+$(call force,CFG_STM32_SAES,n)
 endif
 
 ifneq ($(filter $(CFG_EMBED_DTB_SOURCE_FILE),$(flavorlist-no_rng)),)
