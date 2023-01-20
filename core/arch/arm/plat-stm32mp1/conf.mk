@@ -162,6 +162,7 @@ $(call force,CFG_STM32MP15_CLK,y)
 $(call force,CFG_STM32MP15_RSTCTRL,y)
 CFG_CORE_RESERVED_SHM ?= y
 CFG_SCMI_MSG_REGULATOR_CONSUMER ?= n
+CFG_STM32MP15_HUK ?= y
 CFG_TEE_CORE_NB_CORE ?= 2
 CFG_WITH_PAGER ?= y
 endif # CFG_STM32MP15
@@ -198,6 +199,7 @@ $(call force,CFG_REGULATOR_FIXED,n)
 $(call force,CFG_STM32_CRYP,n)
 $(call force,CFG_STM32_GPIO,n)
 $(call force,CFG_STM32_HASH,n)
+$(call force,CFG_STM32_HUK_FROM_DT,n)
 $(call force,CFG_STM32_I2C,n)
 $(call force,CFG_STM32_IWDG,n)
 $(call force,CFG_STM32_LPTIMER,n)
@@ -410,6 +412,8 @@ CFG_STM32_EARLY_CONSOLE_UART ?= 4
 # Disable the HUK by default as it requires a product specific configuration.
 #
 # Configuration must provide OTP indices where HUK is loaded.
+# When CFG_STM32_HUK_FROM_DT is enabled, HUK OTP location is found in the DT.
+# When CFG_STM32_HUK_FROM_DT is disabled, configuration sets each HUK location.
 # Either with CFG_STM32MP15_HUK_OTP_BASE, in which case the 4 words are used,
 # Or with CFG_STM32MP15_HUK_BSEC_KEY_0/1/2/3 each locating one BSEC word.
 #
@@ -420,8 +424,10 @@ CFG_STM32_EARLY_CONSOLE_UART ?= 4
 # content derived with the device UID fuses content. See derivation scheme
 # in stm32mp15_huk.c implementation.
 CFG_STM32MP15_HUK ?= n
+CFG_STM32_HUK_FROM_DT ?= y
 
 ifeq ($(CFG_STM32MP15_HUK),y)
+ifneq ($(CFG_STM32_HUK_FROM_DT),y)
 ifneq (,$(CFG_STM32MP15_HUK_OTP_BASE))
 $(call force,CFG_STM32MP15_HUK_BSEC_KEY_0,CFG_STM32MP15_HUK_OTP_BASE)
 $(call force,CFG_STM32MP15_HUK_BSEC_KEY_1,(CFG_STM32MP15_HUK_OTP_BASE + 1))
@@ -440,6 +446,7 @@ endif
 ifeq (,$(CFG_STM32MP15_HUK_BSEC_KEY_3))
 $(error Missing configuration switch CFG_STM32MP15_HUK_BSEC_KEY_3)
 endif
+endif # CFG_STM32_HUK_FROM_DT
 
 CFG_STM32MP15_HUK_BSEC_KEY ?= y
 CFG_STM32MP15_HUK_BSEC_DERIVE_UID ?= n
