@@ -17,6 +17,11 @@
 
 #define HUK_NB_OTP (HW_UNIQUE_KEY_LENGTH / sizeof(uint32_t))
 
+static const uint8_t otp_hw_test_key[] = {
+	0xD8, 0x30, 0xA1, 0x88, 0x14, 0xE0, 0x2F, 0xE9,
+	0x43, 0x6B, 0xB3, 0x8E, 0x03, 0x02, 0xC4, 0x8C
+};
+
 static bool stm32mp15_huk_init;
 
 static TEE_Result stm32mp15_read_uid(uint32_t *uid)
@@ -176,6 +181,16 @@ TEE_Result tee_otp_get_hw_unique_key(struct tee_hw_unique_key *hwkey)
 	bool lock = true;
 	size_t i = 0;
 
+	if (IS_ENABLED(CFG_STM32_HUK_TESTKEY)) {
+		static_assert(sizeof(otp_hw_test_key) == sizeof(hwkey->data));
+
+		memcpy(hwkey->data, otp_hw_test_key, sizeof(hwkey->data));
+
+		ret = TEE_SUCCESS;
+		lock = false;
+		goto out;
+	}
+
 	ret = get_otp_pos(otp_id);
 	if (ret)
 		return ret;
@@ -214,4 +229,3 @@ out:
 
 	return ret;
 }
-

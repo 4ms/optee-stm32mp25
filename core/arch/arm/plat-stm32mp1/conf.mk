@@ -426,6 +426,13 @@ CFG_STM32_EARLY_CONSOLE_UART ?= 4
 CFG_STM32MP15_HUK ?= n
 CFG_STM32_HUK_FROM_DT ?= y
 
+# Default use a software HUK and not the unique key read from OTP.
+# Not suitable for production.
+ifeq ($(CFG_STM32MP15_HUK),y)
+CFG_STM32_HUK_TESTKEY ?= y
+endif
+
+ifneq ($(CFG_STM32_HUK_TESTKEY),y)
 ifeq ($(CFG_STM32MP15_HUK),y)
 ifneq ($(CFG_STM32_HUK_FROM_DT),y)
 ifneq (,$(CFG_STM32MP15_HUK_OTP_BASE))
@@ -456,6 +463,7 @@ else ifeq ($(CFG_STM32MP15_HUK_BSEC_KEY)-$(CFG_STM32MP15_HUK_BSEC_DERIVE_UID),y-
 $(error CFG_STM32MP15_HUK_BSEC_KEY and CFG_STM32MP15_HUK_BSEC_DERIVE_UID are exclusive)
 endif
 endif # CFG_STM32MP15_HUK
+endif # CFG_STM32_HUK_TESTKEY
 
 # Sanity on choice config switches
 ifeq ($(call cfg-all-enabled,CFG_STM32MP15 CFG_STM32MP13),y)
