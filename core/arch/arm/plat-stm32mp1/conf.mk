@@ -145,6 +145,7 @@ $(call force,CFG_TEE_CORE_NB_CORE,1)
 $(call force,CFG_WITH_NSEC_GPIOS,n)
 CFG_STM32MP_OPP_COUNT ?= 2
 CFG_WITH_PAGER ?= n
+CFG_WITH_TUI ?= y
 endif # CFG_STM32MP13
 
 ifeq ($(CFG_STM32MP15),y)
@@ -169,6 +170,16 @@ CFG_WITH_LPAE ?= y
 CFG_MMAP_REGIONS ?= 30
 CFG_DTB_MAX_SIZE ?= (256 * 1024)
 CFG_CORE_ASLR ?= n
+
+# Trusted User Interface
+ifeq ($(CFG_WITH_TUI),y)
+$(call force,CFG_DISPLAY,y,Mandated by CFG_WITH_TUI)
+$(call force,CFG_FRAME_BUFFER,y,Mandated by CFG_WITH_TUI)
+$(call force,CFG_STM32_LTDC,y,Mandated by CFG_WITH_TUI)
+# Provision virtual space to fit 10MByte plus the TUI frame buffer
+CFG_TUI_FRAME_BUFFER_SIZE_MAX ?= 0x01000000
+CFG_RESERVED_VASPACE_SIZE ?= (10 * 1024 * 1024 + $(CFG_TUI_FRAME_BUFFER_SIZE_MAX))
+endif
 
 # Default disable shared memory as it is not used. Do not force disable it
 # on STM32MP15 for legacy purpose.
