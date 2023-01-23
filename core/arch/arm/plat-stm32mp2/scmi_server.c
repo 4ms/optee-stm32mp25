@@ -558,10 +558,10 @@ int32_t plat_scmi_rd_set_state(unsigned int channel_id, unsigned int scmi_id,
 	assert(rd->rstctrl);
 	if (assert_not_deassert) {
 		FMSG("SCMI reset %u set", scmi_id);
-		res = rstctrl_assert(rd->rstctrl);
+		res = rstctrl_assert_to(rd->rstctrl, TIMEOUT_US_1MS);
 	} else {
 		FMSG("SCMI reset %u release", scmi_id);
-		res = rstctrl_deassert(rd->rstctrl);
+		res = rstctrl_deassert_to(rd->rstctrl, TIMEOUT_US_1MS);
 	}
 
 	if (res)
