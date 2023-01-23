@@ -59,4 +59,7 @@ TEE_Result stm32mp25_syscfg_disable_io_compensation(enum syscfg_io_ids id);
 
 void stm32mp25_syscfg_set_amcr(size_t mm1_size, size_t mm2_size);
 
+/* Safe Reset */
+void stm32mp25_syscfg_set_safe_reset(bool status);
+
 #endif /*__STM32_SYSCONF_H__*/

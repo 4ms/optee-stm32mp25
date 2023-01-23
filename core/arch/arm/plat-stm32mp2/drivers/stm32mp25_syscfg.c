@@ -48,6 +48,10 @@ struct io_pa_va syscfg_base[SYSCON_NB_BANKS] = {
 #define SZ_192M					U(0x0C000000)
 #define SZ_256M					U(0x10000000)
 
+/* Safe Reset register definition */
+#define SYSCFG_SAFERSTCR		SYSCON_ID(SYSCON_SYSCFG, 0x2018U)
+#define SYSCFG_SAFERSTCR_EN		BIT(0)
+
 /*
  * SYSCFG IO compensation register offsets (base relative)
  */
@@ -178,4 +182,16 @@ void stm32mp25_syscfg_set_amcr(size_t mm1_size, size_t mm2_size)
 	}
 
 	io_clrsetbits32(amcr_addr, SYSCFG_OCTOSPIAMCR_OAM_MASK, amcr);
+}
+
+void stm32mp25_syscfg_set_safe_reset(bool status)
+{
+	vaddr_t addr = stm32mp_syscfg_base(SYSCON_SYSCFG) + SYSCFG_SAFERSTCR;
+
+	FMSG("Set safe reset to  %d", status);
+
+	if (status)
+		io_setbits32(addr, SYSCFG_SAFERSTCR_EN);
+	else
+		io_clrbits32(addr, SYSCFG_SAFERSTCR_EN);
 }
