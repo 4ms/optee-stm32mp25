@@ -206,6 +206,16 @@
 	};
 };
 
+&osc_calibration {
+	csi-calibration {
+		status = "okay";
+	};
+
+	hsi-calibration {
+		status = "okay";
+	};
+};
+
 &pwr_regulators {
 	system_suspend_supported_soc_modes = <
 		STM32_PM_CSLEEP_RUN
@@ -313,6 +323,14 @@
 
 &rtc {
 	status = "okay";
+};
+
+&timers15 {
+	status = "okay";
+
+	counter {
+		status = "okay";
+	};
 };
 
 &uart4 {
