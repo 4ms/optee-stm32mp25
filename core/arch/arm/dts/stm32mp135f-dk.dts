@@ -367,6 +367,16 @@
 	st,non-secure-otp-provisioning;
 };
 
+&osc_calibration {
+	csi-calibration {
+		status = "okay";
+	};
+
+	hsi-calibration {
+		status = "okay";
+	};
+};
+
 &pka {
 	status = "okay";
 };
@@ -609,6 +619,14 @@
 	tamp_active@1 {
 		pinctrl-0 = <&tamp0_in3_pin_a &tamp0_out1_pin_a>;
 		status = "disabled";
+	};
+};
+
+&timers12 {
+	status = "okay";
+
+	counter {
+		status = "okay";
 	};
 };
 
