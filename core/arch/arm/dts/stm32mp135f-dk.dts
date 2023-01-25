@@ -647,11 +647,6 @@
 	status = "disabled";
 };
 
-&uart8 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&uart8_pins_a>;
-	status = "disabled";
-};
 &wakeup_pin_5 {
 	bias-pull-up;
 };
