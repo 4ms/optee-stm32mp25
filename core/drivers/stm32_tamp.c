@@ -568,7 +568,7 @@ TEE_Result stm32_tamp_set_secure_bkpregs(struct stm32_bkpregs_conf *bkr_conf)
 /*
  * Count number of 1 in bitmask
  * Cannot use __builtin_popcount(): libgcc.a for ARMV7 use hardfloat ABI,
- * but optee is compiled with softfloaf ABI.
+ * but optee is compiled with softfloat ABI.
  */
 static int popcount(uint32_t bitmask)
 {
@@ -684,7 +684,7 @@ TEE_Result stm32_tamp_set_config(void)
 
 	/*
 	 * We installed callback,
-	 * we force managing TAMPER events that could have occured while boot.
+	 * we force managing TAMPER events that could have occurred while boot.
 	 */
 	stm32_tamp_it_handler(stm32_tamp.itr);
 
@@ -809,7 +809,7 @@ TEE_Result stm32_tamp_activate_tamp(enum stm32_tamp_id id, uint32_t mode,
 	if (!cb)
 		return TEE_ERROR_BAD_PARAMETERS;
 
-	/* Find internal Tamp struct*/
+	/* Find internal Tamp struct */
 	for (i = 0U; i < stm32_tamp.pdata.compat->int_tamp_size; i++)
 		if (stm32_tamp.pdata.compat->int_tamp[i].id == id) {
 			tamp_conf = &stm32_tamp.pdata.compat->int_tamp[i];
@@ -1194,7 +1194,7 @@ static int stm32_tamp_parse_active_conf(const void *fdt, int node,
 		conf |= _TAMP_ATCR1_FLTEN;
 
 	/*
-	 * Here we will select a diviser for the RTCCLK.
+	 * Here we will select a divisor for the RTCCLK.
 	 * Note that RTCCLK is also divided by (RTC_PRER_PREDIV_A - 1).
 	 */
 	cuint = fdt_getprop(fdt, node, "st,tamp_active_clk_div", NULL);
@@ -1377,9 +1377,9 @@ static TEE_Result stm32_tamp_probe(const void *fdt, int node,
 	 * Select access in privileged mode or unprivileged mode
 	 *
 	 * TAMP ip need secure access,
-	 * backup register zone 1 can be read/writen only from secure
-	 * backup register zone 2 can be writen only from secure.
-	 * monotic counters can be read/writen from secure and unsecure.
+	 * backup register zone 1 can be read/written only from secure
+	 * backup register zone 2 can be written only from secure.
+	 * monotonic counters can be read/written from secure and unsecure.
 	 */
 	stm32_tamp_set_privilege(&stm32_tamp, _TAMP_PRIVCFG_TAMPPRIV |
 				 _TAMP_PRIVCFG_BKPRWPRIV |
