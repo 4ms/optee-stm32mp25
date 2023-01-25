@@ -47,6 +47,7 @@ struct stm32_pwr_data {
 	struct stm32_pinctrl_list *pinctrl_list;
 	struct itr_handler *hdl[PWR_NB_WAKEUPPINS];
 	struct itr_handler *gic_hdl;
+	struct stm32_exti_pdata *exti;
 	bool threaded[PWR_NB_WAKEUPPINS];
 	bool pending[PWR_NB_WAKEUPPINS];
 	unsigned int spinlock;
@@ -178,7 +179,7 @@ static void stm32mp1_pwr_itr_enable_nolock(size_t it)
 	VERBOSE_PWR("Pwr irq enable");
 
 	if (IS_ENABLED(CFG_STM32_EXTI))
-		stm32_exti_enable_wake(NULL, PWR_EXTI_WKUP1 + it);
+		stm32_exti_enable_wake(priv->exti, PWR_EXTI_WKUP1 + it);
 
 	io_setbits32(priv->base + MPUWKUPENR, BIT(it));
 }
@@ -192,7 +193,7 @@ static void stm32mp1_pwr_itr_disable_nolock(size_t it)
 	io_clrbits32(priv->base + MPUWKUPENR, BIT(it));
 
 	if (IS_ENABLED(CFG_STM32_EXTI))
-		stm32_exti_disable_wake(NULL, PWR_EXTI_WKUP1 + it);
+		stm32_exti_disable_wake(priv->exti, PWR_EXTI_WKUP1 + it);
 }
 
 static TEE_Result stm32_pwr_irq_set_trig(size_t it, unsigned int flags)
@@ -316,7 +317,7 @@ static TEE_Result stm32mp1_pwr_itr_add(struct itr_handler *hdl)
 	stm32_pwr_irq_set_trig(it, hdl->flags);
 
 	if (IS_ENABLED(CFG_STM32_EXTI))
-		stm32_exti_set_tz(NULL, PWR_EXTI_WKUP1 + it);
+		stm32_exti_set_tz(priv->exti, PWR_EXTI_WKUP1 + it);
 
 	return TEE_SUCCESS;
 }
@@ -365,6 +366,16 @@ stm32mp1_pwr_irq_probe(const void *fdt, int node,
 
 	priv = pwr_data;
 	priv->base = stm32_pwr_base();
+
+	if (IS_ENABLED(CFG_STM32_EXTI)) {
+		priv->exti =
+			dt_driver_device_from_node_idx_prop("wakeup-parent",
+							    fdt, node, 0,
+							    DT_DRIVER_NOTYPE,
+							    &res);
+		if (res)
+			goto err;
+	}
 
 	res = stm32_pinctrl_dt_get_by_index(fdt, node, 0, &priv->pinctrl_list);
 	if (res)
