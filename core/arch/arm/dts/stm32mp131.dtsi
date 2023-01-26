@@ -244,6 +244,7 @@
 
 		pwr_irq: pwr@50001010 {
 			compatible = "st,stm32mp1,pwr-irq";
+			wakeup-parent = <&exti>;
 			status = "disabled";
 		};
 
