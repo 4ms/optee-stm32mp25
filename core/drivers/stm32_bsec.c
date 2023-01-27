@@ -96,8 +96,13 @@
 #define BSEC_MODE_BIST1_LOCK_MASK	BIT(6)
 #define BSEC_MODE_BIST2_LOCK_MASK	BIT(7)
 
-/* BSEC_DEBUG */
-#define BSEC_DEN_ALL_MSK		GENMASK_32(10, 0)
+/* BSEC_DEBUG unreserved bits */
+#ifdef CFG_STM32MP13
+#define BSEC_DEN_ALL_MSK		U(0x6FE)
+#endif
+#ifdef CFG_STM32MP15
+#define BSEC_DEN_ALL_MSK		U(0x7FE)
+#endif
 
 /*
  * OTP Lock services definition
@@ -468,7 +473,6 @@ out:
 TEE_Result stm32_bsec_write_debug_conf(uint32_t value)
 {
 	TEE_Result result = TEE_ERROR_GENERIC;
-	uint32_t masked_val = value & BSEC_DEN_ALL_MSK;
 	uint32_t exceptions = 0;
 
 	if (is_invalid_mode())
@@ -476,9 +480,10 @@ TEE_Result stm32_bsec_write_debug_conf(uint32_t value)
 
 	exceptions = bsec_lock();
 
-	io_write32(bsec_base() + BSEC_DEN_OFF, value);
+	io_clrsetbits32(bsec_base() + BSEC_DEN_OFF, BSEC_DEN_ALL_MSK, value);
 
-	if ((io_read32(bsec_base() + BSEC_DEN_OFF) ^ masked_val) == 0U)
+	if (((io_read32(bsec_base() + BSEC_DEN_OFF) & BSEC_DEN_ALL_MSK) ==
+	    value))
 		result = TEE_SUCCESS;
 
 	bsec_unlock(exceptions);
@@ -488,7 +493,7 @@ TEE_Result stm32_bsec_write_debug_conf(uint32_t value)
 
 uint32_t stm32_bsec_read_debug_conf(void)
 {
-	return io_read32(bsec_base() + BSEC_DEN_OFF);
+	return io_read32(bsec_base() + BSEC_DEN_OFF) & BSEC_DEN_ALL_MSK;
 }
 
 static TEE_Result set_bsec_lock(uint32_t otp_id, size_t lock_offset)
