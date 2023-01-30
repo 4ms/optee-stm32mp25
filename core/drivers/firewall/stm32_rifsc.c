@@ -20,6 +20,7 @@
 /* RIFSC offset register */
 #define _RIFSC_RISC_SECCFGR0		U(0x10)
 #define _RIFSC_RISC_PRIVCFGR0		U(0x30)
+#define _RIFSC_RISC_RCFGLOCKR0		U(0x50)
 #define _RIFSC_RISC_PER0_CIDCFGR	U(0x100)
 #define _RIFSC_RIMC_CR			U(0xC00)
 #define _RIFSC_RIMC_ATTR0		U(0xC10)
@@ -52,8 +53,14 @@
 #define _RIFSC_HWCFGR1_CFG6_SHIFT	U(20)
 
 /*
+ * RISC_CR register fields
+ */
+#define _RIFSC_RISC_CR_GLOCK		BIT(0)
+
+/*
  * RIMC_CR register fields
  */
+#define _RIFSC_RIMC_CR_GLOCK		BIT(0)
 #define _RIFSC_RIMC_CR_TDCID_MASK	GENMASK_32(6, 4)
 
 /* RIFSC_VERR register fields */
@@ -157,6 +164,46 @@ static void stm32_rifsc_get_driverdata(struct rifsc_platdata *pdata)
 	     rifsc_drvdata.nb_risal);
 }
 
+static TEE_Result stm32_rifsc_glock_config(const void *fdt, int node,
+					   struct rifsc_platdata *pdata)
+{
+	const fdt32_t *cuint = NULL;
+	int len = 0;
+	uint32_t glock_conf = 0;
+
+	cuint = fdt_getprop(fdt, node, "st,glocked", &len);
+	if (!cuint) {
+		DMSG("No global lock on RIF configuration");
+		return TEE_SUCCESS;
+	}
+
+	assert(len == sizeof(uint32_t));
+
+	glock_conf = fdt32_to_cpu(*cuint);
+
+	if (glock_conf & RIFSC_RIMU_GLOCK) {
+		DMSG("Setting global lock on RIMU configuration");
+
+		io_setbits32(pdata->base + _RIFSC_RIMC_CR,
+			     _RIFSC_RIMC_CR_GLOCK);
+
+		if (!(io_read32(pdata->base + _RIFSC_RIMC_CR) &
+		      _RIFSC_RIMC_CR_GLOCK))
+			return TEE_ERROR_ACCESS_DENIED;
+	}
+
+	if (glock_conf & RIFSC_RISUP_GLOCK) {
+		DMSG("Setting global lock on RISUP configuration");
+
+		io_setbits32(pdata->base, _RIFSC_RISC_CR_GLOCK);
+
+		if (!(io_read32(pdata->base) & _RIFSC_RISC_CR_GLOCK))
+			return TEE_ERROR_ACCESS_DENIED;
+	}
+
+	return TEE_SUCCESS;
+}
+
 static TEE_Result stm32_rifsc_dt_conf_risup(const void *fdt, int node,
 					    int *nrisup,
 					    struct risup_cfg **risups)
@@ -184,6 +231,7 @@ static TEE_Result stm32_rifsc_dt_conf_risup(const void *fdt, int node,
 		risup->id = _RIF_FLD_GET(RIFSC_RISC_PER_ID, value);
 		risup->sec = (bool)_RIF_FLD_GET(RIFSC_RISC_SEC, value);
 		risup->priv = (bool)_RIF_FLD_GET(RIFSC_RISC_PRIV, value);
+		risup->lock = (bool)_RIF_FLD_GET(RIFSC_RISC_LOCK, value);
 		risup->cid_attr = _RIF_FLD_GET(RIFSC_RISC_PERx_CID, value);
 	}
 
@@ -353,6 +401,7 @@ static TEE_Result stm32_risup_cfg(struct rifsc_platdata *pdata,
 				  struct risup_cfg *risup)
 {
 	struct rifsc_driver_data *drv_data = pdata->drv_data;
+	uintptr_t cidcfgr_offset = _OFST_PERX_CIDCFGR * risup->id;
 	uintptr_t offset = sizeof(uint32_t) * (risup->id / _PERIPH_IDS_PER_REG);
 	uint32_t shift = risup->id % _PERIPH_IDS_PER_REG;
 
@@ -367,10 +416,15 @@ static TEE_Result stm32_risup_cfg(struct rifsc_platdata *pdata,
 		io_clrsetbits32(pdata->base + _RIFSC_RISC_PRIVCFGR0 + offset,
 				BIT(shift), risup->priv << shift);
 
-	if (drv_data->rif_en) {
-		offset = _OFST_PERX_CIDCFGR * risup->id;
-		io_write32(pdata->base + _RIFSC_RISC_PER0_CIDCFGR + offset,
-			   risup->cid_attr);
+	if (drv_data->rif_en)
+		io_write32(pdata->base + _RIFSC_RISC_PER0_CIDCFGR +
+			   cidcfgr_offset, risup->cid_attr);
+
+	/* Lock configuration for this RISUP */
+	if (risup->lock) {
+		DMSG("Locking RIF conf for peripheral n°%"PRIu32, risup->id);
+		io_setbits32(pdata->base + _RIFSC_RISC_RCFGLOCKR0 + offset,
+			     BIT(shift));
 	}
 
 	return TEE_SUCCESS;
@@ -509,6 +563,8 @@ static TEE_Result stm32_rifsc_probe(const void *fdt, int node,
 	res = stm32_rimu_setup(&rifsc_pdata);
 	if (res)
 		return res;
+
+	stm32_rifsc_glock_config(fdt, node, &rifsc_pdata);
 
 	fdev = stm32_firewall_dev_alloc();
 	if (!fdev)
