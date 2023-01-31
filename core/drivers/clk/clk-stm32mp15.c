@@ -2423,12 +2423,12 @@ static int pll1_config_from_opp_khz(uint32_t freq_khz)
 	return 0;
 }
 
-int stm32mp1_set_opp_khz(uint32_t freq_khz)
+TEE_Result stm32mp1_set_opp_khz(uint32_t freq_khz)
 {
 	uint32_t mpu_src = 0;
 
 	if (freq_khz == current_opp_khz)
-		return 0;
+		return TEE_SUCCESS;
 
 	if (!stm32mp1_clk_pll1_settings_are_valid()) {
 		/*
@@ -2436,7 +2436,7 @@ int stm32mp1_set_opp_khz(uint32_t freq_khz)
 		 * settings computation, system can only work on current
 		 * operating point so return error.
 		 */
-		return -1;
+		return TEE_ERROR_NO_DATA;
 	}
 
 	/* Check that PLL1 is MPU clock source */
@@ -2444,7 +2444,7 @@ int stm32mp1_set_opp_khz(uint32_t freq_khz)
 		RCC_SELR_SRC_MASK;
 	if ((mpu_src != RCC_MPCKSELR_PLL) &&
 	    (mpu_src != RCC_MPCKSELR_PLL_MPUDIV))
-		return -1;
+		return TEE_ERROR_BAD_STATE;
 
 	if (pll1_config_from_opp_khz(freq_khz)) {
 		/* Restore original value */
@@ -2453,12 +2453,12 @@ int stm32mp1_set_opp_khz(uint32_t freq_khz)
 			panic();
 		}
 
-		return -1;
+		return TEE_ERROR_GENERIC;
 	}
 
 	current_opp_khz = freq_khz;
 
-	return 0;
+	return TEE_SUCCESS;
 }
 
 int stm32mp1_round_opp_khz(uint32_t *freq_khz)

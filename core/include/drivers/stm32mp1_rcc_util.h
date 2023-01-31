@@ -45,7 +45,7 @@ void stm32mp1_clk_mcuss_protect(bool enable);
 int stm32mp1_clk_compute_all_pll1_settings(uint32_t buck1_voltage);
 void stm32mp1_clk_lp_save_opp_pll1_settings(uint8_t *data, size_t size);
 bool stm32mp1_clk_pll1_settings_are_valid(void);
-int stm32mp1_set_opp_khz(uint32_t freq_khz);
+TEE_Result stm32mp1_set_opp_khz(uint32_t freq_khz);
 int stm32mp1_round_opp_khz(uint32_t *freq_khz);
 
 /* PM sequences specific to SoC STOP mode support */
