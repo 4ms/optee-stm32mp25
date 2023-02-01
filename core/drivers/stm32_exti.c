@@ -15,53 +15,16 @@
 #include <tee_api_types.h>
 
 /* Registers */
-#define _EXTI_CR(n)		(0x060U + (n) * 4)
+#define _EXTI_RTSR(n)		(0x000U + (n) * 0x20U)
+#define _EXTI_FTSR(n)		(0x004U + (n) * 0x20U)
+#define _EXTI_RPR(n)		(0x00cU + (n) * 0x20U)
+#define _EXTI_FPR(n)		(0x010U + (n) * 0x20U)
+#define _EXTI_SECCFGR(n)	(0x014U + (n) * 0x20U)
+#define _EXTI_CR(n)		(0x060U + (n) * 4U)
+#define _EXTI_C1IMR(n)		(0x080U + (n) * 0x10U)
 
 #define _EXTI_MAX_CR		4U
-
-struct stm32_exti_bank {
-	uint32_t imr_ofst;
-	uint32_t rtsr_ofst;
-	uint32_t ftsr_ofst;
-	uint32_t rpr_ofst;
-	uint32_t fpr_ofst;
-	uint32_t tzenr_ofst;
-};
-
-static const struct stm32_exti_bank stm32mp1_exti_b1 = {
-	.imr_ofst	= 0x80,
-	.rtsr_ofst	= 0x00,
-	.ftsr_ofst	= 0x04,
-	.rpr_ofst	= 0x0C,
-	.fpr_ofst	= 0x10,
-	.tzenr_ofst	= 0x14,
-};
-
-static const struct stm32_exti_bank stm32mp1_exti_b2 = {
-	.imr_ofst	= 0x90,
-	.rtsr_ofst	= 0x20,
-	.ftsr_ofst	= 0x24,
-	.rpr_ofst	= 0x2C,
-	.fpr_ofst	= 0x30,
-	.tzenr_ofst	= 0x34,
-};
-
-static const struct stm32_exti_bank stm32mp1_exti_b3 = {
-	.imr_ofst	= 0xA0,
-	.rtsr_ofst	= 0x40,
-	.ftsr_ofst	= 0x44,
-	.rpr_ofst	= 0x4C,
-	.fpr_ofst	= 0x50,
-	.tzenr_ofst	= 0x54,
-};
-
-static const struct stm32_exti_bank *stm32mp1_exti_banks[] = {
-	&stm32mp1_exti_b1,
-	&stm32mp1_exti_b2,
-	&stm32mp1_exti_b3,
-};
-
-#define _EXTI_BANK_NR ARRAY_SIZE(stm32mp1_exti_banks)
+#define _EXTI_BANK_NR		3U
 
 struct stm32_exti_pdata {
 	vaddr_t base;
@@ -125,10 +88,8 @@ void stm32_exti_set_type(uint32_t exti_line, uint32_t type)
 
 	exceptions = cpu_spin_lock_xsave(&lock);
 
-	io_mask32(stm32_exti.base + stm32mp1_exti_banks[i]->rtsr_ofst, r_trig,
-		  mask);
-	io_mask32(stm32_exti.base + stm32mp1_exti_banks[i]->ftsr_ofst, f_trig,
-		  mask);
+	io_mask32(stm32_exti.base + _EXTI_RTSR(i), r_trig, mask);
+	io_mask32(stm32_exti.base + _EXTI_FTSR(i), f_trig, mask);
 
 	cpu_spin_unlock_xrestore(&lock, exceptions);
 }
@@ -144,9 +105,9 @@ void stm32_exti_mask(uint32_t exti_line)
 
 	exceptions = cpu_spin_lock_xsave(&lock);
 
-	val = io_read32(stm32_exti.base + stm32mp1_exti_banks[i]->imr_ofst);
+	val = io_read32(stm32_exti.base + _EXTI_C1IMR(i));
 	val &= ~mask;
-	io_write32(stm32_exti.base + stm32mp1_exti_banks[i]->imr_ofst, val);
+	io_write32(stm32_exti.base + _EXTI_C1IMR(i), val);
 	stm32_exti.mask_cache[i] = val;
 
 	cpu_spin_unlock_xrestore(&lock, exceptions);
@@ -163,9 +124,9 @@ void stm32_exti_unmask(uint32_t exti_line)
 
 	exceptions = cpu_spin_lock_xsave(&lock);
 
-	val = io_read32(stm32_exti.base + stm32mp1_exti_banks[i]->imr_ofst);
+	val = io_read32(stm32_exti.base + _EXTI_C1IMR(i));
 	val |= mask;
-	io_write32(stm32_exti.base + stm32mp1_exti_banks[i]->imr_ofst, val);
+	io_write32(stm32_exti.base + _EXTI_C1IMR(i), val);
 	stm32_exti.mask_cache[i] = val;
 
 	cpu_spin_unlock_xrestore(&lock, exceptions);
@@ -211,10 +172,8 @@ void stm32_exti_clear(uint32_t exti_line)
 
 	exceptions = cpu_spin_lock_xsave(&lock);
 
-	io_mask32(stm32_exti.base + stm32mp1_exti_banks[i]->rpr_ofst, mask,
-		  mask);
-	io_mask32(stm32_exti.base + stm32mp1_exti_banks[i]->fpr_ofst, mask,
-		  mask);
+	io_mask32(stm32_exti.base + _EXTI_RPR(i), mask, mask);
+	io_mask32(stm32_exti.base + _EXTI_FPR(i), mask, mask);
 
 	cpu_spin_unlock_xrestore(&lock, exceptions);
 }
@@ -229,8 +188,7 @@ void stm32_exti_set_tz(uint32_t exti_line)
 
 	exceptions = cpu_spin_lock_xsave(&lock);
 
-	io_mask32(stm32_exti.base + stm32mp1_exti_banks[i]->tzenr_ofst, mask,
-		  mask);
+	io_mask32(stm32_exti.base + _EXTI_SECCFGR(i), mask, mask);
 
 	cpu_spin_unlock_xrestore(&lock, exceptions);
 }
@@ -256,20 +214,17 @@ static void stm32_exti_pm_suspend(void)
 	uint32_t base = stm32_exti.base;
 	uint32_t mask = 0;
 	uint32_t i = 0;
-	const struct stm32_exti_bank *bank = NULL;
 
 	for (i = 0; i < _EXTI_BANK_NR; i++) {
-		bank = stm32mp1_exti_banks[i];
-
 		/* Save ftsr, rtsr and seccfgr registers */
-		stm32_exti.ftsr_cache[i] = io_read32(base + bank->ftsr_ofst);
-		stm32_exti.rtsr_cache[i] = io_read32(base + bank->rtsr_ofst);
+		stm32_exti.ftsr_cache[i] = io_read32(base + _EXTI_FTSR(i));
+		stm32_exti.rtsr_cache[i] = io_read32(base + _EXTI_RTSR(i));
 		stm32_exti.seccfgr_cache[i] =
-			io_read32(base + bank->tzenr_ofst);
+			io_read32(base + _EXTI_SECCFGR(i));
 
 		/* Let enabled only the wakeup sources set */
 		mask = stm32_exti.wake_active[i];
-		io_mask32(base + bank->imr_ofst, mask, mask);
+		io_mask32(base + _EXTI_C1IMR(i), mask, mask);
 	}
 
 	/* Save EXTI port selection */
@@ -281,19 +236,16 @@ static void stm32_exti_pm_resume(void)
 {
 	uint32_t base = stm32_exti.base;
 	uint32_t i = 0;
-	const struct stm32_exti_bank *bank = NULL;
 
 	for (i = 0; i < _EXTI_BANK_NR; i++) {
-		bank = stm32mp1_exti_banks[i];
-
 		/* Restore ftsr, rtsr and seccfgr registers */
-		io_write32(base + bank->ftsr_ofst, stm32_exti.ftsr_cache[i]);
-		io_write32(base + bank->rtsr_ofst, stm32_exti.rtsr_cache[i]);
-		io_write32(base + bank->tzenr_ofst,
+		io_write32(base + _EXTI_FTSR(i), stm32_exti.ftsr_cache[i]);
+		io_write32(base + _EXTI_RTSR(i), stm32_exti.rtsr_cache[i]);
+		io_write32(base + _EXTI_SECCFGR(i),
 			   stm32_exti.seccfgr_cache[i]);
 
 		/* Restore imr */
-		io_write32(base + bank->imr_ofst, stm32_exti.mask_cache[i]);
+		io_write32(base + _EXTI_C1IMR(i), stm32_exti.mask_cache[i]);
 	}
 
 	/* Restore EXTI port selection */
