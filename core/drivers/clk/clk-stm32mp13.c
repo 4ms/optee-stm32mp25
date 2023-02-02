@@ -2505,6 +2505,11 @@ static STM32_GATE(ck_eth1rx, &ck_axi, 0, GATE_ETH1RX);
 static STM32_GATE(ck_eth2tx, &ck_axi, 0, GATE_ETH2TX);
 static STM32_GATE(ck_eth2rx, &ck_axi, 0, GATE_ETH2RX);
 static STM32_GATE(ck_eth2mac, &ck_axi, 0, GATE_ETH2MAC);
+static STM32_GATE(ck_spi1, &ck_pclk2, 0, GATE_SPI1);
+static STM32_GATE(ck_spi2, &ck_pclk1, 0, GATE_SPI2);
+static STM32_GATE(ck_spi3, &ck_pclk1, 0, GATE_SPI3);
+static STM32_GATE(ck_spi4, &ck_pclk6, 0, GATE_SPI4);
+static STM32_GATE(ck_spi5, &ck_pclk6, 0, GATE_SPI5);
 
 /* Kernel Clocks */
 static STM32_KCLK(ck_usbphy_k, 3,
@@ -2854,6 +2859,11 @@ static struct clk *stm32mp13_clk_provided[STM32MP13_ALL_CLK_NB] = {
 	[ADC2_K]	= &ck_adc2_k,
 	[ETH1CK_K]	= &ck_eth1ck_k,
 	[ETH2CK_K]	= &ck_eth2ck_k,
+	[SPI1]		= &ck_spi1,
+	[SPI2]		= &ck_spi2,
+	[SPI3]		= &ck_spi3,
+	[SPI4]		= &ck_spi4,
+	[SPI5]		= &ck_spi5,
 	[CK_MCO1]	= &ck_mco1,
 	[CK_MCO2]	= &ck_mco2,
 	[CK_TRACE]	= &ck_trace,
