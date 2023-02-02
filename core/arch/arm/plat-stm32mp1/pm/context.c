@@ -581,15 +581,17 @@ TEE_Result stm32mp_pm_call_bl2_lp_entry(unsigned int soc_mode)
 
 	dcache_op_all(DCACHE_OP_CLEAN_INV);
 
-	dsb();
+	/* Disable Cache & MMU before calling low_power section */
+	write_sctlr(read_sctlr() & ~(SCTLR_C | SCTLR_M));
 
-	/* Disable MMU before calling low_power section */
-	write_sctlr(read_sctlr() & ~SCTLR_M);
+	dsb();
+	isb();
+
 
 	(*stm32_pwr_down_wfi)(true, soc_mode);
 
-	/* Enable MMU */
-	write_sctlr(read_sctlr() | SCTLR_M);
+	/* Enable Cache & MMU */
+	write_sctlr(read_sctlr() | SCTLR_C | SCTLR_M);
 
 	clk_disable(pm_clocks.bkpsram);
 
