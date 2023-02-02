@@ -1688,6 +1688,7 @@ static TEE_Result stm32_tamp_probe(const void *fdt, int node,
 	if (!(stm32_tamp.hwconf2 & _TAMP_HWCFGR2_TZ)) {
 		EMSG("TAMP doesn't support TrustZone");
 		res = TEE_ERROR_NOT_SUPPORTED;
+		goto err;
 	}
 
 	stm32_tamp_set_pins(base, stm32_tamp.pdata.pins_conf);
@@ -1706,7 +1707,7 @@ static TEE_Result stm32_tamp_probe(const void *fdt, int node,
 		if (stm32_tamp.pdata.bkpregs_conf) {
 			res = stm32_tamp_apply_bkpr_rif_conf();
 			if (res)
-				return res;
+				goto err;
 		}
 	} else {
 		/*
@@ -1733,14 +1734,16 @@ static TEE_Result stm32_tamp_probe(const void *fdt, int node,
 	if (stm32_tamp.pdata.bkpregs_conf) {
 		res = stm32_tamp_set_secure_bkpregs();
 		if (res)
-			return res;
+			goto err;
 	}
 
 	stm32_tamp.itr = itr_alloc_add(stm32_tamp.pdata.it,
 				       stm32_tamp_it_handler,
 				       ITRF_TRIGGER_LEVEL, &stm32_tamp);
-	if (!stm32_tamp.itr)
-		return TEE_ERROR_BAD_PARAMETERS;
+	if (!stm32_tamp.itr) {
+		res = TEE_ERROR_BAD_PARAMETERS;
+		goto err;
+	}
 
 	if (stm32_tamp.pdata.is_wakeup_source) {
 		if (IS_ENABLED(CFG_STM32_EXTI))
@@ -1752,6 +1755,19 @@ static TEE_Result stm32_tamp_probe(const void *fdt, int node,
 	itr_enable(stm32_tamp.itr->it);
 
 	return TEE_SUCCESS;
+
+err:
+	if (stm32_tamp.pdata.compat->tags & TAMP_HAS_RIF_SUPPORT) {
+		free(stm32_tamp.pdata.bkpregs_conf->rif_offsets);
+		free(stm32_tamp.pdata.conf_data.cid_confs);
+		free(stm32_tamp.pdata.conf_data.sec_conf);
+		free(stm32_tamp.pdata.conf_data.priv_conf);
+		free(stm32_tamp.pdata.conf_data.access_mask);
+	}
+
+	free(stm32_tamp.pdata.bkpregs_conf);
+
+	return res;
 }
 
 static const struct stm32_tamp_compat mp13_compat = {
