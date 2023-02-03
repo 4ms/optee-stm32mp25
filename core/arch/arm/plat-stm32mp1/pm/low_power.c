@@ -12,7 +12,6 @@
 #include <drivers/gic.h>
 #include <drivers/regulator.h>
 #include <drivers/stm32_etzpc.h>
-#include <drivers/stm32_iwdg.h>
 #include <drivers/stm32mp_dt_bindings.h>
 #include <drivers/stm32mp1_ddrc.h>
 #include <drivers/stm32mp1_pmic.h>
@@ -23,6 +22,7 @@
 #include <drivers/stm32mp1_rcc.h>
 #endif
 #include <drivers/stpmic1.h>
+#include <drivers/wdt.h>
 #include <initcall.h>
 #include <io.h>
 #include <keep.h>
@@ -201,11 +201,6 @@ void stm32_pm_cpu_wfi(void)
 	cpu_wfi();
 }
 
-/* If IWDG is not supported, provide a stubbed weak watchdog kicker */
-void __weak stm32_iwdg_refresh(void)
-{
-}
-
 #define ARM_CNTXCTL_IMASK	BIT(1)
 
 static void stm32mp_mask_timer(void)
@@ -283,7 +278,7 @@ void stm32_enter_cstop(uint32_t mode)
 	io_setbits32(rcc_base + RCC_MP_SREQSETR,
 		     RCC_MP_SREQSETR_STPREQ_P0 | RCC_MP_SREQSETR_STPREQ_P1);
 
-	stm32_iwdg_refresh();
+	watchdog_ping();
 #endif
 
 	set_rcc_it_priority(&gicd_rcc_wakeup, &gicc_pmr);
