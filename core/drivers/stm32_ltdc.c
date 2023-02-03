@@ -481,8 +481,6 @@ static TEE_Result stm32_ltdc_probe(const void *fdt, int node,
 	if (res)
 		goto err;
 
-	stm32_pinctrl_load_config(ldev->pinctrl_list);
-
 	ltdc_dev.device = ldev;
 	display_register_device(&ltdc_dev);
 
