@@ -14,9 +14,9 @@
 #include <stm32_util.h>
 
 #define RESET_ID_MASK		GENMASK_32(31, 5)
-#define RESET_ID_SHIFT		5
+#define RESET_ID_SHIFT		U(5)
 #define RESET_BIT_POS_MASK	GENMASK_32(4, 0)
-#define RESET_OFFSET_MAX	1024
+#define RESET_OFFSET_MAX	U(1024)
 
 #define RSTCLRR_OFFSET		U(0x4)
 
