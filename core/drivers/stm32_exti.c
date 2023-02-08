@@ -4,6 +4,7 @@
  */
 
 #include <drivers/stm32_exti.h>
+#include <drivers/stm32_rif.h>
 #include <io.h>
 #include <kernel/boot.h>
 #include <kernel/dt.h>
@@ -21,8 +22,31 @@
 #define _EXTI_RPR(n)		(0x00cU + (n) * 0x20U)
 #define _EXTI_FPR(n)		(0x010U + (n) * 0x20U)
 #define _EXTI_SECCFGR(n)	(0x014U + (n) * 0x20U)
+#define _EXTI_PRIVCFGR(n)	(0x018U + (n) * 0x20U)
 #define _EXTI_CR(n)		(0x060U + (n) * 4U)
 #define _EXTI_C1IMR(n)		(0x080U + (n) * 0x10U)
+#define _EXTI_EnCIDCFGR(n)	(0x180U + (n) * 4U)
+#define _EXTI_CmCIDCFGR(n)	(0x300U + (n) * 4U)
+#define _EXTI_HWCFGR1		0x3f0U
+
+/* SECCFGR register bitfields */
+#define _EXTI_SECCFGR_MASK		GENMASK_32(31, 0)
+
+/* PRIVCFGR register bitfields */
+#define _EXTI_PRIVCFGR_MASK		GENMASK_32(31, 0)
+
+/* CIDCFGR register bitfields */
+#define _EXTI_CIDCFGR_SCID_MASK		GENMASK_32(6, 4)
+#define _EXTI_CIDCFGR_CONF_MASK		(_CIDCFGR_CFEN | \
+					 _EXTI_CIDCFGR_SCID_MASK)
+
+/* _EXTI_HWCFGR1 bit fields */
+#define _EXTI_HWCFGR1_NBEVENTS_MASK	GENMASK_32(7, 0)
+#define _EXTI_HWCFGR1_NBEVENTS_SHIFT	0U
+#define _EXTI_HWCFGR1_NBCPUS_MASK	GENMASK_32(11, 8)
+#define _EXTI_HWCFGR1_NBCPUS_SHIFT	8U
+#define _EXTI_HWCFGR1_CIDWIDTH_MASK	GENMASK_32(27, 24)
+#define _EXTI_HWCFGR1_CIDWIDTH_SHIFT	24U
 
 #define _EXTI_MAX_CR		4U
 #define _EXTI_BANK_NR		3U
@@ -30,14 +54,20 @@
 struct stm32_exti_pdata {
 	vaddr_t base;
 	unsigned int lock;
+	uint32_t hwcfgr1;
 	uint32_t wake_active[_EXTI_BANK_NR];
 	uint32_t mask_cache[_EXTI_BANK_NR];
+	uint32_t seccfgr_cache[_EXTI_BANK_NR];
+	uint32_t privcfgr_cache[_EXTI_BANK_NR];
+	uint32_t access_mask[_EXTI_BANK_NR];
 #ifdef CFG_PM
 	uint32_t rtsr_cache[_EXTI_BANK_NR];
 	uint32_t ftsr_cache[_EXTI_BANK_NR];
-	uint32_t seccfgr_cache[_EXTI_BANK_NR];
 	uint32_t port_sel_cache[_EXTI_MAX_CR];
 #endif
+	uint32_t *e_cids;
+	uint32_t *c_cids;
+
 	SLIST_ENTRY(stm32_exti_pdata) link;
 };
 
@@ -58,6 +88,30 @@ static uint32_t stm32_exti_get_bank(uint32_t exti_line)
 		panic();
 
 	return bank;
+}
+
+static inline uint32_t stm32_exti_maxcid(const struct stm32_exti_pdata *exti)
+{
+	uint32_t bitfield = (exti->hwcfgr1 & _EXTI_HWCFGR1_CIDWIDTH_MASK) >>
+			    _EXTI_HWCFGR1_CIDWIDTH_SHIFT;
+
+	return BIT(bitfield) - 1;
+}
+
+static inline uint32_t stm32_exti_nbevents(const struct stm32_exti_pdata *exti)
+{
+	uint32_t bitfield = (exti->hwcfgr1 & _EXTI_HWCFGR1_NBEVENTS_MASK) >>
+			    _EXTI_HWCFGR1_NBEVENTS_SHIFT;
+
+	return bitfield + 1;
+}
+
+static inline uint32_t stm32_exti_nbcpus(const struct stm32_exti_pdata *exti)
+{
+	uint32_t bitfield = (exti->hwcfgr1 & _EXTI_HWCFGR1_NBCPUS_MASK) >>
+			    _EXTI_HWCFGR1_NBCPUS_SHIFT;
+
+	return bitfield + 1;
 }
 
 void stm32_exti_set_type(struct stm32_exti_pdata *exti, uint32_t exti_line,
@@ -211,12 +265,170 @@ void stm32_exti_set_gpio_port_sel(struct stm32_exti_pdata *exti, uint8_t bank,
 	cpu_spin_unlock_xrestore(&exti->lock, exceptions);
 }
 
+static void stm32_exti_rif_parse_dt(struct stm32_exti_pdata *exti,
+				    const void *fdt, int node)
+{
+	struct rif_conf_data conf_data = { };
+	const fdt32_t *cuint = NULL;
+	uint32_t rif_conf = 0;
+	unsigned int i = 0;
+	int len = 0;
+
+	cuint = fdt_getprop(fdt, node, "st,protreg", &len);
+	if (!cuint)
+		panic("No RIF configuration available");
+
+	exti->e_cids = calloc(stm32_exti_nbevents(exti), sizeof(uint32_t));
+	exti->c_cids = calloc(stm32_exti_nbcpus(exti), sizeof(uint32_t));
+	if (!exti->e_cids || !exti->c_cids)
+		panic("Out of memory");
+
+	conf_data.cid_confs   = exti->e_cids;
+	conf_data.sec_conf    = exti->seccfgr_cache;
+	conf_data.priv_conf   = exti->privcfgr_cache;
+	conf_data.access_mask = exti->access_mask;
+
+	for (i = 0; i < len / sizeof(uint32_t); i++) {
+		rif_conf = fdt32_to_cpu(cuint[i]);
+
+		stm32_rif_parse_cfg(rif_conf, &conf_data,
+				    stm32_exti_maxcid(exti),
+				    stm32_exti_nbevents(exti));
+	}
+
+	cuint = fdt_getprop(fdt, node, "st,proccid", &len);
+	if (!cuint)
+		panic("No RIF configuration available");
+
+	for (i = 0; i < len / (2 * sizeof(uint32_t)); i++) {
+		unsigned int pos = fdt32_to_cpu(cuint[2 * i]);
+		uint32_t c_cid = fdt32_to_cpu(cuint[2 * i + 1]);
+
+		if (pos == 0 || pos > stm32_exti_nbcpus(exti))
+			panic("CID position out of range");
+
+		if (c_cid > stm32_exti_maxcid(exti))
+			panic("CID out of range");
+
+		exti->c_cids[pos - 1] = (c_cid << SCID_SHIFT) | _CIDCFGR_CFEN;
+	}
+}
+
+static TEE_Result stm32_exti_rif_apply(const struct stm32_exti_pdata *exti)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+	unsigned int bit_offset = 0;
+	bool is_tdcid = false;
+	uint32_t event = 0;
+	unsigned int i = 0;
+
+	res = stm32_rifsc_check_tdcid(&is_tdcid);
+	if (res)
+		return res;
+
+	/*
+	 * If TDCID, clear EnCIDCFGR and CmCIDCFGR to prevent undesired
+	 * events during the following configuration.
+	 */
+
+	if (is_tdcid) {
+		for (event = 0; event < stm32_exti_nbevents(exti); event++) {
+			i = stm32_exti_get_bank(event);
+			bit_offset = event % 32;
+
+			if (!(BIT(bit_offset) & exti->access_mask[i]))
+				continue;
+
+			io_clrbits32(exti->base + _EXTI_EnCIDCFGR(i),
+				     _EXTI_CIDCFGR_CONF_MASK);
+		}
+
+		for (i = 0; i < stm32_exti_nbcpus(exti); i++)
+			io_clrbits32(exti->base + _EXTI_CmCIDCFGR(i),
+				     _EXTI_CIDCFGR_CONF_MASK);
+	}
+
+	/* Security and privilege RIF configuration */
+	for (i = 0; i < _EXTI_BANK_NR; i++) {
+		if (!exti->access_mask[i])
+			continue;
+
+		io_clrsetbits32(exti->base + _EXTI_PRIVCFGR(i),
+				_EXTI_PRIVCFGR_MASK & exti->access_mask[i],
+				exti->privcfgr_cache[i]);
+		io_clrsetbits32(exti->base + _EXTI_SECCFGR(i),
+				_EXTI_SECCFGR_MASK & exti->access_mask[i],
+				exti->seccfgr_cache[i]);
+	}
+
+	if (!is_tdcid)
+		return TEE_SUCCESS;
+
+	/* If TDCID, configure EnCIDCFGR and CmCIDCFGR */
+	for (event = 0; event < stm32_exti_nbevents(exti); event++) {
+		i = stm32_exti_get_bank(event);
+		bit_offset = event % 32;
+
+		if (!(BIT(bit_offset) & exti->access_mask[i]))
+			continue;
+
+		io_clrsetbits32(exti->base + _EXTI_EnCIDCFGR(i),
+				_EXTI_CIDCFGR_CONF_MASK, exti->e_cids[i]);
+	}
+	for (i = 0; i < stm32_exti_nbcpus(exti); i++) {
+		if (!(exti->c_cids[i] & _CIDCFGR_CFEN))
+			continue;
+
+		io_clrsetbits32(exti->base + _EXTI_CmCIDCFGR(i),
+				_EXTI_CIDCFGR_CONF_MASK, exti->c_cids[i]);
+	}
+
+	return TEE_SUCCESS;
+}
+
 #ifdef CFG_PM
+static void stm32_exti_rif_save(struct stm32_exti_pdata *exti)
+{
+	unsigned int bit_offset = 0;
+	bool is_tdcid = false;
+	uint32_t event = 0;
+	unsigned int i = 0;
+
+	for (i = 0; i < _EXTI_BANK_NR; i++) {
+		if (!exti->access_mask[i])
+			continue;
+
+		exti->privcfgr_cache[i] =
+			io_read32(exti->base + _EXTI_PRIVCFGR(i));
+		exti->seccfgr_cache[i] =
+			io_read32(exti->base + _EXTI_SECCFGR(i));
+	}
+
+	stm32_rifsc_check_tdcid(&is_tdcid);
+	if (!is_tdcid)
+		return;
+
+	for (event = 0; event < stm32_exti_nbevents(exti); event++) {
+		i = stm32_exti_get_bank(event);
+		bit_offset = event % 32;
+
+		if (!(BIT(bit_offset) & exti->access_mask[i]))
+			continue;
+
+		exti->e_cids[i] = io_read32(exti->base + _EXTI_EnCIDCFGR(i));
+	}
+	for (i = 0; i < stm32_exti_nbcpus(exti); i++)
+		exti->c_cids[i] = io_read32(exti->base + _EXTI_CmCIDCFGR(i));
+}
+
 static void stm32_exti_pm_suspend(struct stm32_exti_pdata *exti)
 {
 	uint32_t base = exti->base;
 	uint32_t mask = 0;
 	uint32_t i = 0;
+
+	if (IS_ENABLED(CFG_STM32_RIF) && stm32_exti_maxcid(exti))
+		stm32_exti_rif_save(exti);
 
 	for (i = 0; i < _EXTI_BANK_NR; i++) {
 		/* Save ftsr, rtsr and seccfgr registers */
@@ -252,6 +464,9 @@ static void stm32_exti_pm_resume(struct stm32_exti_pdata *exti)
 	/* Restore EXTI port selection */
 	for (i = 0; i < _EXTI_MAX_CR; i++)
 		io_write32(base + _EXTI_CR(i), exti->port_sel_cache[i]);
+
+	if (IS_ENABLED(CFG_STM32_RIF) && stm32_exti_maxcid(exti))
+		stm32_exti_rif_apply(exti);
 }
 
 static TEE_Result
@@ -273,7 +488,7 @@ stm32_exti_pm(enum pm_op op, unsigned int pm_hint,
 
 	return TEE_SUCCESS;
 }
-#endif
+#endif /* CFG_PM */
 
 static struct stm32_exti_pdata *
 stm32_exti_get_handle(struct dt_driver_phandle_args *pargs __unused,
@@ -304,6 +519,14 @@ static TEE_Result stm32_exti_probe(const void *fdt, int node,
 	exti->base = io_pa_or_va_secure(&base, dt_info.reg_size);
 	assert(exti->base);
 
+	exti->hwcfgr1 = io_read32(exti->base + _EXTI_HWCFGR1);
+	if (IS_ENABLED(CFG_STM32_RIF) && stm32_exti_maxcid(exti)) {
+		stm32_exti_rif_parse_dt(exti, fdt, node);
+		res = stm32_exti_rif_apply(exti);
+		if (res)
+			goto err;
+	}
+
 	res = dt_driver_register_provider(fdt, node,
 					  (get_of_device_func)
 					  stm32_exti_get_handle,
@@ -320,6 +543,8 @@ static TEE_Result stm32_exti_probe(const void *fdt, int node,
 	return TEE_SUCCESS;
 
 err:
+	free(exti->e_cids);
+	free(exti->c_cids);
 	free(exti);
 	return res;
 }
