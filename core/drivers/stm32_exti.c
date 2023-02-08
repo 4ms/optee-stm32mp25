@@ -57,8 +57,8 @@ static uint32_t stm32_exti_get_bank(uint32_t exti_line)
 	return bank;
 }
 
-void stm32_exti_set_type(struct stm32_exti_pdata *exti __unused,
-			 uint32_t exti_line, uint32_t type)
+void stm32_exti_set_type(struct stm32_exti_pdata *exti, uint32_t exti_line,
+			 uint32_t type)
 {
 	uint32_t mask = BIT(exti_line % 32);
 	uint32_t r_trig = 0;
@@ -85,15 +85,15 @@ void stm32_exti_set_type(struct stm32_exti_pdata *exti __unused,
 
 	i = stm32_exti_get_bank(exti_line);
 
-	exceptions = cpu_spin_lock_xsave(&stm32_exti.lock);
+	exceptions = cpu_spin_lock_xsave(&exti->lock);
 
-	io_mask32(stm32_exti.base + _EXTI_RTSR(i), r_trig, mask);
-	io_mask32(stm32_exti.base + _EXTI_FTSR(i), f_trig, mask);
+	io_mask32(exti->base + _EXTI_RTSR(i), r_trig, mask);
+	io_mask32(exti->base + _EXTI_FTSR(i), f_trig, mask);
 
-	cpu_spin_unlock_xrestore(&stm32_exti.lock, exceptions);
+	cpu_spin_unlock_xrestore(&exti->lock, exceptions);
 }
 
-void stm32_exti_mask(struct stm32_exti_pdata *exti __unused, uint32_t exti_line)
+void stm32_exti_mask(struct stm32_exti_pdata *exti, uint32_t exti_line)
 {
 	uint32_t val = 0;
 	uint32_t mask = BIT(exti_line % 32);
@@ -102,18 +102,17 @@ void stm32_exti_mask(struct stm32_exti_pdata *exti __unused, uint32_t exti_line)
 
 	i = stm32_exti_get_bank(exti_line);
 
-	exceptions = cpu_spin_lock_xsave(&stm32_exti.lock);
+	exceptions = cpu_spin_lock_xsave(&exti->lock);
 
-	val = io_read32(stm32_exti.base + _EXTI_C1IMR(i));
+	val = io_read32(exti->base + _EXTI_C1IMR(i));
 	val &= ~mask;
-	io_write32(stm32_exti.base + _EXTI_C1IMR(i), val);
-	stm32_exti.mask_cache[i] = val;
+	io_write32(exti->base + _EXTI_C1IMR(i), val);
+	exti->mask_cache[i] = val;
 
-	cpu_spin_unlock_xrestore(&stm32_exti.lock, exceptions);
+	cpu_spin_unlock_xrestore(&exti->lock, exceptions);
 }
 
-void stm32_exti_unmask(struct stm32_exti_pdata *exti __unused,
-		       uint32_t exti_line)
+void stm32_exti_unmask(struct stm32_exti_pdata *exti, uint32_t exti_line)
 {
 	uint32_t val = 0;
 	uint32_t mask = BIT(exti_line % 32);
@@ -122,18 +121,17 @@ void stm32_exti_unmask(struct stm32_exti_pdata *exti __unused,
 
 	i = stm32_exti_get_bank(exti_line);
 
-	exceptions = cpu_spin_lock_xsave(&stm32_exti.lock);
+	exceptions = cpu_spin_lock_xsave(&exti->lock);
 
-	val = io_read32(stm32_exti.base + _EXTI_C1IMR(i));
+	val = io_read32(exti->base + _EXTI_C1IMR(i));
 	val |= mask;
-	io_write32(stm32_exti.base + _EXTI_C1IMR(i), val);
-	stm32_exti.mask_cache[i] = val;
+	io_write32(exti->base + _EXTI_C1IMR(i), val);
+	exti->mask_cache[i] = val;
 
-	cpu_spin_unlock_xrestore(&stm32_exti.lock, exceptions);
+	cpu_spin_unlock_xrestore(&exti->lock, exceptions);
 }
 
-void stm32_exti_enable_wake(struct stm32_exti_pdata *exti __unused,
-			    uint32_t exti_line)
+void stm32_exti_enable_wake(struct stm32_exti_pdata *exti, uint32_t exti_line)
 {
 	uint32_t mask = BIT(exti_line % 32);
 	uint32_t exceptions = 0;
@@ -141,15 +139,14 @@ void stm32_exti_enable_wake(struct stm32_exti_pdata *exti __unused,
 
 	i = stm32_exti_get_bank(exti_line);
 
-	exceptions = cpu_spin_lock_xsave(&stm32_exti.lock);
+	exceptions = cpu_spin_lock_xsave(&exti->lock);
 
-	stm32_exti.wake_active[i] |= mask;
+	exti->wake_active[i] |= mask;
 
-	cpu_spin_unlock_xrestore(&stm32_exti.lock, exceptions);
+	cpu_spin_unlock_xrestore(&exti->lock, exceptions);
 }
 
-void stm32_exti_disable_wake(struct stm32_exti_pdata *exti __unused,
-			     uint32_t exti_line)
+void stm32_exti_disable_wake(struct stm32_exti_pdata *exti, uint32_t exti_line)
 {
 	uint32_t mask = BIT(exti_line % 32);
 	uint32_t exceptions = 0;
@@ -157,15 +154,14 @@ void stm32_exti_disable_wake(struct stm32_exti_pdata *exti __unused,
 
 	i = stm32_exti_get_bank(exti_line);
 
-	exceptions = cpu_spin_lock_xsave(&stm32_exti.lock);
+	exceptions = cpu_spin_lock_xsave(&exti->lock);
 
-	stm32_exti.wake_active[i] &= ~mask;
+	exti->wake_active[i] &= ~mask;
 
-	cpu_spin_unlock_xrestore(&stm32_exti.lock, exceptions);
+	cpu_spin_unlock_xrestore(&exti->lock, exceptions);
 }
 
-void stm32_exti_clear(struct stm32_exti_pdata *exti __unused,
-		      uint32_t exti_line)
+void stm32_exti_clear(struct stm32_exti_pdata *exti, uint32_t exti_line)
 {
 	uint32_t mask = BIT(exti_line % 32);
 	uint32_t exceptions = 0;
@@ -173,16 +169,15 @@ void stm32_exti_clear(struct stm32_exti_pdata *exti __unused,
 
 	i = stm32_exti_get_bank(exti_line);
 
-	exceptions = cpu_spin_lock_xsave(&stm32_exti.lock);
+	exceptions = cpu_spin_lock_xsave(&exti->lock);
 
-	io_mask32(stm32_exti.base + _EXTI_RPR(i), mask, mask);
-	io_mask32(stm32_exti.base + _EXTI_FPR(i), mask, mask);
+	io_mask32(exti->base + _EXTI_RPR(i), mask, mask);
+	io_mask32(exti->base + _EXTI_FPR(i), mask, mask);
 
-	cpu_spin_unlock_xrestore(&stm32_exti.lock, exceptions);
+	cpu_spin_unlock_xrestore(&exti->lock, exceptions);
 }
 
-void stm32_exti_set_tz(struct stm32_exti_pdata *exti __unused,
-		       uint32_t exti_line)
+void stm32_exti_set_tz(struct stm32_exti_pdata *exti, uint32_t exti_line)
 {
 	uint32_t mask = BIT(exti_line % 32);
 	uint32_t exceptions = 0;
@@ -190,15 +185,15 @@ void stm32_exti_set_tz(struct stm32_exti_pdata *exti __unused,
 
 	i = stm32_exti_get_bank(exti_line);
 
-	exceptions = cpu_spin_lock_xsave(&stm32_exti.lock);
+	exceptions = cpu_spin_lock_xsave(&exti->lock);
 
-	io_mask32(stm32_exti.base + _EXTI_SECCFGR(i), mask, mask);
+	io_mask32(exti->base + _EXTI_SECCFGR(i), mask, mask);
 
-	cpu_spin_unlock_xrestore(&stm32_exti.lock, exceptions);
+	cpu_spin_unlock_xrestore(&exti->lock, exceptions);
 }
 
-void stm32_exti_set_gpio_port_sel(struct stm32_exti_pdata *exti __unused,
-				  uint8_t bank, uint8_t pin)
+void stm32_exti_set_gpio_port_sel(struct stm32_exti_pdata *exti, uint8_t bank,
+				  uint8_t pin)
 {
 	uint32_t reg = _EXTI_CR(pin / 4);
 	uint32_t shift = (pin % 4) * 8;
@@ -206,11 +201,11 @@ void stm32_exti_set_gpio_port_sel(struct stm32_exti_pdata *exti __unused,
 	uint32_t mask = 0xff << shift;
 	uint32_t exceptions = 0;
 
-	exceptions = cpu_spin_lock_xsave(&stm32_exti.lock);
+	exceptions = cpu_spin_lock_xsave(&exti->lock);
 
-	io_mask32(stm32_exti.base + reg, val, mask);
+	io_mask32(exti->base + reg, val, mask);
 
-	cpu_spin_unlock_xrestore(&stm32_exti.lock, exceptions);
+	cpu_spin_unlock_xrestore(&exti->lock, exceptions);
 }
 
 #ifdef CFG_PM
