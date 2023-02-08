@@ -184,6 +184,7 @@ struct stm32_tamp_platdata {
 	struct stm32_tamp_compat *compat;
 	struct rif_conf_data conf_data;
 	struct stm32_bkpregs_conf *bkpregs_conf;
+	struct stm32_exti_pdata *exti;
 	int it;
 	unsigned int nb_resources;
 	uint32_t passive_conf;

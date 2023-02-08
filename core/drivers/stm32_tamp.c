@@ -1632,6 +1632,18 @@ TEE_Result stm32_tamp_parse_fdt(struct stm32_tamp_platdata *pdata,
 
 	parse_bkpregs_dt_conf(pdata, fdt, node);
 
+	if (pdata->is_wakeup_source && IS_ENABLED(CFG_STM32_EXTI)) {
+		pdata->exti =
+			dt_driver_device_from_node_idx_prop("wakeup-parent",
+							    fdt, node, 0,
+							    DT_DRIVER_NOTYPE,
+							    &res);
+		if (res == TEE_ERROR_DEFER_DRIVER_INIT)
+			return TEE_ERROR_DEFER_DRIVER_INIT;
+		if (res)
+			panic("DT property 'wakeup-source' requires 'wakeup-parent'");
+	}
+
 	return TEE_SUCCESS;
 }
 
@@ -1747,7 +1759,8 @@ static TEE_Result stm32_tamp_probe(const void *fdt, int node,
 
 	if (stm32_tamp.pdata.is_wakeup_source) {
 		if (IS_ENABLED(CFG_STM32_EXTI))
-			stm32_exti_enable_wake(NULL, TAMP_EXTI_WKUP);
+			stm32_exti_enable_wake(stm32_tamp.pdata.exti,
+					       TAMP_EXTI_WKUP);
 		else
 			IMSG("TAMP event are not configured as wakeup source");
 	}
