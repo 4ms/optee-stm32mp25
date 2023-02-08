@@ -57,7 +57,8 @@ static uint32_t stm32_exti_get_bank(uint32_t exti_line)
 	return bank;
 }
 
-void stm32_exti_set_type(uint32_t exti_line, uint32_t type)
+void stm32_exti_set_type(struct stm32_exti_pdata *exti __unused,
+			 uint32_t exti_line, uint32_t type)
 {
 	uint32_t mask = BIT(exti_line % 32);
 	uint32_t r_trig = 0;
@@ -92,7 +93,7 @@ void stm32_exti_set_type(uint32_t exti_line, uint32_t type)
 	cpu_spin_unlock_xrestore(&stm32_exti.lock, exceptions);
 }
 
-void stm32_exti_mask(uint32_t exti_line)
+void stm32_exti_mask(struct stm32_exti_pdata *exti __unused, uint32_t exti_line)
 {
 	uint32_t val = 0;
 	uint32_t mask = BIT(exti_line % 32);
@@ -111,7 +112,8 @@ void stm32_exti_mask(uint32_t exti_line)
 	cpu_spin_unlock_xrestore(&stm32_exti.lock, exceptions);
 }
 
-void stm32_exti_unmask(uint32_t exti_line)
+void stm32_exti_unmask(struct stm32_exti_pdata *exti __unused,
+		       uint32_t exti_line)
 {
 	uint32_t val = 0;
 	uint32_t mask = BIT(exti_line % 32);
@@ -130,7 +132,8 @@ void stm32_exti_unmask(uint32_t exti_line)
 	cpu_spin_unlock_xrestore(&stm32_exti.lock, exceptions);
 }
 
-void stm32_exti_enable_wake(uint32_t exti_line)
+void stm32_exti_enable_wake(struct stm32_exti_pdata *exti __unused,
+			    uint32_t exti_line)
 {
 	uint32_t mask = BIT(exti_line % 32);
 	uint32_t exceptions = 0;
@@ -145,7 +148,8 @@ void stm32_exti_enable_wake(uint32_t exti_line)
 	cpu_spin_unlock_xrestore(&stm32_exti.lock, exceptions);
 }
 
-void stm32_exti_disable_wake(uint32_t exti_line)
+void stm32_exti_disable_wake(struct stm32_exti_pdata *exti __unused,
+			     uint32_t exti_line)
 {
 	uint32_t mask = BIT(exti_line % 32);
 	uint32_t exceptions = 0;
@@ -160,7 +164,8 @@ void stm32_exti_disable_wake(uint32_t exti_line)
 	cpu_spin_unlock_xrestore(&stm32_exti.lock, exceptions);
 }
 
-void stm32_exti_clear(uint32_t exti_line)
+void stm32_exti_clear(struct stm32_exti_pdata *exti __unused,
+		      uint32_t exti_line)
 {
 	uint32_t mask = BIT(exti_line % 32);
 	uint32_t exceptions = 0;
@@ -176,7 +181,8 @@ void stm32_exti_clear(uint32_t exti_line)
 	cpu_spin_unlock_xrestore(&stm32_exti.lock, exceptions);
 }
 
-void stm32_exti_set_tz(uint32_t exti_line)
+void stm32_exti_set_tz(struct stm32_exti_pdata *exti __unused,
+		       uint32_t exti_line)
 {
 	uint32_t mask = BIT(exti_line % 32);
 	uint32_t exceptions = 0;
@@ -191,7 +197,8 @@ void stm32_exti_set_tz(uint32_t exti_line)
 	cpu_spin_unlock_xrestore(&stm32_exti.lock, exceptions);
 }
 
-void stm32_exti_set_gpio_port_sel(uint8_t bank, uint8_t pin)
+void stm32_exti_set_gpio_port_sel(struct stm32_exti_pdata *exti __unused,
+				  uint8_t bank, uint8_t pin)
 {
 	uint32_t reg = _EXTI_CR(pin / 4);
 	uint32_t shift = (pin % 4) * 8;

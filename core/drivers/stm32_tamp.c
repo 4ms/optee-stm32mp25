@@ -1747,7 +1747,7 @@ static TEE_Result stm32_tamp_probe(const void *fdt, int node,
 
 	if (stm32_tamp.pdata.is_wakeup_source) {
 		if (IS_ENABLED(CFG_STM32_EXTI))
-			stm32_exti_enable_wake(TAMP_EXTI_WKUP);
+			stm32_exti_enable_wake(NULL, TAMP_EXTI_WKUP);
 		else
 			IMSG("TAMP event are not configured as wakeup source");
 	}
