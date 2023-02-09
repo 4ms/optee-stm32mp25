@@ -10,6 +10,7 @@
 #define CMD_MUX		1
 #define CMD_CLK		2
 #define CMD_FLEXGEN	3
+#define CMD_OBS		4
 
 #define CMD_ADDR_BIT	0x80000000
 
@@ -212,6 +213,55 @@
 					((addr) << CLK_ADDR_SHIFT) |\
 					((status) << MCO_STATUS_SHIFT) |\
 					(sel))
+#define OBS_ID_SHIFT		14
+#define OBS_STATUS_SHIFT	13
+#define OBS_INTEXT_SHIFT	12
+#define OBS_DIV_SHIFT		9
+#define OBS_INV_SHIFT		8
+#define OBS_SEL_SHIFT		0
+
+#define OBS_ID_MASK		GENMASK_32(14, 14)
+#define OBS_STATUS_MASK		GENMASK_32(13, 13)
+#define OBS_INTEXT_MASK		GENMASK_32(12, 12)
+#define OBS_DIV_MASK		GENMASK_32(11, 9)
+#define OBS_INV_MASK		BIT(8)
+#define OBS_SEL_MASK		GENMASK_32(7, 0)
+
+#define OBS_CFG(id, status, int_ext, div, inv, sel)\
+	((CMD_OBS << CMD_SHIFT) |\
+	((id) << OBS_ID_SHIFT) |\
+	((status) << OBS_STATUS_SHIFT) |\
+	((int_ext) << OBS_INTEXT_SHIFT) |\
+	((div) << OBS_DIV_SHIFT) |\
+	((inv) << OBS_INV_SHIFT) |\
+	((sel) << OBS_SEL_SHIFT))
+
+#define OBS0			0
+#define OBS1			1
+
+#define OBS_OFF			0
+#define OBS_ON			1
+
+#define OBS_INT			0
+#define OBS_EXT			1
+
+#define OBS_DIV1		0
+#define OBS_DIV2		1
+#define OBS_DIV4		2
+#define OBS_DIV8		3
+#define OBS_DIV16		4
+#define OBS_DIV32		5
+#define OBS_DIV64		6
+#define OBS_DIV128		7
+
+#define OBS_NO_INV		0
+#define OBS_INV			1
+
+#define OBS_INT_CFG(id, status, div, inv, sel)\
+		OBS_CFG(id, status, OBS_INT, div, inv, sel)
+
+#define OBS_EXT_CFG(id, status, div, inv, sel)\
+		OBS_CFG(id, status, OBS_EXT, div, inv, sel)
 
 /* define for st,pll /csg */
 #define SSCG_MODE_CENTER_SPREAD	0

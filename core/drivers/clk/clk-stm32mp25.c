@@ -2081,6 +2081,43 @@ static int stm32_clk_configure_by_addr_val(struct clk_stm32_priv *priv,
 	return 0;
 }
 
+static int stm32_clk_configure_obs(struct clk_stm32_priv *priv,
+				   uint32_t data)
+{
+	int id = (data & OBS_ID_MASK) >> OBS_ID_SHIFT;
+	int status = (data & OBS_STATUS_MASK) >> OBS_STATUS_SHIFT;
+	int int_ext = (data & OBS_INTEXT_MASK) >> OBS_INTEXT_SHIFT;
+	int div = (data & OBS_DIV_MASK) >> OBS_DIV_SHIFT;
+	int inv = (data & OBS_INV_MASK) >> OBS_INV_SHIFT;
+	int sel = (data & OBS_SEL_MASK) >> OBS_SEL_SHIFT;
+	uint32_t reg = 0;
+	uint32_t val = 0;
+
+	if (!id)
+		reg = RCC_FCALCOBS0CFGR;
+	else
+		reg = RCC_FCALCOBS1CFGR;
+
+	if (status)
+		val |= RCC_FCALCOBS0CFGR_CKOBSEN;
+
+	if (int_ext == OBS_EXT) {
+		val |= RCC_FCALCOBS0CFGR_CKOBSEXTSEL;
+		val |= sel << RCC_FCALCOBS0CFGR_CKEXTSEL_SHIFT;
+	} else {
+		val |= sel << RCC_FCALCOBS0CFGR_CKINTSEL_SHIFT;
+	}
+
+	if (inv)
+		val |= RCC_FCALCOBS0CFGR_CKOBSINV;
+
+	val |= div << RCC_FCALCOBS0CFGR_CKOBSDIV_SHIFT;
+
+	io_write32(priv->base + reg, val);
+
+	return 0;
+}
+
 static int stm32_clk_configure(struct clk_stm32_priv *priv, uint32_t val)
 {
 	uint32_t cmd_data = 0;
@@ -2103,6 +2140,10 @@ static int stm32_clk_configure(struct clk_stm32_priv *priv, uint32_t val)
 
 	case CMD_MUX:
 		ret = stm32_clk_configure_mux(priv, cmd_data);
+		break;
+
+	case CMD_OBS:
+		ret = stm32_clk_configure_obs(priv, cmd_data);
 		break;
 
 	default:
