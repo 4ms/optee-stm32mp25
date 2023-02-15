@@ -69,9 +69,9 @@
  * Miscellaneous
  */
 
-#define _HPDMA_RIF_CHANNELS		U(16)
+#define HPDMA_RIF_CHANNELS		U(16)
 
-#define _HPDMA_NB_MAX_CID_SUPPORTED	U(3)
+#define HPDMA_NB_MAX_CID_SUPPORTED	U(3)
 
 struct hpdma_pdata {
 	struct clk *hpdma_clock;
@@ -112,7 +112,7 @@ static TEE_Result apply_rif_config(struct hpdma_pdata *hpdma_d, bool is_tdcid)
 		/* If not TDCID, we want to acquire semaphores assigned to us */
 		res = stm32_rif_acquire_semaphore(hpdma_d->base +
 						  _HPDMA_SEMCR(i),
-						  _HPDMA_NB_MAX_CID_SUPPORTED);
+						  HPDMA_NB_MAX_CID_SUPPORTED);
 		if (res) {
 			EMSG("Couldn't acquire semaphore for channel %u", i);
 			clk_disable(hpdma_d->hpdma_clock);
@@ -147,7 +147,7 @@ static TEE_Result apply_rif_config(struct hpdma_pdata *hpdma_d, bool is_tdcid)
 
 		res = stm32_rif_release_semaphore(hpdma_d->base +
 						  _HPDMA_SEMCR(i),
-						  _HPDMA_NB_MAX_CID_SUPPORTED);
+						  HPDMA_NB_MAX_CID_SUPPORTED);
 		if (res) {
 			EMSG("Couldn't release semaphore channel %u", i);
 			clk_disable(hpdma_d->hpdma_clock);
@@ -211,23 +211,25 @@ static TEE_Result parse_dt(const void *fdt, int node,
 		panic("No RIF configuration available");
 
 	hpdma_d->nb_channels = (unsigned int)(lenp / sizeof(uint32_t));
-	assert(hpdma_d->nb_channels <= _HPDMA_RIF_CHANNELS);
+	assert(hpdma_d->nb_channels <= HPDMA_RIF_CHANNELS);
 
-	hpdma_d->conf_data.cid_confs = calloc(_HPDMA_RIF_CHANNELS,
+	hpdma_d->conf_data.cid_confs = calloc(HPDMA_RIF_CHANNELS,
 					      sizeof(uint32_t));
 	hpdma_d->conf_data.sec_conf = calloc(1, sizeof(uint32_t));
 	hpdma_d->conf_data.priv_conf = calloc(1, sizeof(uint32_t));
 	hpdma_d->conf_data.access_mask = calloc(1, sizeof(uint32_t));
+	hpdma_d->conf_data.lock_conf = calloc(1, sizeof(uint32_t));
 	if (!hpdma_d->conf_data.cid_confs || !hpdma_d->conf_data.sec_conf ||
-	    !hpdma_d->conf_data.priv_conf || !hpdma_d->conf_data.access_mask)
+	    !hpdma_d->conf_data.priv_conf || !hpdma_d->conf_data.access_mask ||
+	    !hpdma_d->conf_data.lock_conf)
 		panic("Missing memory capacity for HPDMA RIF configuration");
 
 	for (i = 0; i < hpdma_d->nb_channels; i++) {
 		rif_conf = fdt32_to_cpu(cuint[i]);
 
 		stm32_rif_parse_cfg(rif_conf, &hpdma_d->conf_data,
-				    _HPDMA_NB_MAX_CID_SUPPORTED,
-				    _HPDMA_RIF_CHANNELS);
+				    HPDMA_NB_MAX_CID_SUPPORTED,
+				    HPDMA_RIF_CHANNELS);
 	}
 
 	return TEE_SUCCESS;
