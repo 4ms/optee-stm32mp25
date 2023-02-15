@@ -38,6 +38,7 @@
 #define GPIO_AFRH_OFFSET	U(0x24)
 #define GPIO_SECR_OFFSET	U(0x30)
 #define GPIO_PRIVCFGR_OFFSET	U(0x34)
+#define GPIO_RCFGLOCKR		U(0x38)
 #define GPIO_CIDCFGR(X)		(U(0x50) + U(0x8) * (X))
 #define GPIO_SEMCR(X)		(U(0x54) + U(0x8) * (X))
 
@@ -61,6 +62,11 @@
  * SECCFGR register bitfields
  */
 #define GPIO_SECCFGR_MASK	GENMASK_32(15, 0)
+
+/*
+ * RCFGLOCKR register bitfields
+ */
+#define GPIO_RCFGLOCKR_MASK	GENMASK_32(15, 0)
 
 /*
  * SEMCR register bitfields
@@ -764,6 +770,13 @@ static TEE_Result apply_rif_config(struct stm32_gpio_bank *bank)
 		}
 	}
 
+	/*
+	 * Lock RIF configuration if configured. This cannot be undone until
+	 * next reset.
+	 */
+	io_clrsetbits32(bank->base + GPIO_RCFGLOCKR, GPIO_RCFGLOCKR_MASK,
+			bank->conf_data.lock_conf[0]);
+
 	if (IS_ENABLED(CFG_TEE_CORE_DEBUG)) {
 		/* Check that RIF config are applied, panic otherwise */
 		if ((io_read32(bank->base + GPIO_PRIVCFGR_OFFSET) &
@@ -805,9 +818,10 @@ static void stm32_parse_gpio_rif_conf(struct stm32_gpio_bank *bank,
 	bank->conf_data.cid_confs = calloc(bank->ngpios,
 					   sizeof(uint32_t));
 	bank->conf_data.priv_conf = calloc(1, sizeof(uint32_t));
+	bank->conf_data.lock_conf = calloc(1, sizeof(uint32_t));
 	bank->conf_data.access_mask = calloc(1, sizeof(uint32_t));
 	if (!bank->conf_data.cid_confs || !bank->conf_data.access_mask ||
-	    !bank->conf_data.priv_conf)
+	    !bank->conf_data.priv_conf || !bank->conf_data.lock_conf)
 		panic("Missing memory capacity for GPIOS RIF configuration");
 
 	for (i = 0; i < nb_rif_conf; i++) {
