@@ -40,6 +40,7 @@
 
 #define RIFPROT_SEC			BIT(8)
 #define RIFPROT_PRIV			BIT(9)
+#define RIFPROT_LOCK			BIT(10)
 
 #define SCID_OK(cidcfgr, scid_m, cid)	(((cidcfgr) & (scid_m)) ==	\
 					 ((cid) << (SCID_SHIFT)) &&	\
@@ -72,6 +73,7 @@ struct rif_conf_data {
 	uint32_t *sec_conf;
 	uint32_t *priv_conf;
 	uint32_t *cid_confs;
+	uint32_t *lock_conf;
 };
 
 /*

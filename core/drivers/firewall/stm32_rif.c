@@ -77,6 +77,10 @@ void stm32_rif_parse_cfg(uint32_t rif_conf,
 	if (rif_conf & RIFPROT_SEC)
 		conf_data->sec_conf[conf_index] |= BIT(channel_id);
 
+	/* RIF configuration lock */
+	if (rif_conf & RIFPROT_LOCK && conf_data->lock_conf)
+		conf_data->lock_conf[conf_index] |= BIT(channel_id);
+
 	/* CID configuration */
 	conf_data->cid_confs[channel_id] = rif_conf & cidcfdg_conf_mask;
 
