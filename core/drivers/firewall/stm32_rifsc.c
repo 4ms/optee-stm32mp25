@@ -22,6 +22,7 @@
 #define _RIFSC_RISC_PRIVCFGR0		U(0x30)
 #define _RIFSC_RISC_RCFGLOCKR0		U(0x50)
 #define _RIFSC_RISC_PER0_CIDCFGR	U(0x100)
+#define _RIFSC_RISC_PER0_SEMCR		U(0x104)
 #define _RIFSC_RIMC_CR			U(0xC00)
 #define _RIFSC_RIMC_ATTR0		U(0xC10)
 
@@ -404,6 +405,7 @@ static TEE_Result stm32_risup_cfg(struct rifsc_platdata *pdata,
 	uintptr_t cidcfgr_offset = _OFST_PERX_CIDCFGR * risup->id;
 	uintptr_t offset = sizeof(uint32_t) * (risup->id / _PERIPH_IDS_PER_REG);
 	uint32_t shift = risup->id % _PERIPH_IDS_PER_REG;
+	TEE_Result res = TEE_ERROR_GENERIC;
 
 	if (!risup || risup->id >= drv_data->nb_risup)
 		return TEE_ERROR_BAD_PARAMETERS;
@@ -425,6 +427,34 @@ static TEE_Result stm32_risup_cfg(struct rifsc_platdata *pdata,
 		DMSG("Locking RIF conf for peripheral n°%"PRIu32, risup->id);
 		io_setbits32(pdata->base + _RIFSC_RISC_RCFGLOCKR0 + offset,
 			     BIT(shift));
+	}
+
+	/*
+	 * Take semaphore if the resource is in semaphore mode
+	 * and secured.
+	 */
+	if (SEM_MODE_INCORRECT(risup->cid_attr) ||
+	    !(io_read32(pdata->base + _RIFSC_RISC_SECCFGR0 + offset) &
+	      BIT(shift))) {
+		res = stm32_rif_release_semaphore(pdata->base +
+						  _RIFSC_RISC_PER0_SEMCR +
+						  cidcfgr_offset,
+						  MAX_CID_SUPPORTED);
+		if (res) {
+			EMSG("Couldn't release semaphore for resource %u",
+			     risup->id);
+			return TEE_ERROR_ACCESS_DENIED;
+		}
+	} else {
+		res = stm32_rif_acquire_semaphore(pdata->base +
+						  _RIFSC_RISC_PER0_SEMCR +
+						  cidcfgr_offset,
+						  MAX_CID_SUPPORTED);
+		if (res) {
+			EMSG("Couldn't acquire semaphore for resource %u",
+			     risup->id);
+			return TEE_ERROR_ACCESS_DENIED;
+		}
 	}
 
 	return TEE_SUCCESS;
