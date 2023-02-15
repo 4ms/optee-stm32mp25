@@ -758,15 +758,29 @@ static TEE_Result apply_rif_config(struct stm32_gpio_bank *bank)
 
 		cidcfgr = io_read32(bank->base + GPIO_CIDCFGR(i));
 
-		/* Check if the controller is in semaphore mode */
-		if (SEM_MODE_INCORRECT(cidcfgr))
-			continue;
-
-		res = stm32_rif_release_semaphore(bank->base + GPIO_SEMCR(i),
-						  GPIO_MAX_CID_SUPPORTED);
-		if (res) {
-			EMSG("Couldn't release semaphore controller %u", i);
-			return res;
+		/*
+		 * Take semaphore if the resource is in semaphore mode
+		 * and secured.
+		 */
+		if (SEM_MODE_INCORRECT(cidcfgr) ||
+		    !(io_read32(bank->base + GPIO_SECR_OFFSET) & BIT(i))) {
+			res =
+			stm32_rif_release_semaphore(bank->base +
+						    GPIO_SEMCR(i),
+						    GPIO_MAX_CID_SUPPORTED);
+			if (res) {
+				EMSG("Couldn't release semaphore for pin%u", i);
+				return res;
+			}
+		} else {
+			res =
+			stm32_rif_acquire_semaphore(bank->base +
+						    GPIO_SEMCR(i),
+						    GPIO_MAX_CID_SUPPORTED);
+			if (res) {
+				EMSG("Couldn't acquire semaphore for pin%u", i);
+				return res;
+			}
 		}
 	}
 
