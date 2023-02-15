@@ -141,17 +141,29 @@ static TEE_Result apply_rif_config(struct hpdma_pdata *hpdma_d, bool is_tdcid)
 
 		cidcfgr = io_read32(hpdma_d->base + _HPDMA_CIDCFGR(i));
 
-		/* Check if the channel is in semaphore mode */
-		if (SEM_MODE_INCORRECT(cidcfgr))
-			continue;
-
-		res = stm32_rif_release_semaphore(hpdma_d->base +
-						  _HPDMA_SEMCR(i),
-						  HPDMA_NB_MAX_CID_SUPPORTED);
-		if (res) {
-			EMSG("Couldn't release semaphore channel %u", i);
-			clk_disable(hpdma_d->hpdma_clock);
-			return res;
+		/*
+		 * Take semaphore if the resource is in semaphore
+		 * mode and secured.
+		 */
+		if (SEM_MODE_INCORRECT(cidcfgr) ||
+		    !(io_read32(hpdma_d->base + _HPDMA_SECCFGR) & BIT(i))) {
+			res =
+			stm32_rif_release_semaphore(hpdma_d->base +
+						    _HPDMA_SEMCR(i),
+						    HPDMA_NB_MAX_CID_SUPPORTED);
+			if (res) {
+				EMSG("Couldn't release semaphore for res%u", i);
+				return TEE_ERROR_ACCESS_DENIED;
+			}
+		} else {
+			res =
+			stm32_rif_acquire_semaphore(hpdma_d->base +
+						    _HPDMA_SEMCR(i),
+						    HPDMA_NB_MAX_CID_SUPPORTED);
+			if (res) {
+				EMSG("Couldn't acquire semaphore for res%u", i);
+				return TEE_ERROR_ACCESS_DENIED;
+			}
 		}
 	}
 
