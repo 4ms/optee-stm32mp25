@@ -732,6 +732,7 @@ TEE_Result regulator_register(const struct regul_desc *desc, int node)
 	TEE_Result res = TEE_ERROR_OUT_OF_MEMORY;
 	struct rdev *rdev = NULL;
 	size_t lp_mode_count = plat_get_lp_mode_count();
+	uint16_t mv = 0;
 
 	assert(desc);
 
@@ -782,6 +783,19 @@ TEE_Result regulator_register(const struct regul_desc *desc, int node)
 	res = parse_dt(rdev, node);
 	if (res)
 		goto out;
+
+	if (regulator_get_voltage(rdev, &mv) == TEE_SUCCESS) {
+		rdev->cur_mv = mv;
+
+		if (mv < rdev->min_mv || mv > rdev->max_mv) {
+			FMSG("Update regulator %s to %"PRIu16"mV",
+			     desc->node_name, rdev->min_mv);
+
+			res = regulator_set_voltage(rdev, rdev->min_mv);
+			if (res)
+				goto out;
+		}
+	}
 
 	SLIST_INSERT_HEAD(&regulator_device_list, rdev, link);
 
@@ -957,24 +971,6 @@ static TEE_Result regulator_core_config(void)
 	}
 
 	SLIST_FOREACH(rdev, &regulator_device_list, link) {
-		uint16_t mv = 0;
-		uint16_t min_mv = 0;
-		uint16_t max_mv = 0;
-
-		regulator_get_range(rdev, &min_mv, &max_mv);
-
-		res = regulator_get_voltage(rdev, &mv);
-		if (res)
-		    break;
-
-		rdev->cur_mv = mv;
-
-		if ((mv < min_mv) || (mv > max_mv)) {
-			res = regulator_set_voltage(rdev, min_mv);
-			if (res)
-				break;
-		}
-
 		/*
 		 * Enable always-on regulator and increment its use_count so that
 		 * the regulator is not being disabled during clean-up sequence.
