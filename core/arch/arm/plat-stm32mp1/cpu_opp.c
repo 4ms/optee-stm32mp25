@@ -12,6 +12,7 @@
 #include <kernel/dt.h>
 #include <kernel/mutex.h>
 #include <kernel/panic.h>
+#include <kernel/pm.h>
 #include <libfdt.h>
 #include <stm32_util.h>
 #include <trace.h>
@@ -193,6 +194,29 @@ TEE_Result stm32mp1_cpu_opp_read_level(unsigned int *level)
 	return TEE_SUCCESS;
 }
 
+static TEE_Result cpu_opp_pm(enum pm_op op, unsigned int pm_hint __unused,
+			     const struct pm_callback_handle *hdl __unused)
+{
+	unsigned long clk_cpu = 0;
+	unsigned int opp = cpu_opp.current_opp;
+
+	assert(op == PM_OP_SUSPEND || op == PM_OP_RESUME);
+
+	if (op == PM_OP_RESUME) {
+		FMSG("cpu opp resume opp to %u", opp);
+
+		clk_cpu = clk_get_rate(cpu_opp.clock);
+		assert(clk_cpu);
+		if (cpu_opp.dvfs[opp].freq_khz * 1000U >= clk_cpu)
+			return set_voltage_then_clock(opp);
+		else
+			return set_clock_then_voltage(opp);
+	}
+
+	return TEE_SUCCESS;
+}
+DECLARE_KEEP_PAGER(cpu_opp_pm);
+
 static TEE_Result stm32mp1_cpu_opp_is_supported(const void *fdt, int subnode)
 {
 	const fdt32_t *cuint32 = NULL;
@@ -285,6 +309,8 @@ static TEE_Result stm32mp1_cpu_opp_get_dt_subnode(const void *fdt, int node)
 
 	if (cpu_opp.current_opp == cpu_opp.opp_count)
 		return TEE_ERROR_GENERIC;
+
+	register_pm_driver_cb(cpu_opp_pm, NULL, "cpu-opp");
 
 	return TEE_SUCCESS;
 }
