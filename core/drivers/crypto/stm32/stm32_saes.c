@@ -1338,6 +1338,13 @@ TEE_Result huk_subkey_derive(enum huk_subkey_usage usage,
 	struct stm32_saes_context ctx = { };
 	uint8_t separator = 0;
 
+	// Check if driver is probed
+	if (saes_pdata.base.pa == 0) {
+		DMSG("Use __huk_subkey_derive instead of SAES IP features");
+		return __huk_subkey_derive(usage, const_data, const_data_len,
+					   subkey, subkey_len);
+	}
+
 	input = malloc(const_data_len + sizeof(separator) + sizeof(usage) +
 		       sizeof(subkey_bitlen) + AES_BLOCK_SIZE);
 	if (!input)
