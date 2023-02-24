@@ -24,6 +24,7 @@
 #define _EXTI_SECCFGR(n)	(0x014U + (n) * 0x20U)
 #define _EXTI_PRIVCFGR(n)	(0x018U + (n) * 0x20U)
 #define _EXTI_CR(n)		(0x060U + (n) * 4U)
+#define _EXTI_LOCKR		0x070U
 #define _EXTI_C1IMR(n)		(0x080U + (n) * 0x10U)
 #define _EXTI_EnCIDCFGR(n)	(0x180U + (n) * 4U)
 #define _EXTI_CmCIDCFGR(n)	(0x300U + (n) * 4U)
@@ -34,6 +35,9 @@
 
 /* PRIVCFGR register bitfields */
 #define _EXTI_PRIVCFGR_MASK		GENMASK_32(31, 0)
+
+/* LOCKR register bitfields */
+#define _EXTI_LOCKR_GLOCK		BIT(0)
 
 /* CIDCFGR register bitfields */
 #define _EXTI_CIDCFGR_SCID_MASK		GENMASK_32(6, 4)
@@ -69,6 +73,8 @@ struct stm32_exti_pdata {
 	uint32_t *c_cids;
 
 	SLIST_ENTRY(stm32_exti_pdata) link;
+
+	bool glock;
 };
 
 static SLIST_HEAD(, stm32_exti_pdata) stm32_exti_list =
@@ -274,6 +280,11 @@ static void stm32_exti_rif_parse_dt(struct stm32_exti_pdata *exti,
 	unsigned int i = 0;
 	int len = 0;
 
+	if (fdt_getprop(fdt, node, "st,glocked", NULL))
+		exti->glock = true;
+	else
+		DMSG("No global lock on RIF configuration");
+
 	cuint = fdt_getprop(fdt, node, "st,protreg", &len);
 	if (!cuint)
 		panic("No RIF configuration available");
@@ -382,6 +393,10 @@ static TEE_Result stm32_exti_rif_apply(const struct stm32_exti_pdata *exti)
 		io_clrsetbits32(exti->base + _EXTI_CmCIDCFGR(i),
 				_EXTI_CIDCFGR_CONF_MASK, exti->c_cids[i]);
 	}
+
+	/* If TDCID, configure global lock */
+	if (exti->glock)
+		io_setbits32(exti->base + _EXTI_LOCKR, _EXTI_LOCKR_GLOCK);
 
 	return TEE_SUCCESS;
 }
