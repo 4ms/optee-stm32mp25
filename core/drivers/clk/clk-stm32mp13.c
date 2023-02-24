@@ -1783,9 +1783,9 @@ static int fdt_stm32_clk_parse_opp(const void *fdt, int node,
 		opp_cfg->div = _fdt_read_uint32_default(fdt, subnode,
 							"st,clkdiv",
 							UINT32_MAX);
-
+		/* PLL is also optional */
 		ret = fdt_clk_stm32_parse_pll(fdt, subnode, &opp_cfg->pll_cfg);
-		if (ret)
+		if (ret && (ret != -FDT_ERR_NOTFOUND))
 			return ret;
 
 		opp_cfg++;
@@ -2401,7 +2401,7 @@ static struct clk ck_axi = {
 		.div_id	= DIV_AXI,
 	},
 	.name		= "ck_axi",
-	.flags		= 0,
+	.flags		= CLK_OPS_PARENT_ENABLE | CLK_SET_RATE_PARENT,
 	.num_parents	= 3,
 	.parents	= { &ck_hsi, &ck_hse, &ck_pll2p },
 };
@@ -2413,7 +2413,7 @@ static struct clk ck_mlahb = {
 		.div_id	= DIV_MLAHB,
 	},
 	.name		= "ck_mlahb",
-	.flags		= 0,
+	.flags		= CLK_OPS_PARENT_ENABLE | CLK_SET_RATE_PARENT,
 	.num_parents	= 4,
 	.parents	= { &ck_hsi, &ck_hse, &ck_csi, &ck_pll3p },
 };
