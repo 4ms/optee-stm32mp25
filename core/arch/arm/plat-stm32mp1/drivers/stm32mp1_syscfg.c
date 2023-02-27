@@ -236,6 +236,21 @@ static TEE_Result stm32mp1_iocomp(void)
 }
 driver_init(stm32mp1_iocomp);
 
+void stm32mp_set_io_comp_by_index(uint32_t index, bool state)
+{
+	int cmpcr_offset = SYSCFG_CMPSD1CR;
+
+	assert(index < SYSCFG_IO_COMP_NB_IDX);
+
+	if (index == SYSCFG_IO_COMP_IDX_SD2)
+		cmpcr_offset = SYSCFG_CMPSD2CR;
+
+	if (state)
+		enable_io_compensation(cmpcr_offset);
+	else
+		disable_io_compensation(cmpcr_offset);
+}
+
 void stm32mp_set_hslv_by_index(uint32_t index, bool state)
 {
 	assert(index < SYSCFG_HSLV_NB_IDX);

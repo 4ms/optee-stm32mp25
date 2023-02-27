@@ -23,6 +23,12 @@
 #define SYSCFG_HSLV_IDX_LTDC			U(11)
 #define SYSCFG_HSLV_NB_IDX			U(12)
 
+#define SYSCFG_IO_COMP_IDX_SD1			U(0)
+#define SYSCFG_IO_COMP_IDX_SD2			U(1)
+#define SYSCFG_IO_COMP_NB_IDX			U(2)
+
 void stm32mp_set_hslv_by_index(uint32_t index, bool state);
+
+void stm32mp_set_io_comp_by_index(uint32_t index, bool state);
 
 #endif /*__STM32MP1_SYSCFG_H*/
