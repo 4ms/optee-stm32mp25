@@ -33,6 +33,7 @@
  * @ready_mask: Domain ready bit mask in PWR register
  * @valid_mask: Domain valid bit mask in PWR register
  * @hslv_index: Index of HSLV register for the IO domain
+ * @io_comp_index: Index of IO compensation for the IO domain
  * @suspend_state: True if regulator is enabled before suspend, false otherwise
  * @suspend_mv: Voltage level before suspend in millivolts
  * @supply: Regulator supplier for the IO domain
@@ -44,6 +45,7 @@ struct iod_regul {
 	uint32_t valid_mask;
 
 	uint32_t hslv_index;
+	uint32_t io_comp_index;
 
 	bool suspend_state;
 	uint16_t suspend_mv;
@@ -83,7 +85,11 @@ static TEE_Result iod_set_state(const struct regul_desc *desc, bool enable)
 
 		io_setbits32(pwr_reg, iod->valid_mask);
 		io_clrbits32(pwr_reg, iod->enable_mask);
+
+		stm32mp_set_io_comp_by_index(iod->io_comp_index, true);
 	} else {
+		stm32mp_set_io_comp_by_index(iod->io_comp_index, false);
+
 		io_clrbits32(pwr_reg, iod->enable_mask | iod->valid_mask);
 	}
 
@@ -115,8 +121,20 @@ static TEE_Result iod_set_voltage(const struct regul_desc *desc, uint16_t mv)
 {
 	struct iod_regul *iod = (struct iod_regul *)desc->driver_data;
 	TEE_Result res = TEE_ERROR_GENERIC;
+	bool en = false;
 
 	FMSG("%s: set volt to %"PRIu16" mv", desc->node_name, mv);
+
+	res = iod_get_state(desc, &en);
+	if (res)
+		return res;
+
+	/* Isolate IOs and disable IOs compensation when changing voltage */
+	if (en) {
+		res = iod_set_state(desc, false);
+		if (res)
+			return res;
+	}
 
 	/*
 	 * Set IO to low speed
@@ -135,6 +153,12 @@ static TEE_Result iod_set_voltage(const struct regul_desc *desc, uint16_t mv)
 
 	if (mv < IO_VOLTAGE_THRESHOLD)
 		res = iod_set_speed(desc, true);
+
+	if (en) {
+		res = iod_set_state(desc, true);
+		if (res)
+			return res;
+	}
 
 	return res;
 }
@@ -233,6 +257,7 @@ static struct iod_regul iod_regulators[] = {
 		.ready_mask = PWR_CR3_VDDSD1RDY,
 		.valid_mask = PWR_CR3_VDDSD1VALID,
 		.hslv_index = SYSCFG_HSLV_IDX_SDMMC1,
+		.io_comp_index = SYSCFG_IO_COMP_IDX_SD1,
 	 },
 	 [IOD_SDMMC2] = {
 		.enable_reg = PWR_CR3_OFF,
@@ -240,6 +265,7 @@ static struct iod_regul iod_regulators[] = {
 		.ready_mask = PWR_CR3_VDDSD2RDY,
 		.valid_mask = PWR_CR3_VDDSD2VALID,
 		.hslv_index = SYSCFG_HSLV_IDX_SDMMC2,
+		.io_comp_index = SYSCFG_IO_COMP_IDX_SD2,
 	 },
 };
 
