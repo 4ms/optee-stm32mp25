@@ -110,16 +110,6 @@ static inline bool stm32mp_nsec_can_access_clock(unsigned long clock_id
 }
 #endif /* CFG_STM32MP1_SHARED_RESOURCES */
 
-#ifdef CFG_STM32MP1_SHARED_RESOURCES
-/* Return true if and only if @reset_id relates to a non-secure peripheral */
-bool stm32mp_nsec_can_access_reset(unsigned int reset_id);
-#else /* CFG_STM32MP1_SHARED_RESOURCES */
-static inline bool stm32mp_nsec_can_access_reset(unsigned int reset_id __unused)
-{
-	return true;
-}
-#endif /* CFG_STM32MP1_SHARED_RESOURCES */
-
 /*
  * Structure and API function for BSEC driver to get some platform data.
  *

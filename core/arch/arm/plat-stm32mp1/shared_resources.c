@@ -5,6 +5,7 @@
 
 #include <config.h>
 #include <drivers/stm32_etzpc.h>
+#include <drivers/stm32_firewall.h>
 #include <drivers/stm32_gpio.h>
 #include <drivers/stm32mp1_rcc.h>
 #include <drivers/stm32mp_dt_bindings.h>
@@ -48,33 +49,7 @@ enum shres_state {
 };
 
 /* Use a byte array to store each resource state */
-static uint8_t shres_state[STM32MP1_SHRES_COUNT] = {
-#if !defined(CFG_STM32_IWDG)
-	[STM32MP1_SHRES_IWDG1] = SHRES_NON_SECURE,
-#endif
-#if !defined(CFG_STM32_UART)
-	[STM32MP1_SHRES_USART1] = SHRES_NON_SECURE,
-#endif
-#if !defined(CFG_STM32_SPI)
-	[STM32MP1_SHRES_SPI6] = SHRES_NON_SECURE,
-#endif
-#if !defined(CFG_STM32_I2C)
-	[STM32MP1_SHRES_I2C4] = SHRES_NON_SECURE,
-	[STM32MP1_SHRES_I2C6] = SHRES_NON_SECURE,
-#endif
-#if !defined(CFG_STM32_RNG)
-	[STM32MP1_SHRES_RNG1] = SHRES_NON_SECURE,
-#endif
-#if !defined(CFG_STM32_HASH)
-	[STM32MP1_SHRES_HASH1] = SHRES_NON_SECURE,
-#endif
-#if !defined(CFG_STM32_CRYP)
-	[STM32MP1_SHRES_CRYP1] = SHRES_NON_SECURE,
-#endif
-#if !defined(CFG_STM32_RTC)
-	[STM32MP1_SHRES_RTC] = SHRES_NON_SECURE,
-#endif
-};
+static uint8_t shres_state[STM32MP1_SHRES_COUNT];
 
 static const char __maybe_unused *shres2str_id_tbl[STM32MP1_SHRES_COUNT] = {
 	[STM32MP1_SHRES_IWDG1] = "IWDG1",
@@ -329,46 +304,6 @@ bool stm32mp_nsec_can_access_clock(unsigned long clock_id)
 	return !stm32mp_periph_is_secure(shres_id);
 }
 
-bool stm32mp_nsec_can_access_reset(unsigned int reset_id)
-{
-	enum stm32mp_shres shres_id = STM32MP1_SHRES_COUNT;
-
-	switch (reset_id) {
-	case SPI6_R:
-		shres_id = STM32MP1_SHRES_SPI6;
-		break;
-	case I2C4_R:
-		shres_id = STM32MP1_SHRES_I2C4;
-		break;
-	case I2C6_R:
-		shres_id = STM32MP1_SHRES_I2C6;
-		break;
-	case USART1_R:
-		shres_id = STM32MP1_SHRES_USART1;
-		break;
-	case CRYP1_R:
-		shres_id = STM32MP1_SHRES_CRYP1;
-		break;
-	case HASH1_R:
-		shres_id = STM32MP1_SHRES_HASH1;
-		break;
-	case RNG1_R:
-		shres_id = STM32MP1_SHRES_RNG1;
-		break;
-	case MDMA_R:
-		shres_id = STM32MP1_SHRES_MDMA;
-		break;
-	case MCU_R:
-	case MCU_HOLD_BOOT_R:
-		shres_id = STM32MP1_SHRES_MCU;
-		break;
-	default:
-		return false;
-	}
-
-	return !stm32mp_periph_is_secure(shres_id);
-}
-
 static bool mckprot_resource(enum stm32mp_shres id)
 {
 	switch (id) {
@@ -417,6 +352,79 @@ static void check_rcc_secure_configuration(void)
 	stm32mp1_clk_mcuss_protect(need_mckprot);
 }
 
+static vaddr_t stm32mp_get_base_from_shres_id(enum stm32mp_shres id)
+{
+	vaddr_t base = 0;
+
+	switch (id) {
+	case STM32MP1_SHRES_IWDG1:
+		base = IWDG1_BASE;
+		break;
+	case STM32MP1_SHRES_USART1:
+		base = USART1_BASE;
+		break;
+	case STM32MP1_SHRES_SPI6:
+		base = SPI6_BASE;
+		break;
+	case STM32MP1_SHRES_I2C4:
+		base = I2C4_BASE;
+		break;
+	case STM32MP1_SHRES_I2C6:
+		base = I2C6_BASE;
+		break;
+	case STM32MP1_SHRES_RTC:
+		base = RTC_BASE;
+		break;
+	case STM32MP1_SHRES_RNG1:
+		base = RNG1_BASE;
+		break;
+	case STM32MP1_SHRES_CRYP1:
+		base = CRYP1_BASE;
+		break;
+	case STM32MP1_SHRES_HASH1:
+		base = HASH1_BASE;
+		break;
+	default:
+		base = 0;
+	}
+
+	return base;
+}
+
+static void check_iomem_firewall_configuration(void)
+{
+	TEE_Result res = TEE_SUCCESS;
+	bool firewall_is_ns = false;
+	bool shres_is_ns = false;
+	enum stm32mp_shres id = 0;
+	paddr_t base = 0;
+	const struct stm32_firewall_cfg nsec_cfg[] = {
+		{ FWLL_NSEC_RW | FWLL_MASTER(0) },
+		{ }, /* Null terminated */
+	};
+
+	for (id = 0; id < STM32MP1_SHRES_COUNT; id++) {
+		if (shres_state[id] == SHRES_UNREGISTERED)
+			continue;
+
+		shres_is_ns = !stm32mp_periph_is_secure(id);
+
+		base = stm32mp_get_base_from_shres_id(id);
+		if (!base) {
+			DMSG("Shared resource %d not a IOmem entry", id);
+			continue;
+		}
+
+		res = stm32_firewall_check_access(base, 0, nsec_cfg);
+		firewall_is_ns = (res == TEE_SUCCESS);
+
+		if (firewall_is_ns != shres_is_ns) {
+			EMSG("mismatch config for id : %d", id);
+			panic();
+		}
+	}
+}
+
 static TEE_Result stm32mp1_init_final_shres(void)
 {
 	enum stm32mp_shres id = STM32MP1_SHRES_COUNT;
@@ -431,6 +439,8 @@ static TEE_Result stm32mp1_init_final_shres(void)
 	}
 
 	check_rcc_secure_configuration();
+
+	check_iomem_firewall_configuration();
 
 	return TEE_SUCCESS;
 }

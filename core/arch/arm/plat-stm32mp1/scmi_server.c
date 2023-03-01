@@ -792,13 +792,8 @@ static TEE_Result stm32mp1_init_scmi_server(void)
 			    strlen(rd->name) >= SCMI_RD_NAME_SIZE)
 				panic("SCMI reset domain name invalid");
 
-			if (!stm32mp_nsec_can_access_reset(rd->reset_id))
-				continue;
-
 			rstctrl = stm32mp_rcc_reset_id_to_rstctrl(rd->reset_id);
 			assert(rstctrl);
-			if (rstctrl_get_exclusive(rstctrl))
-				continue;
 
 			rd->rstctrl = rstctrl;
 		}
