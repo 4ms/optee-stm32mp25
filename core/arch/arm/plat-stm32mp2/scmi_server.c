@@ -60,7 +60,7 @@ struct stm32_scmi_rd {
 	[_scmi_id] = { \
 		.clock_id = _id, \
 		.name = _name, \
-		.enabled = _init_enabled, \
+		.enabled = false, \
 		.is_exposed = true,\
 	}
 
@@ -587,10 +587,6 @@ static TEE_Result stm32mp2_init_scmi_server(void)
 
 			clk->clk = stm32mp_rcc_clock_id_to_clk(clk->clock_id);
 			assert(clk->clk);
-
-			/* Sync SCMI clocks with their targeted initial state */
-			if (clk->enabled)
-				clk_enable(clk->clk);
 		}
 
 		for (j = 0; j < res->rd_count; j++) {
