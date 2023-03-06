@@ -166,12 +166,20 @@ CFG_SCMI_MSG_REGULATOR_CONSUMER ?= n
 CFG_STM32MP15_HUK ?= y
 CFG_TEE_CORE_NB_CORE ?= 2
 CFG_WITH_PAGER ?= y
+ifeq ($(CFG_WITH_PAGER),y)
+CFG_WITH_LPAE ?= n
+endif
 endif # CFG_STM32MP15
 
 CFG_WITH_LPAE ?= y
 CFG_MMAP_REGIONS ?= 30
 CFG_DTB_MAX_SIZE ?= (256 * 1024)
 CFG_CORE_ASLR ?= n
+
+ifneq ($(CFG_WITH_LPAE),y)
+# Without LPAE, default TEE virtual address range is 1MB, we need at least 2MB.
+CFG_TEE_RAM_VA_SIZE ?= 0x00200000
+endif
 
 # Trusted User Interface
 ifeq ($(CFG_WITH_TUI),y)

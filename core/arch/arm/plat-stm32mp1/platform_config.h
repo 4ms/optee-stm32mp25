@@ -28,7 +28,7 @@
  * - one table for non-secure internal RAMs (PM: DDR first page)
  * - two tables for a 2MByte dynamiq shared virtual memory (SHM_VASPACE)
  */
-#define MAX_XLAT_TABLES			6
+#define MAX_XLAT_TABLES			8
 #endif /*CFG_WITH_LPAE*/
 #else
 /* Be generous with this setup that has plenty of secure RAM */
