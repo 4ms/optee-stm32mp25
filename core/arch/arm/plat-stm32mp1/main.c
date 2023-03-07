@@ -703,7 +703,7 @@ DECLARE_KEEP_PAGER(itamper_name);
 
 static uint32_t __unused stm32mp1_itamper_action(int id)
 {
-	const char *tamp_name = NULL;
+	const char __maybe_unused *tamp_name = NULL;
 
 	if (id >= 0 && ((size_t)id < ARRAY_SIZE(itamper_name)))
 		tamp_name = itamper_name[id];
@@ -714,7 +714,7 @@ static uint32_t __unused stm32mp1_itamper_action(int id)
 }
 DECLARE_KEEP_PAGER(stm32mp1_itamper_action);
 
-static uint32_t __unused stm32mp1_etamper_action(int id)
+static uint32_t __unused stm32mp1_etamper_action(int id __maybe_unused)
 {
 	MSG("External tamper %u occurs", id - EXT_TAMP1 + 1);
 
