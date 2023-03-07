@@ -16,17 +16,16 @@
 #endif
 #include <initcall.h>
 #include <io.h>
-#include <libfdt.h>
 #include <keep.h>
 #include <kernel/boot.h>
 #include <kernel/delay.h>
 #include <kernel/dt.h>
 #include <kernel/interrupt.h>
-#include <kernel/timer.h>
 #include <kernel/panic.h>
 #include <kernel/pm.h>
 #include <kernel/pseudo_ta.h>
 #include <kernel/timer.h>
+#include <libfdt.h>
 #include <limits.h>
 #include <mm/core_memprot.h>
 #include <stm32_pta_calib.h>
