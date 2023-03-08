@@ -8,7 +8,6 @@
 #include <drivers/counter.h>
 #include <drivers/stm32_tim.h>
 #include <io.h>
-#include <keep.h>
 #include <kernel/boot.h>
 #include <kernel/delay.h>
 #include <kernel/dt.h>
@@ -272,7 +271,6 @@ static const struct counter_ops stm32_tim_counter_ops = {
 	.set_config = stm32_tim_counter_set_config,
 	.release_config = stm32_tim_counter_release_config,
 };
-DECLARE_KEEP_PAGER(stm32_tim_counter_ops);
 
 #ifdef CFG_EMBED_DTB
 #define TIMER_COUNTER_COMPAT		"st,stm32-timer-counter"
