@@ -6,7 +6,6 @@
 
 #include <assert.h>
 #include <drivers/counter.h>
-#include <keep.h>
 #include <kernel/spinlock.h>
 #include <libfdt.h>
 #include <stdlib.h>
@@ -36,7 +35,6 @@ TEE_Result counter_start(struct counter_device *counter, void *config)
 
 	return counter->ops->start(counter, config);
 }
-DECLARE_KEEP_PAGER(counter_start);
 
 /*
  * some counter device could not be stopped
@@ -61,7 +59,6 @@ TEE_Result counter_stop(struct counter_device *counter)
 
 	return res;
 }
-DECLARE_KEEP_PAGER(counter_stop);
 
 TEE_Result counter_get_value(struct counter_device *counter, unsigned int *ticks)
 {
