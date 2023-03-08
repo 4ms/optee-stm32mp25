@@ -10,7 +10,6 @@
 #include <drivers/stm32mp1_syscfg.h>
 #include <initcall.h>
 #include <io.h>
-#include <keep.h>
 #include <kernel/boot.h>
 #include <kernel/delay.h>
 #include <kernel/dt.h>
@@ -215,7 +214,6 @@ static TEE_Result iod_pm(enum pm_op op, unsigned int pm_hint __unused,
 
 	return TEE_SUCCESS;
 }
-DECLARE_KEEP_PAGER(iod_pm);
 
 static const struct regul_ops iod_ops = {
 	.set_state = iod_set_state,
@@ -226,7 +224,6 @@ static const struct regul_ops iod_ops = {
 	.lock = stm32mp1_pwr_regul_lock,
 	.unlock = stm32mp1_pwr_regul_unlock,
 };
-DECLARE_KEEP_PAGER(iod_ops);
 
 static const struct regul_ops iod_fixed_ops = {
 	.set_state = iod_set_state,
@@ -235,7 +232,6 @@ static const struct regul_ops iod_fixed_ops = {
 	.lock = stm32mp1_pwr_regul_lock,
 	.unlock = stm32mp1_pwr_regul_unlock,
 };
-DECLARE_KEEP_PAGER(iod_fixed_ops);
 
 #define DEFINE_REG(id, name, supply) { \
 	.node_name = name, \
@@ -273,7 +269,6 @@ static struct regul_desc iod_regul_desc[] = {
 	[IOD_SDMMC1] = DEFINE_REG(IOD_SDMMC1, "sdmmc1_io", "vddsd1"),
 	[IOD_SDMMC2] = DEFINE_REG(IOD_SDMMC2, "sdmmc2_io", "vddsd2"),
 };
-DECLARE_KEEP_PAGER(iod_regul_desc);
 
 static TEE_Result iod_regulator_probe(const void *fdt, int node,
 				      const void *compat_data __unused)
