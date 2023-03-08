@@ -526,6 +526,16 @@ static TEE_Result stm32_risaf_probe(const void *fdt, int node,
 		if (!regions[i].len)
 			continue;
 
+		/* Skip 'op_tee' region, in which OP-TEE code is executed */
+		if (regions[i].addr == TZDRAM_BASE &&
+#ifdef CFG_CORE_RESERVED_SHM
+			regions[i].len == (TZDRAM_SIZE + TEE_SHMEM_SIZE)) {
+#else
+			regions[i].len == TZDRAM_SIZE) {
+#endif
+			continue;
+		}
+
 		prop = fdt_getprop(fdt, pnode, "st,protreg", NULL);
 		if (!prop)
 			continue;
