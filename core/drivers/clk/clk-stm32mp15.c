@@ -1844,7 +1844,7 @@ unsigned int stm32mp_rcc_clk_to_clock_id(struct clk *clk)
 	return clk_to_clock_id(clk);
 }
 
-#if CFG_TEE_CORE_LOG_LEVEL >= TRACE_DEBUG
+#if (CFG_TEE_CORE_LOG_LEVEL >= TRACE_DEBUG) && defined(CFG_TEE_CORE_DEBUG)
 struct clk_name {
 	unsigned int clock_id;
 	const char *name;
