@@ -3585,12 +3585,30 @@ static bool clk_stm32_clock_is_critical(__maybe_unused struct clk *clk)
 		&ck_icn_p_ddrcfg,
 		&ck_icn_p_ddrphyc,
 		&ck_icn_s_sysram,
+		&ck_ker_fmc,
 		&ck_ker_ospi1,
 		&ck_ker_ospi2,
 		&ck_icn_s_vderam,
 		&ck_icn_s_lpsram1,
 		&ck_icn_s_lpsram2,
-		&ck_icn_s_lpsram3
+		&ck_icn_s_lpsram3,
+		&ck_icn_p_hpdma1,
+		&ck_icn_p_hpdma2,
+		&ck_icn_p_hpdma3,
+		&ck_icn_p_gpioa,
+		&ck_icn_p_gpiob,
+		&ck_icn_p_gpioc,
+		&ck_icn_p_gpiod,
+		&ck_icn_p_gpioe,
+		&ck_icn_p_gpiof,
+		&ck_icn_p_gpiog,
+		&ck_icn_p_gpioh,
+		&ck_icn_p_gpioi,
+		&ck_icn_p_gpioj,
+		&ck_icn_p_gpiok,
+		&ck_icn_p_gpioz,
+		&ck_icn_p_ipcc1,
+		&ck_icn_p_ipcc2
 	};
 	size_t i = 0;
 
