@@ -3608,7 +3608,11 @@ static bool clk_stm32_clock_is_critical(__maybe_unused struct clk *clk)
 		&ck_icn_p_gpiok,
 		&ck_icn_p_gpioz,
 		&ck_icn_p_ipcc1,
-		&ck_icn_p_ipcc2
+		&ck_icn_p_ipcc2,
+		&ck_ker_i2c1,
+		&ck_ker_adc3,
+		&ck_ker_uart5,
+		&ck_ker_usbtc
 	};
 	size_t i = 0;
 
