@@ -71,3 +71,6 @@ CFG_STM32_EARLY_CONSOLE_UART ?= 2
 
 # Default disable external DT support
 CFG_EXTERNAL_DT ?= n
+
+# Enable if board is Rev.A
+CFG_STM32MP25x_REVA ?= y
