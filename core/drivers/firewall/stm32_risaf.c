@@ -283,9 +283,15 @@ static TEE_Result risaf_configure_region(struct stm32_risaf_instance *risaf,
 
 	io_clrbits32(base + _RISAF_REG_CFGR(region_id), _RISAF_REG_CFGR_BREN);
 
+#ifndef CFG_STM32MP25x_REVA
 	io_clrsetbits32(base + _RISAF_REG_STARTR(region_id), mask,
-			saddr & mask);
+			(saddr - risaf->pdata.mem_base) & mask);
+	io_clrsetbits32(base + _RISAF_REG_ENDR(region_id), mask,
+			(eaddr - risaf->pdata.mem_base) & mask);
+#else /* CFG_STM32MP25x_REVA */
+	io_clrsetbits32(base + _RISAF_REG_STARTR(region_id), mask, saddr & mask);
 	io_clrsetbits32(base + _RISAF_REG_ENDR(region_id), mask, eaddr & mask);
+#endif /* CFG_STM32MP25x_REVA */
 	io_clrsetbits32(base + _RISAF_REG_CIDCFGR(region_id),
 			_RISAF_REG_CIDCFGR_ALL_MASK,
 			cid_cfg & _RISAF_REG_CIDCFGR_ALL_MASK);
