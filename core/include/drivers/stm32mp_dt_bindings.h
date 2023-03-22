@@ -26,6 +26,7 @@
 #ifdef CFG_STM32MP25
 #include <dt-bindings/soc/stm32mp25-rif.h>
 #include <dt-bindings/soc/stm32mp25-rifsc.h>
+#include <dt-bindings/soc/stm32mp25-risaf.h>
 #endif
 
 #include <dt-bindings/power/stm32mp1-power.h>
