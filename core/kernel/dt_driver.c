@@ -108,6 +108,7 @@ static void assert_type_is_valid(enum dt_driver_type type)
 	case DT_DRIVER_PINCTRL:
 	case DT_DRIVER_I2C:
 	case DT_DRIVER_ADC:
+	case DT_DRIVER_NVMEM:
 		return;
 	default:
 		assert(0);
@@ -159,6 +160,7 @@ TEE_Result dt_driver_register_provider(const void *fdt, int nodeoffset,
 		}
 		break;
 	case DT_DRIVER_I2C:
+	case DT_DRIVER_NVMEM:
 		break;
 	default:
 		panic("Trying to register unknown type of provider");
@@ -182,7 +184,12 @@ TEE_Result dt_driver_register_provider(const void *fdt, int nodeoffset,
 
 static bool dt_driver_use_parent_controller(enum dt_driver_type type __unused)
 {
-	return false;
+	switch (type) {
+	case DT_DRIVER_NVMEM:
+		return true;
+	default:
+		return false;
+	}
 }
 
 /*
