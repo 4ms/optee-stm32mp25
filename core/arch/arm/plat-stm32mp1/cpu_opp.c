@@ -36,7 +36,7 @@ static struct cpu_opp cpu_opp;
 /* Mutex for protecting CPU OPP changes */
 static struct mutex cpu_opp_mu = MUTEX_INITIALIZER;
 
-#define MPU_RAM_LOW_SPEED_THRESHOLD 1250
+#define MPU_RAM_LOW_SPEED_THRESHOLD 1320
 
 size_t stm32mp1_cpu_opp_count(void)
 {
