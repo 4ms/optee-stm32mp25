@@ -194,6 +194,7 @@ TEE_Result stm32mp1_cpu_opp_read_level(unsigned int *level)
 	return TEE_SUCCESS;
 }
 
+#ifdef CFG_STM32MP13
 static TEE_Result cpu_opp_pm(enum pm_op op, unsigned int pm_hint __unused,
 			     const struct pm_callback_handle *hdl __unused)
 {
@@ -203,7 +204,7 @@ static TEE_Result cpu_opp_pm(enum pm_op op, unsigned int pm_hint __unused,
 	assert(op == PM_OP_SUSPEND || op == PM_OP_RESUME);
 
 	if (op == PM_OP_RESUME) {
-		FMSG("cpu opp resume opp to %u", opp);
+		DMSG("cpu opp resume opp to %u", opp);
 
 		clk_cpu = clk_get_rate(cpu_opp.clock);
 		assert(clk_cpu);
@@ -216,6 +217,7 @@ static TEE_Result cpu_opp_pm(enum pm_op op, unsigned int pm_hint __unused,
 	return TEE_SUCCESS;
 }
 DECLARE_KEEP_PAGER(cpu_opp_pm);
+#endif
 
 static TEE_Result stm32mp1_cpu_opp_is_supported(const void *fdt, int subnode)
 {
@@ -310,7 +312,9 @@ static TEE_Result stm32mp1_cpu_opp_get_dt_subnode(const void *fdt, int node)
 	if (cpu_opp.current_opp == cpu_opp.opp_count)
 		return TEE_ERROR_GENERIC;
 
+#ifdef CFG_STM32MP13
 	register_pm_driver_cb(cpu_opp_pm, NULL, "cpu-opp");
+#endif
 
 	return TEE_SUCCESS;
 }
