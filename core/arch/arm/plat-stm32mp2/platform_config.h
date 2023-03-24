@@ -99,6 +99,16 @@
 #define CONSOLE_UART_BASE		STM32MP1_DEBUG_USART_BASE
 #define CONSOLE_UART_SIZE		1024
 
+/*
+ * BSEC: 367 available OTPs, the other are masked
+ * - ECIES key: 368 to 375 (only readable by bootrom)
+ * - HWKEY: 376 to 383 (never reloadable or readable)
+ */
+#define STM32MP2_OTP_MAX_ID		0x16FU
+#define STM32MP2_UPPER_OTP_START	0x100U
+
+#define OTP_MAX_SIZE			(STM32MP2_OTP_MAX_ID + 1U)
+
 #define TARGET_CPU0_GIC_MASK		BIT(0)
 #define TARGET_CPU1_GIC_MASK		BIT(1)
 #define TARGET_CPUS_GIC_MASK		GENMASK_32(CFG_TEE_CORE_NB_CORE - 1, 0)

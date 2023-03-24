@@ -7,6 +7,7 @@
 #include <config.h>
 #include <console.h>
 #include <drivers/gic.h>
+#include <drivers/stm32_bsec.h>
 #include <drivers/stm32_iac.h>
 #include <drivers/stm32_risaf.h>
 #include <drivers/stm32_uart.h>
@@ -190,5 +191,15 @@ __noreturn void access_violation_action(void)
 	stm32_risaf_dump_erroneous_data();
 
 	panic();
+}
+#endif
+
+#ifdef CFG_STM32_BSEC3
+void plat_bsec_get_static_cfg(struct stm32_bsec_static_cfg *cfg)
+{
+	cfg->base = BSEC3_BASE;
+	cfg->shadow = SRAM1_BASE;
+	cfg->upper_start = STM32MP2_UPPER_OTP_START;
+	cfg->max_id = STM32MP2_OTP_MAX_ID;
 }
 #endif
