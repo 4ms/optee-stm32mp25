@@ -270,8 +270,36 @@
 		};
 
 		bsec: efuse@44000000 {
+			compatible = "st,stm32mp25-bsec";
 			reg = <0x44000000 0x1000>;
-			status = "disabled";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			part_number_otp@24 {
+				reg = <0x24 0x4>;
+			};
+
+			package_otp@1e8 {
+				reg = <0x1e8 0x1>;
+			};
+
+			hconf1_otp: otp124@1f0 {
+				reg = <0x1f0 0x4>;
+			};
+
+			pkh_otp: otp144@240 {
+				reg = <0x240 0x20>;
+			};
+
+			oem_fip_enc_key: otp260@410 {
+				reg = <0x410 0x20>;
+				st,non-secure-otp-provisioning;
+			};
+
+			oem_enc_key: otp364@5b0 {
+				reg = <0x5b0 0x10>;
+				st,non-secure-otp-provisioning;
+			};
 		};
 
 		serc: serc@44080000 {
