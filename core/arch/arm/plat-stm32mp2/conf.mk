@@ -95,6 +95,20 @@ $(call force,CFG_WITH_SOFTWARE_PRNG,n,Mandated by CFG_HWRNG_PTA)
 CFG_HWRNG_QUALITY ?= 1024
 endif
 
+# Default enable SCMI PTA support
+CFG_SCMI_PTA ?= y
+ifeq ($(CFG_SCMI_PTA),y)
+$(call force,CFG_SCMI_MSG_DRIVERS,y,Mandated by CFG_SCMI_PTA)
+endif
+
+CFG_SCMI_MSG_DRIVERS ?= n
+ifeq ($(CFG_SCMI_MSG_DRIVERS),y)
+$(call force,CFG_SCMI_MSG_CLOCK,y)
+$(call force,CFG_SCMI_MSG_RESET_DOMAIN,y)
+$(call force,CFG_SCMI_MSG_SHM_MSG,y)
+$(call force,CFG_SCMI_MSG_SMT,n)
+endif
+
 # Enable reset control
 ifeq ($(CFG_STM32MP25_RSTCTRL),y)
 $(call force,CFG_DRIVERS_RSTCTRL,y)
