@@ -231,7 +231,9 @@ void stm32_enter_cstop(uint32_t mode)
 #ifdef CFG_STM32MP15
 	if (mode == STM32_PM_CSTOP_ALLOW_LPLV_STOP2)
 		panic("LPLV-Stop2 mode not supported");
+#endif
 
+#ifdef CFG_STM32MP1_OPTEE_IN_SYSRAM
 	/* Save Self-Refresh (SR) mode and switch to Software SR mode */
 	ddr_save_sr_mode(DDR_SSR_MODE);
 #endif
@@ -286,7 +288,7 @@ void stm32_enter_cstop(uint32_t mode)
 
 	set_rcc_it_priority(&gicd_rcc_wakeup, &gicc_pmr);
 
-#ifndef CFG_STM32MP13
+#ifdef CFG_STM32MP1_OPTEE_IN_SYSRAM
 	if (ddr_standby_sr_entry() != 0)
 		panic();
 #endif
@@ -306,7 +308,7 @@ void stm32_enter_cstop(uint32_t mode)
 			if (timeout_elapsed(to))
 				panic();
 
-#ifndef CFG_STM32MP13
+#ifdef CFG_STM32MP15
 		if (stm32mp1_is_retram_during_standby()) {
 			/* Keep retention in standby */
 			to = timeout_init_us(TIMEOUT_US_10MS);
@@ -327,7 +329,7 @@ void stm32_exit_cstop(void)
 {
 	vaddr_t rcc_base = stm32_rcc_base();
 
-#ifdef CFG_STM32MP15
+#ifdef CFG_STM32MP1_OPTEE_IN_SYSRAM
 	if (ddr_standby_sr_exit())
 		panic();
 

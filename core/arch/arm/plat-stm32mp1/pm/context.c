@@ -243,7 +243,7 @@ static void restore_time(void)
 	/* Balance clock enable(RTC) at save_time() */
 	clk_disable(pm_clocks.rtc);
 
-#ifndef CFG_STM32MP13
+#ifdef CFG_STM32MP1_OPTEE_IN_SYSRAM
 	print_ccm_decryption_duration();
 #endif
 }
@@ -283,7 +283,7 @@ void stm32mp_pm_wipe_context(void)
 	clk_enable(pm_clocks.bkpsram);
 
 	memset(ctx, 0xa5, sizeof(*ctx));
-#ifndef CFG_STM32MP13
+#ifdef CFG_STM32MP1_OPTEE_IN_SYSRAM
 	memset(mailbox, 0xa5, sizeof(*mailbox));
 #endif
 
@@ -360,7 +360,7 @@ static void load_earlyboot_pm_mailbox(void)
 
 	assert(clk_is_enabled(pm_clocks.bkpsram));
 
-#ifdef CFG_STM32MP15
+#ifdef CFG_STM32MP1_OPTEE_IN_SYSRAM
 	memset(mailbox, 0, sizeof(*mailbox));
 
 	mailbox->zq0cr0_zdata = get_ddrphy_calibration();
@@ -370,10 +370,10 @@ static void load_earlyboot_pm_mailbox(void)
 #if CFG_STM32MP1_PM_CONTEXT_VERSION >= 2
 	save_pll1_settings();
 #endif
-#endif /*CFG_STM32MP15*/
+#endif /* CFG_STM32MP1_OPTEE_IN_SYSRAM */
 }
 
-#if defined(CFG_STM32_CRYP) && defined(CFG_STM32MP15)
+#if defined(CFG_STM32_CRYP) && defined(CFG_STM32MP1_OPTEE_IN_SYSRAM)
 /*
  * CRYP relies on standard format for CCM IV/B0/CRT0 data. Our sequence uses
  * no AAD, 4 bytes to encode the payload byte size and a 11 byte nonce.
@@ -455,7 +455,7 @@ static void __maybe_unused save_teeram_in_ddr(void)
 {
 	panic("Mandates CRYP support");
 }
-#endif /* CFG_STM32_CRYP && CFG_STM32MP15 */
+#endif /* CFG_STM32_CRYP && CFG_STM32MP1_OPTEE_IN_SYSRAM */
 
 /* Finalize the PM mailbox now that everything is loaded */
 static void enable_pm_mailbox(unsigned int suspend)
@@ -471,7 +471,7 @@ static void enable_pm_mailbox(unsigned int suspend)
 		magic = BOOT_API_A7_CORE0_MAGIC_NUMBER;
 		mailbox->magic = STANDBY_CONTEXT_MAGIC;
 
-#ifdef CFG_STM32MP13
+#ifndef CFG_STM32MP1_OPTEE_IN_SYSRAM
 		hint = virt_to_phys(stm32mp_sysram_resume);
 #else
 		hint = virt_to_phys(&get_retram_resume_ctx()->resume_sequence);
@@ -523,7 +523,7 @@ TEE_Result stm32mp_pm_save_context(unsigned int soc_mode)
 		return res;
 
 	if (!need_to_backup_cpu_context(soc_mode)) {
-#ifndef CFG_STM32MP13
+#ifdef CFG_STM32MP1_OPTEE_IN_SYSRAM
 		if (need_to_backup_stop_context(soc_mode))
 			stm32mp1_clk_save_context_for_stop();
 #endif
@@ -534,7 +534,7 @@ TEE_Result stm32mp_pm_save_context(unsigned int soc_mode)
 	gate_pm_context_clocks(true);
 	load_earlyboot_pm_mailbox();
 
-#ifndef CFG_STM32MP13
+#ifdef CFG_STM32MP1_OPTEE_IN_SYSRAM
 	save_teeram_in_ddr();
 #endif
 	enable_pm_mailbox(1);
@@ -546,7 +546,7 @@ void stm32mp_pm_restore_context(unsigned int soc_mode)
 {
 	if (need_to_backup_cpu_context(soc_mode))
 		gate_pm_context_clocks(false);
-#ifndef CFG_STM32MP13
+#ifdef CFG_STM32MP1_OPTEE_IN_SYSRAM
 	else if (need_to_backup_stop_context(soc_mode))
 		stm32mp1_clk_restore_context_for_stop();
 #endif
@@ -565,7 +565,7 @@ void stm32mp_pm_shutdown_context(void)
 	gate_pm_context_clocks(false);
 }
 
-#ifdef CFG_STM32MP13
+#ifndef CFG_STM32MP1_OPTEE_IN_SYSRAM
 TEE_Result stm32mp_pm_call_bl2_lp_entry(unsigned int soc_mode)
 {
 	struct pm_mailbox *mailbox = NULL;
@@ -597,7 +597,7 @@ TEE_Result stm32mp_pm_call_bl2_lp_entry(unsigned int soc_mode)
 
 	return TEE_SUCCESS;
 }
-#endif
+#endif /* CFG_STM32MP1_OPTEE_IN_SYSRAM */
 
 static TEE_Result init_pm_support(void)
 {

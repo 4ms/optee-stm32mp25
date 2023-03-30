@@ -180,7 +180,7 @@ int stm32mp1_set_lp_deepest_soc_mode(uint32_t psci_mode, uint32_t soc_mode)
 	if (psci_mode == PSCI_MODE_SYSTEM_SUSPEND) {
 		deepest_suspend_mode = soc_mode;
 
-#ifdef CFG_STM32MP15
+#ifdef CFG_STM32MP1_OPTEE_IN_SYSRAM
 		if (!stm32mp_supports_hw_cryp() &&
 		    deepest_suspend_mode == STM32_PM_CSTOP_ALLOW_STANDBY_DDR_SR)
 			deepest_suspend_mode = STM32_PM_CSTOP_ALLOW_LPLV_STOP;
@@ -226,7 +226,7 @@ static TEE_Result stm32mp1_init_lp_states(void)
 	/* Initialize suspend support to the deepest possible mode */
 	deepest_suspend_mode = STM32_PM_CSTOP_ALLOW_STANDBY_DDR_SR;
 
-#ifdef CFG_STM32MP15
+#ifdef CFG_STM32MP1_OPTEE_IN_SYSRAM
 	if (!stm32mp_supports_hw_cryp())
 		deepest_suspend_mode = STM32_PM_CSTOP_ALLOW_LPLV_STOP;
 #endif
@@ -244,7 +244,7 @@ static TEE_Result stm32mp1_init_lp_states(void)
 {
 	deepest_suspend_mode = STM32_PM_CSTOP_ALLOW_STANDBY_DDR_SR;
 
-#ifdef CFG_STM32MP15
+#ifdef CFG_STM32MP1_OPTEE_IN_SYSRAM
 	if (!stm32mp_supports_hw_cryp())
 		deepest_suspend_mode = STM32_PM_CSTOP_ALLOW_LPLV_STOP;
 #endif

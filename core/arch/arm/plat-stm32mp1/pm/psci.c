@@ -240,7 +240,7 @@ static int enter_cstop_suspend(unsigned int soc_mode)
 
 	stm32_enter_cstop(soc_mode);
 
-#ifdef CFG_STM32MP13
+#ifndef CFG_STM32MP1_OPTEE_IN_SYSRAM
 	stm32mp_pm_call_bl2_lp_entry(soc_mode);
 	rc = 0;
 #else
@@ -354,7 +354,7 @@ int psci_system_suspend(uintptr_t entry, uint32_t context_id __unused,
 	assert(cpu_mmu_enabled() && core_state[pos] == CORE_ON);
 
 	if (need_to_backup_cpu_context(soc_mode)) {
-#ifdef CFG_STM32MP15
+#ifdef CFG_STM32MP1_OPTEE_IN_SYSRAM
 		if (!stm32mp_supports_hw_cryp())
 			return PSCI_RET_DENIED;
 #endif
@@ -370,7 +370,7 @@ int psci_system_suspend(uintptr_t entry, uint32_t context_id __unused,
 		 */
 		ret = sm_pm_cpu_suspend((uint32_t)soc_mode, plat_suspend);
 		if (ret == 0) {
-#ifndef CFG_STM32MP15
+#ifndef CFG_STM32MP1_OPTEE_IN_SYSRAM
 			stm32_exit_cstop();
 #endif
 			plat_resume((uint32_t)soc_mode);

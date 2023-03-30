@@ -86,7 +86,7 @@ void stm32mp_pm_restore_context(unsigned int soc_mode);
 void stm32mp_pm_shutdown_context(void);
 void stm32mp_pm_wipe_context(void);
 
-#ifdef CFG_STM32MP13
+#ifndef CFG_STM32MP1_OPTEE_IN_SYSRAM
 TEE_Result stm32mp_pm_call_bl2_lp_entry(unsigned int soc_mode);
 #endif
 
