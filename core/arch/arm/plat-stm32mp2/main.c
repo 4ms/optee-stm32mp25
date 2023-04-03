@@ -232,4 +232,54 @@ static TEE_Result init_debug(void)
 	return res;
 }
 early_init_late(init_debug);
-#endif /* CFG_STM32_BSEC3 */
+#endif
+
+static bool stm32mp_supports_second_core(void)
+{
+	if (CFG_TEE_CORE_NB_CORE == 1)
+		return false;
+
+	return true;
+}
+
+/* SGI9 (secure SGI 1) informs targeted CPU it shall reset */
+static enum itr_return sgi9_it_handler(struct itr_handler *hdl  __unused)
+{
+	DMSG("Halting CPU %zu", get_core_pos());
+
+	while (true)
+		cpu_idle();
+
+	return ITRR_HANDLED;
+}
+
+static struct itr_handler sgi9_reset_handler = {
+	.it = GIC_SEC_SGI_1,
+	.handler = sgi9_it_handler,
+};
+
+void __noreturn plat_panic(void)
+{
+	if (stm32mp_supports_second_core()) {
+		uint32_t target_mask = 0;
+
+		if (get_core_pos() == 0)
+			target_mask = TARGET_CPU1_GIC_MASK;
+		else
+			target_mask = TARGET_CPU0_GIC_MASK;
+
+		itr_raise_sgi(GIC_SEC_SGI_1, target_mask);
+	}
+
+	while (true)
+		cpu_idle();
+}
+
+static TEE_Result setup_multi_core_panic(void)
+{
+	itr_add(&sgi9_reset_handler);
+	itr_enable(sgi9_reset_handler.it);
+
+	return TEE_SUCCESS;
+}
+service_init(setup_multi_core_panic);

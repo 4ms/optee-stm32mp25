@@ -92,6 +92,9 @@
 #define GICC_OFFSET			0x20000
 #define GICD_OFFSET			0x10000
 
+/* SGI list */
+#define GIC_SEC_SGI_1			9
+
 /* Console configuration */
 #define STM32MP1_DEBUG_USART_BASE	UART4_BASE
 #define GIC_SPI_UART4			126
