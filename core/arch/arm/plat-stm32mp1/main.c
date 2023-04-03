@@ -256,13 +256,7 @@ static TEE_Result init_stm32mp1_drivers(void)
 	if (res)
 		panic("Unable to secure ROM");
 
-#ifdef CFG_TZSRAM_START
-	COMPILE_TIME_ASSERT(((SYSRAM_BASE + SYSRAM_SIZE) <= CFG_TZSRAM_START) ||
-			    ((SYSRAM_BASE <= CFG_TZSRAM_START) &&
-			     (SYSRAM_SEC_SIZE >= CFG_TZSRAM_SIZE)));
-#endif /* CFG_TZSRAM_START */
-
-	res = stm32_firewall_set_config(SYSRAM_BASE, SYSRAM_SEC_SIZE, sec_cfg);
+	res = stm32_firewall_set_config(SYSRAM_BASE, SYSRAM_SIZE, sec_cfg);
 	if (res)
 		panic("Unable to secure SYSRAM");
 

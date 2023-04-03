@@ -284,16 +284,11 @@
 #define BKPSRAM_PM_CONTEXT_SIZE		U(0xF00)
 
 /* SYSRAM layout */
+#ifdef CFG_STM32MP15
 #define SYSRAM_SIZE			0x40000
-#define SYSRAM_NS_SIZE			(SYSRAM_SIZE - SYSRAM_SEC_SIZE)
-
-/* Non-secure SYSRAM must be above (higher addresses) secure SYSRAM */
-#if (CFG_STM32MP1_SCMI_SHM_BASE >= SYSRAM_BASE) && \
-	((CFG_STM32MP1_SCMI_SHM_BASE + CFG_STM32MP1_SCMI_SHM_SIZE) <= \
-	 (SYSRAM_BASE + SYSRAM_SIZE))
-#define SYSRAM_SEC_SIZE		(CFG_STM32MP1_SCMI_SHM_BASE - SYSRAM_BASE)
-#else
-#define SYSRAM_SEC_SIZE		SYSRAM_SIZE
+#endif
+#ifdef CFG_STM32MP13
+#define SYSRAM_SIZE			0x20000
 #endif
 
 /* RETRAM layout */
