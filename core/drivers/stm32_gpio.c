@@ -726,16 +726,20 @@ static struct stm32_gpio_bank *_fdt_stm32_gpio_controller(const void *fdt,
 
 	/* Parse gpio-ranges with its 4 parameters */
 	cuint = fdt_getprop(fdt, node, "gpio-ranges", &len);
-	len /= sizeof(*cuint);
-	if ((len % 4) != 0)
-		panic("wrong gpio-ranges syntax");
+	if (cuint) {
+		len /= sizeof(*cuint);
+		if ((len % 4) != 0)
+			panic("wrong gpio-ranges syntax");
 
-	/* Get the last defined gpio line (offset + nb of pins) */
-	for (i = 0; i < len / 4; i++) {
-		bank->ngpios = MAX(bank->ngpios,
+		/* Get the last defined gpio line (offset + nb of pins) */
+		for (i = 0; i < len / 4; i++) {
+			bank->ngpios = MAX(bank->ngpios,
 				   (unsigned int)(fdt32_to_cpu(*(cuint + 1)) +
 						  fdt32_to_cpu(*(cuint + 3))));
-		cuint += 4;
+			cuint += 4;
+		}
+	} else if (len != -FDT_ERR_NOTFOUND) {
+		panic();
 	}
 
 	*res = TEE_SUCCESS;
