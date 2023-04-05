@@ -475,13 +475,11 @@ static TEE_Result stm32mp1_tzc_probe(const void *fdt, int node,
 		return res;
 	}
 
-	if (tzc_dev->ddata) {
-		tzc_set_driverdata(tzc_dev);
-		tzc_dev->reg = calloc(tzc_dev->ddata->nb_regions,
-				      sizeof(*tzc_dev->reg));
-		if (!tzc_dev->reg)
-			panic();
-	}
+	tzc_set_driverdata(tzc_dev);
+	tzc_dev->reg = calloc(tzc_dev->ddata->nb_regions,
+			      sizeof(*tzc_dev->reg));
+	if (!tzc_dev->reg)
+		panic();
 
 	clk_enable(tzc_dev->pdata.clk[0]);
 	if (tzc_dev->pdata.clk[1])
