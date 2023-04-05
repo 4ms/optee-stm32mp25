@@ -387,7 +387,7 @@ static int i2c_compute_timing(struct stm32_i2c_platform_data *init,
 {
 	const struct i2c_spec_s *specs = NULL;
 	uint32_t speed_freq = 0;
-	uint32_t i2cbus = UDIV_ROUND_NEAREST(I2C_NSEC_PER_SEC, speed_freq);
+	uint32_t i2cbus = 0;
 	uint32_t i2cclk = UDIV_ROUND_NEAREST(I2C_NSEC_PER_SEC, clock_src);
 	uint32_t p_prev = I2C_TIMINGR_PRESC_MAX;
 	uint32_t af_delay_min = 0;
