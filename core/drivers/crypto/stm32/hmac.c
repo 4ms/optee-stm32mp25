@@ -144,7 +144,7 @@ static void do_hmac_copy_state(struct crypto_mac_ctx *dst_ctx,
 	if (src->key)
 		dst->key = malloc(dst->key_len);
 
-	if (dst->key)
+	if (dst->key && src->key)
 		memcpy(dst->key, src->key, dst->key_len);
 	else
 		dst->key_len = 0;
