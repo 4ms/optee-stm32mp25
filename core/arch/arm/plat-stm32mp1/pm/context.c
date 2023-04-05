@@ -575,7 +575,7 @@ TEE_Result stm32mp_pm_call_bl2_lp_entry(unsigned int soc_mode)
 
 	mailbox = get_pm_mailbox();
 
-	FMSG("BL2 low_power_ep %x", mailbox->low_power_ep);
+	FMSG("BL2 low_power_ep %#"PRIx32, mailbox->low_power_ep);
 
 	stm32_pwr_down_wfi = (void *)mailbox->low_power_ep;
 
@@ -586,7 +586,6 @@ TEE_Result stm32mp_pm_call_bl2_lp_entry(unsigned int soc_mode)
 
 	dsb();
 	isb();
-
 
 	(*stm32_pwr_down_wfi)(true, soc_mode);
 
