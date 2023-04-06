@@ -5,6 +5,7 @@
  */
 
 #include <config.h>
+#include <drivers/wdt.h>
 #include <kernel/boot.h>
 #include <kernel/misc.h>
 #include <kernel/notif.h>
@@ -321,7 +322,11 @@ void __tee_entry_fast(struct thread_smc_args *args)
 		else
 			args->a0 = OPTEE_SMC_RETURN_UNKNOWN_FUNCTION;
 		break;
-
+#if defined(CFG_WDT_SM_HANDLER)
+	case OPTEE_SMC_WATCHDOG:
+			__wdt_sm_handler(args);
+		break;
+#endif
 	default:
 		args->a0 = OPTEE_SMC_RETURN_UNKNOWN_FUNCTION;
 		break;
