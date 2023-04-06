@@ -326,6 +326,7 @@ $(call force,CFG_STM32_RSTCTRL,y)
 endif
 
 CFG_WDT ?= $(CFG_STM32_IWDG)
+CFG_WDT_SM_HANDLER ?= $(CFG_STM32_IWDG)
 
 # Platform specific configuration
 CFG_STM32MP_PANIC_ON_TZC_PERM_VIOLATION ?= y
