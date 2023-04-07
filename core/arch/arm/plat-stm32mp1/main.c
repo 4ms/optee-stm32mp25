@@ -11,7 +11,6 @@
 #include <drivers/gic.h>
 #include <drivers/stm32_etzpc.h>
 #include <drivers/stm32_firewall.h>
-#include <drivers/stm32_iwdg.h>
 #include <drivers/stm32_rtc.h>
 #include <drivers/stm32_tamp.h>
 #include <drivers/stm32_uart.h>
@@ -344,47 +343,6 @@ vaddr_t stm32mp_stgen_base(void)
 
 	return io_pa_or_va(&base, 1);
 }
-
-#ifdef CFG_STM32_IWDG
-TEE_Result stm32_get_iwdg_otp_config(paddr_t pbase,
-				     struct stm32_iwdg_otp_data *otp_data)
-{
-	unsigned int idx = 0;
-	uint32_t otp_id = 0;
-	size_t bit_len = 0;
-	uint32_t otp_value = 0;
-
-	switch (pbase) {
-	case IWDG1_BASE:
-		idx = 0;
-		break;
-	case IWDG2_BASE:
-		idx = 1;
-		break;
-	default:
-		panic();
-	}
-
-	if (stm32_bsec_find_otp_in_nvmem_layout("hw2_otp", &otp_id, NULL,
-						&bit_len))
-		panic();
-
-	if (bit_len != 32)
-		panic();
-
-	if (stm32_bsec_read_otp(&otp_value, otp_id))
-		panic();
-
-	otp_data->hw_enabled = otp_value &
-			       BIT(idx + HW2_OTP_IWDG_HW_ENABLE_SHIFT);
-	otp_data->disable_on_stop = otp_value &
-				    BIT(idx + HW2_OTP_IWDG_FZ_STOP_SHIFT);
-	otp_data->disable_on_standby = otp_value &
-				       BIT(idx + HW2_OTP_IWDG_FZ_STANDBY_SHIFT);
-
-	return TEE_SUCCESS;
-}
-#endif /*CFG_STM32_IWDG*/
 
 #if TRACE_LEVEL >= TRACE_DEBUG
 static const char *const dump_table[] = {
