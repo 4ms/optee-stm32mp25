@@ -201,15 +201,6 @@ void stm32_pm_cpu_wfi(void)
 	cpu_wfi();
 }
 
-#define ARM_CNTXCTL_IMASK	BIT(1)
-
-static void stm32mp_mask_timer(void)
-{
-	/* Mask timer interrupts */
-	write_cntp_ctl(read_cntp_ctl() | ARM_CNTXCTL_IMASK);
-	write_cntv_ctl(read_cntv_ctl() | ARM_CNTXCTL_IMASK);
-}
-
 /*
  * stm32_enter_cstop - Prepare CSTOP mode
  *
@@ -464,46 +455,6 @@ static struct itr_handler rcc_wakeup_handler = {
 };
 DECLARE_KEEP_PAGER(rcc_wakeup_handler);
 
-/* SGI9 (secure SGI 1) informs targeted CPU it shall reset */
-static enum itr_return sgi9_it_handler(struct itr_handler *hdl  __unused)
-{
-	DMSG("Halting CPU %u", get_core_pos());
-
-	stm32mp_mask_timer();
-
-	stm32mp_dump_core_registers(false);
-
-	while (true)
-		cpu_idle();
-
-	return ITRR_HANDLED;
-}
-
-static struct itr_handler sgi9_reset_handler = {
-	.it = GIC_SEC_SGI_1,
-	.handler = sgi9_it_handler,
-};
-DECLARE_KEEP_PAGER(sgi9_reset_handler);
-
-void __noreturn plat_panic(void)
-{
-	stm32mp_mask_timer();
-
-	if (stm32mp_supports_second_core()) {
-		uint32_t target_mask = 0;
-
-		if (get_core_pos() == 0)
-			target_mask = TARGET_CPU1_GIC_MASK;
-		else
-			target_mask = TARGET_CPU0_GIC_MASK;
-
-		itr_raise_sgi(GIC_SEC_SGI_1, target_mask);
-	}
-
-	while (true)
-		cpu_idle();
-}
-
 static TEE_Result init_low_power(void)
 {
 	vaddr_t pwr_base __maybe_unused = stm32_pwr_base();
@@ -511,9 +462,6 @@ static TEE_Result init_low_power(void)
 
 	itr_add(&rcc_wakeup_handler);
 	itr_enable(rcc_wakeup_handler.it);
-
-	itr_add(&sgi9_reset_handler);
-	itr_enable(sgi9_reset_handler.it);
 
 #ifdef CFG_STM32MP13
 	/* Disable STOP request */

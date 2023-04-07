@@ -239,6 +239,34 @@ void main_secondary_init_gic(void)
 	stm32mp_register_online_cpu();
 }
 
+#define ARM_CNTXCTL_IMASK	BIT(1)
+
+static void stm32mp_mask_timer(void)
+{
+	/* Mask timer interrupts */
+	write_cntp_ctl(read_cntp_ctl() | ARM_CNTXCTL_IMASK);
+	write_cntv_ctl(read_cntv_ctl() | ARM_CNTXCTL_IMASK);
+}
+
+/* SGI9 (secure SGI 1) informs targeted CPU it shall reset */
+static enum itr_return sgi9_it_handler(struct itr_handler *hdl  __unused)
+{
+	DMSG("Halting CPU %u", get_core_pos());
+
+	stm32mp_mask_timer();
+
+	while (true)
+		cpu_idle();
+
+	return ITRR_HANDLED;
+}
+
+static struct itr_handler sgi9_reset_handler = {
+	.it = GIC_SEC_SGI_1,
+	.handler = sgi9_it_handler,
+};
+DECLARE_KEEP_PAGER(sgi9_reset_handler);
+
 static TEE_Result init_stm32mp1_drivers(void)
 {
 	TEE_Result res = TEE_ERROR_GENERIC;
@@ -258,6 +286,9 @@ static TEE_Result init_stm32mp1_drivers(void)
 	res = stm32_firewall_set_config(SYSRAM_BASE, SYSRAM_SIZE, sec_cfg);
 	if (res)
 		panic("Unable to secure SYSRAM");
+
+	itr_add(&sgi9_reset_handler);
+	itr_enable(sgi9_reset_handler.it);
 
 	return TEE_SUCCESS;
 }
@@ -389,6 +420,25 @@ void stm32mp_dump_core_registers(bool panicking)
 }
 DECLARE_KEEP_PAGER(stm32mp_dump_core_registers);
 #endif
+
+void __noreturn plat_panic(void)
+{
+	stm32mp_mask_timer();
+
+	if (stm32mp_supports_second_core()) {
+		uint32_t target_mask = 0;
+
+		if (get_core_pos() == 0)
+			target_mask = TARGET_CPU1_GIC_MASK;
+		else
+			target_mask = TARGET_CPU0_GIC_MASK;
+
+		itr_raise_sgi(GIC_SEC_SGI_1, target_mask);
+	}
+
+	while (true)
+		cpu_idle();
+}
 
 #ifdef CFG_TEE_CORE_DEBUG
 static TEE_Result init_debug(void)
