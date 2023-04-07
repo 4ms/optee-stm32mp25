@@ -82,6 +82,11 @@
 	>;
 };
 
+&iwdg1 {
+	timeout-sec = <32>;
+	status = "okay";
+};
+
 &i2c4 {
 	compatible = "st,stm32mp15-i2c-non-secure";
 	pinctrl-names = "default";

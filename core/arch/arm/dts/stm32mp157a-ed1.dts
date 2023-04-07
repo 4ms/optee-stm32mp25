@@ -210,6 +210,11 @@
 	};
 };
 
+&iwdg1 {
+	timeout-sec = <32>;
+	status = "okay";
+};
+
 &osc_calibration {
 	csi-calibration {
 		status = "okay";

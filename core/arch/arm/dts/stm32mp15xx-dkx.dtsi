@@ -478,11 +478,7 @@
 
 &iwdg1 {
 	timeout-sec = <32>;
-};
-
-&iwdg2 {
-	timeout-sec = <32>;
-	status = "disabled";
+	status = "okay";
 };
 
 &ltdc {
