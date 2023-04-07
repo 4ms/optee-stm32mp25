@@ -255,6 +255,8 @@ static enum itr_return sgi9_it_handler(struct itr_handler *hdl  __unused)
 
 	stm32mp_mask_timer();
 
+	stm32mp_dump_core_registers(true);
+
 	while (true)
 		cpu_idle();
 
@@ -435,6 +437,8 @@ void __noreturn plat_panic(void)
 
 		itr_raise_sgi(GIC_SEC_SGI_1, target_mask);
 	}
+
+	stm32mp_dump_core_registers(true);
 
 	while (true)
 		cpu_idle();
