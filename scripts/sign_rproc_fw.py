@@ -131,7 +131,7 @@ ENUM_BINARY_TYPE = dict(
 )
 
 
-def dump_buffer(buf, step=16, name="", logger=logging.info, indent=""):
+def dump_buffer(buf, step=16, name="", logger=logging.debug, indent=""):
     logger("%s%s:" % (indent, name))
     for i in range(0, len(buf), step):
         logger("%s    " % (indent) + " ".
@@ -289,12 +289,12 @@ class ImageHeader(object):
                                 self.tlv_length, self.plat_tlv_len)
 
     def dump(self):
-        logging.info("\tMAGIC\t\t= %08X" % (self.magic))
-        logging.info("\tHEADER_VERSION\t= %08X" % (self.version))
-        logging.info("\tSIGN_LENGTH\t= %08X" % (self.sign_length))
-        logging.info("\tIMAGE_LENGTH\t= %08X" % (self.img_length))
-        logging.info("\tTLV_LENGTH\t= %08X" % (self.tlv_length))
-        logging.info("\tPLAT_TLV_LENGTH\t= %08X" % (self.plat_tlv_len))
+        logging.debug("\tMAGIC\t\t= %08X" % (self.magic))
+        logging.debug("\tHEADER_VERSION\t= %08X" % (self.version))
+        logging.debug("\tSIGN_LENGTH\t= %08X" % (self.sign_length))
+        logging.debug("\tIMAGE_LENGTH\t= %08X" % (self.img_length))
+        logging.debug("\tTLV_LENGTH\t= %08X" % (self.tlv_length))
+        logging.debug("\tPLAT_TLV_LENGTH\t= %08X" % (self.plat_tlv_len))
 
     def get_packed(self):
         return struct.pack('<IIIIII',
@@ -584,6 +584,8 @@ def main():
             if align_64b:
                 f.write(bytearray(8 - align_64b))
         f.write(trailer_buff)
+
+        logging.info("%s generated with success." % args.outf)
 
 
 if __name__ == "__main__":
