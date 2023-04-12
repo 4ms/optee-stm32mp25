@@ -78,12 +78,14 @@ static enum itr_return tzc_it_handler(struct itr_handler *handler __unused)
 {
 	EMSG("TZC permission failure");
 	tzc_fail_dump();
-	stm32mp_dump_core_registers(true);
 
-	if (IS_ENABLED(CFG_STM32MP_PANIC_ON_TZC_PERM_VIOLATION))
+	if (IS_ENABLED(CFG_STM32MP_PANIC_ON_TZC_PERM_VIOLATION)) {
+		stm32mp_dump_core_registers(true);
 		panic();
-	else
+	} else {
+		stm32mp_dump_core_registers(false);
 		tzc_int_clear();
+	}
 
 	return ITRR_HANDLED;
 }
