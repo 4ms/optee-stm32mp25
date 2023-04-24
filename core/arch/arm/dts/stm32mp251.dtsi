@@ -189,8 +189,9 @@
 		};
 
 		iac: iac@42090000 {
+			compatible = "st,stm32mp25-iac";
 			reg = <0x42090000 0x400>;
-			status = "disabled";
+			interrupts = <GIC_SPI 246 IRQ_TYPE_LEVEL_HIGH>;
 		};
 
 		risaf1: risaf@420a0000 {
