@@ -234,6 +234,14 @@ static TEE_Result init_debug(void)
 early_init_late(init_debug);
 #endif
 
+#ifdef CFG_STM32_CPU_OPP
+bool stm32mp_supports_cpu_opp(uint32_t opp_id __unused)
+{
+	/* FIXME: add test on opp_id */
+	return true;
+}
+#endif /* CFG_STM32_CPU_OPP */
+
 static bool stm32mp_supports_second_core(void)
 {
 	if (CFG_TEE_CORE_NB_CORE == 1)

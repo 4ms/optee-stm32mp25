@@ -31,4 +31,8 @@ inline void stm32mp_register_non_secure_periph_iomem(vaddr_t base __unused) { }
  */
 uint32_t may_spin_lock(unsigned int *lock);
 void may_spin_unlock(unsigned int *lock, uint32_t exceptions);
+#ifdef CFG_STM32_CPU_OPP
+bool stm32mp_supports_cpu_opp(uint32_t opp_id);
+#endif /*CFG_STM32_CPU_OPP*/
+
 #endif /*__STM32_UTIL_H__*/

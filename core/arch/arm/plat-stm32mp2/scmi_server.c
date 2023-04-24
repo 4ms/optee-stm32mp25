@@ -11,6 +11,7 @@
 #include <drivers/rstctrl.h>
 #include <drivers/scmi-msg.h>
 #include <drivers/scmi.h>
+#include <drivers/stm32_cpu_opp.h>
 #include <drivers/stm32_firewall.h>
 #include <drivers/stm32mp_dt_bindings.h>
 #include <initcall.h>
