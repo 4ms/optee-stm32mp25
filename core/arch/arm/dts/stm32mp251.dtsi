@@ -178,8 +178,10 @@
 			};
 
 			rng: rng@42020000 {
+				compatible = "st,stm32mp25-rng";
 				reg = <0x42020000 0x400>;
-				status = "disabled";
+				clocks = <&rcc CK_BUS_RNG>;
+				resets = <&rcc RNG_R>;
 			};
 
 			iwdg1: watchdog@44010000 {
