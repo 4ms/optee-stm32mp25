@@ -6,6 +6,7 @@
 
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/clock/stm32mp25-clks.h>
+#include <dt-bindings/regulator/st,stm32mp25-regulator.h>
 #include <dt-bindings/reset/stm32mp25-resets.h>
 
 / {
@@ -75,6 +76,47 @@
 			#clock-cells = <0>;
 			compatible = "fixed-clock";
 			clock-frequency = <0>;
+		};
+	};
+
+	scmi_regu: scmi-regu {
+		compatible = "st,scmi-regulator-consumer";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		scmi-channel-id = <0>;
+
+		scmi_vddio1: voltd-vddio1 {
+			reg = <VOLTD_SCMI_VDDIO1>;
+			voltd-supply = <&vddio1>;
+		};
+		scmi_vddio2: voltd-vddio2 {
+			reg = <VOLTD_SCMI_VDDIO2>;
+			voltd-supply = <&vddio2>;
+		};
+		scmi_vddio3: voltd-vddio3 {
+			reg = <VOLTD_SCMI_VDDIO3>;
+			voltd-supply = <&vddio3>;
+		};
+		scmi_vddio4: voltd-vddio4 {
+			reg = <VOLTD_SCMI_VDDIO4>;
+			voltd-supply = <&vddio4>;
+		};
+		scmi_vdd33ucpd: voltd-vdd33ucpd {
+			reg = <VOLTD_SCMI_UCPD>;
+			voltd-supply = <&vdd33ucpd>;
+		};
+		scmi_vdd33usb: voltd-vdd33usb {
+			reg = <VOLTD_SCMI_USB33>;
+			voltd-supply = <&vdd33usb>;
+		};
+		scmi_vdda18adc: voltd-vdda18adc {
+			reg = <VOLTD_SCMI_ADC>;
+			voltd-supply = <&vdda18adc>;
+		};
+		scmi_vddgpu: voltd-vddgpu {
+			reg = <VOLTD_SCMI_GPU>;
+			voltd-supply = <&vddgpu>;
 		};
 	};
 
@@ -350,8 +392,64 @@
 		};
 
 		pwr: pwr@44210000 {
+			compatible = "st,stm32mp25-pwr";
 			reg = <0x44210000 0x400>;
 			status = "disabled";
+
+			vdd33ucpd: vdd33ucpd {
+				compatible = "st,stm32mp25-pwr-regu";
+				regulator-name = "vdd33ucpd";
+				status = "disabled";
+			};
+
+			vdd33usb: vdd33usb {
+				compatible = "st,stm32mp25-pwr-regu";
+				regulator-name = "vdd33usb";
+				status = "disabled";
+			};
+
+			vdda18adc: vdda18adc {
+				compatible = "st,stm32mp25-pwr-regu";
+				regulator-name = "vdda18adc";
+				status = "disabled";
+			};
+
+			vddgpu: vddgpu {
+				compatible = "st,stm32mp25-pwr-regu";
+				regulator-name = "vddgpu";
+				status = "disabled";
+			};
+
+			vddio1: vddio1 {
+				compatible = "st,stm32mp25-pwr-regu";
+				regulator-name = "vddio1";
+				status = "disabled";
+			};
+
+			vddio2: vddio2 {
+				compatible = "st,stm32mp25-pwr-regu";
+				regulator-name = "vddio2";
+				status = "disabled";
+			};
+
+			vddio3: vddio3 {
+				compatible = "st,stm32mp25-pwr-regu";
+				regulator-name = "vddio3";
+				status = "disabled";
+			};
+
+			vddio4: vddio4 {
+				compatible = "st,stm32mp25-pwr-regu";
+				regulator-name = "vddio4";
+				status = "disabled";
+			};
+
+			vddio: vddio {
+				compatible = "st,stm32mp25-pwr-regu";
+				regulator-name = "vddio";
+				regulator-always-on;
+				status = "disabled";
+			};
 		};
 
 		exti1: interrupt-controller@44220000 {
