@@ -64,6 +64,7 @@ CFG_TEE_CORE_NB_CORE ?= 2
 CFG_STM32MP_OPP_COUNT ?= 3
 
 CFG_STM32_BSEC3 ?= y
+CFG_STM32_CPU_OPP ?= y
 CFG_STM32_GPIO ?= y
 CFG_STM32_I2C ?= y
 CFG_STM32_IAC ?= y
@@ -113,6 +114,7 @@ endif
 CFG_SCMI_MSG_DRIVERS ?= n
 ifeq ($(CFG_SCMI_MSG_DRIVERS),y)
 $(call force,CFG_SCMI_MSG_CLOCK,y)
+$(call force,CFG_SCMI_MSG_PERF_DOMAIN,y)
 $(call force,CFG_SCMI_MSG_RESET_DOMAIN,y)
 $(call force,CFG_SCMI_MSG_SHM_MSG,y)
 $(call force,CFG_SCMI_MSG_SMT,n)
