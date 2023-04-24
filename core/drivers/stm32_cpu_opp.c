@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: BSD-2-Clause
 /*
- * Copyright (c) 2021, STMicroelectronics
+ * Copyright (c) 2022, STMicroelectronics
  */
 #include <drivers/clk.h>
 #include <drivers/clk_dt.h>
 #include <drivers/regulator.h>
+#include <drivers/stm32_cpu_opp.h>
+#ifdef CFG_STM32MP13
 #include <drivers/stm32mp1_pwr.h>
+#endif
 #include <initcall.h>
 #include <io.h>
 #include <kernel/boot.h>
@@ -38,12 +41,12 @@ static struct mutex cpu_opp_mu = MUTEX_INITIALIZER;
 
 #define MPU_RAM_LOW_SPEED_THRESHOLD 1320
 
-size_t stm32mp1_cpu_opp_count(void)
+size_t stm32_cpu_opp_count(void)
 {
 	return cpu_opp.opp_count;
 }
 
-unsigned int stm32mp1_cpu_opp_level(size_t opp_index)
+unsigned int stm32_cpu_opp_level(size_t opp_index)
 {
 	assert(opp_index < cpu_opp.opp_count);
 
@@ -146,7 +149,7 @@ static TEE_Result set_voltage_then_clock(unsigned int opp)
 	return TEE_SUCCESS;
 }
 
-TEE_Result stm32mp1_cpu_opp_set_level(unsigned int level)
+TEE_Result stm32_cpu_opp_set_level(unsigned int level)
 {
 	unsigned int current_level = 0;
 	TEE_Result res = TEE_ERROR_GENERIC;
@@ -184,7 +187,7 @@ TEE_Result stm32mp1_cpu_opp_set_level(unsigned int level)
 	return res;
 }
 
-TEE_Result stm32mp1_cpu_opp_read_level(unsigned int *level)
+TEE_Result stm32_cpu_opp_read_level(unsigned int *level)
 {
 	if (cpu_opp.current_opp >= cpu_opp.opp_count)
 		return TEE_ERROR_BAD_STATE;
@@ -219,7 +222,7 @@ static TEE_Result cpu_opp_pm(enum pm_op op, unsigned int pm_hint __unused,
 DECLARE_KEEP_PAGER(cpu_opp_pm);
 #endif
 
-static TEE_Result stm32mp1_cpu_opp_is_supported(const void *fdt, int subnode)
+static TEE_Result stm32_cpu_opp_is_supported(const void *fdt, int subnode)
 {
 	const fdt32_t *cuint32 = NULL;
 	uint32_t opp = 0;
@@ -240,7 +243,7 @@ static TEE_Result stm32mp1_cpu_opp_is_supported(const void *fdt, int subnode)
 	return TEE_SUCCESS;
 }
 
-static TEE_Result stm32mp1_cpu_opp_get_dt_subnode(const void *fdt, int node)
+static TEE_Result stm32_cpu_opp_get_dt_subnode(const void *fdt, int node)
 {
 	const fdt64_t *cuint64 = NULL;
 	const fdt32_t *cuint32 = NULL;
@@ -252,7 +255,7 @@ static TEE_Result stm32mp1_cpu_opp_get_dt_subnode(const void *fdt, int node)
 	TEE_Result res = TEE_ERROR_GENERIC;
 
 	fdt_for_each_subnode(subnode, fdt, node)
-		if (!stm32mp1_cpu_opp_is_supported(fdt, subnode))
+		if (!stm32_cpu_opp_is_supported(fdt, subnode))
 			cpu_opp.opp_count++;
 
 	cpu_opp.dvfs = calloc(1, cpu_opp.opp_count * sizeof(*cpu_opp.dvfs));
@@ -262,7 +265,7 @@ static TEE_Result stm32mp1_cpu_opp_get_dt_subnode(const void *fdt, int node)
 	cpu_opp.current_opp = cpu_opp.opp_count;
 
 	fdt_for_each_subnode(subnode, fdt, node) {
-		if (stm32mp1_cpu_opp_is_supported(fdt, subnode))
+		if (stm32_cpu_opp_is_supported(fdt, subnode))
 			continue;
 
 		cuint64 = fdt_getprop(fdt, subnode, "opp-hz", NULL);
@@ -348,8 +351,7 @@ static TEE_Result get_cpu_parent(const void *fdt)
 }
 
 static TEE_Result
-stm32mp1_cpu_opp_init(const void *fdt, int node,
-		      const void *compat_data __unused)
+stm32_cpu_opp_init(const void *fdt, int node, const void *compat_data __unused)
 {
 	TEE_Result res = TEE_SUCCESS;
 	uint16_t cpu_voltage __maybe_unused = 0;
@@ -367,18 +369,18 @@ stm32mp1_cpu_opp_init(const void *fdt, int node,
 		panic();
 #endif
 
-	res = stm32mp1_cpu_opp_get_dt_subnode(fdt, node);
+	res = stm32_cpu_opp_get_dt_subnode(fdt, node);
 
 	return res;
 }
 
-static const struct dt_device_match stm32mp1_cpu_opp_match_table[] = {
+static const struct dt_device_match stm32_cpu_opp_match_table[] = {
 	{ .compatible = "operating-points-v2" },
 	{ }
 };
 
 DEFINE_DT_DRIVER(stm32mp1_opp_dt_driver) = {
 	.name = "stm32mp1-cpu-opp",
-	.match_table = stm32mp1_cpu_opp_match_table,
-	.probe = &stm32mp1_cpu_opp_init,
+	.match_table = stm32_cpu_opp_match_table,
+	.probe = &stm32_cpu_opp_init,
 };

@@ -11,6 +11,7 @@
 #include <drivers/rstctrl.h>
 #include <drivers/scmi-msg.h>
 #include <drivers/scmi.h>
+#include <drivers/stm32_cpu_opp.h>
 #include <drivers/stm32_firewall.h>
 #include <drivers/stm32mp_dt_bindings.h>
 #include <initcall.h>
@@ -652,7 +653,7 @@ int32_t plat_scmi_perf_levels_array(unsigned int channel_id,
 	if (!perfd)
 		return SCMI_NOT_FOUND;
 
-	full_count = stm32mp1_cpu_opp_count();
+	full_count = stm32_cpu_opp_count();
 
 	if (!levels) {
 		*nb_elts = full_count - start_index;
@@ -669,7 +670,7 @@ int32_t plat_scmi_perf_levels_array(unsigned int channel_id,
 	     full_count, start_index, *nb_elts, out_count);
 
 	for (n = 0; n < out_count; n++)
-		levels[n] = stm32mp1_cpu_opp_level(n);
+		levels[n] = stm32_cpu_opp_level(n);
 
 	*nb_elts = out_count;
 
@@ -685,7 +686,7 @@ int32_t plat_scmi_perf_level_get(unsigned int channel_id,
 	if (!perfd)
 		return SCMI_NOT_FOUND;
 
-	if (stm32mp1_cpu_opp_read_level(&current_level))
+	if (stm32_cpu_opp_read_level(&current_level))
 		return SCMI_GENERIC_ERROR;
 
 	*level = current_level;
@@ -701,7 +702,7 @@ int32_t plat_scmi_perf_level_set(unsigned int channel_id,
 	if (!perfd)
 		return SCMI_NOT_FOUND;
 
-	switch (stm32mp1_cpu_opp_set_level(level)) {
+	switch (stm32_cpu_opp_set_level(level)) {
 	case TEE_SUCCESS:
 		return SCMI_SUCCESS;
 	case TEE_ERROR_BAD_PARAMETERS:
