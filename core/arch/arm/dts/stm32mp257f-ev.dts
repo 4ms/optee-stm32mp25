@@ -53,6 +53,14 @@
 	cpu-supply = <&vddcpu>;
 };
 
+&cpu0_opp_table {
+	opp-1500000000 {
+		opp-hz = /bits/ 64 <1500000000>;
+		opp-microvolt = <910000>;
+		opp-supported-hw = <0x1>;
+	};
+};
+
 &i2c7 {
 	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&i2c7_pins_a>;
@@ -208,6 +216,24 @@
 	vddio: vddio {
 		status = "okay";
 		vdd-supply = <&vddio_pmic>;
+	};
+};
+
+&rcc {
+	st,clk_opp {
+		st,ck_cpu1 {
+			cfg_1 {
+				hz = <1500000000>;
+				st,clksrc = <0>;
+				st,pll = <&pll1_cfg_1500Mhz>;
+			};
+
+			cfg_2 {
+				hz = <1200000000>;
+				st,clksrc = <0>;
+				st,pll = <&pll1_cfg_1200Mhz>;
+			};
+		};
 	};
 };
 
