@@ -138,12 +138,24 @@
 			};
 
 			i2c1: i2c@40120000 {
+				compatible = "st,stm32mp25-i2c";
 				reg = <0x40120000 0x400>;
+				clocks = <&rcc CK_KER_I2C1>;
+				resets = <&rcc I2C1_R>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+				i2c-analog-filter;
 				status = "disabled";
 			};
 
 			i2c7: i2c@40180000 {
+				compatible = "st,stm32mp25-i2c";
 				reg = <0x40180000 0x400>;
+				clocks = <&rcc CK_KER_I2C7>;
+				resets = <&rcc I2C7_R>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+				i2c-analog-filter;
 				status = "disabled";
 			};
 
