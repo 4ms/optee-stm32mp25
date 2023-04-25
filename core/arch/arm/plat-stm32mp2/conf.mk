@@ -132,3 +132,6 @@ endif
 
 # Provisioning support for shadow
 CFG_STM32MP_PROVISIONING ?= y
+
+# Default enable STPMIC2
+CFG_STPMIC2 ?= y
