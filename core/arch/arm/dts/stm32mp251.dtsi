@@ -118,7 +118,10 @@
 			#size-cells = <1>;
 
 			usart2: serial@400e0000 {
+				compatible = "st,stm32h7-uart";
 				reg = <0x400e0000 0x400>;
+				interrupts = <GIC_SPI 115 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&rcc CK_KER_USART2>;
 				status = "disabled";
 			};
 
