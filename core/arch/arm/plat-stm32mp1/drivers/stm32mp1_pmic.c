@@ -39,6 +39,16 @@
 
 #define PMIC_REGU_COUNT			14
 
+/*
+ * st,mask-reset: set mask reset for the regulator, meaning that the regulator
+ * setting is maintained during pmic reset.
+ */
+#define STPMIC1_REGUL_MASK_RESET	BIT(15)
+/* st,regulator-sink-source: set the regulator in sink source mode */
+#define STPMIC1_REGUL_SINK_SOURCE	BIT(14)
+/* st,regulator-bypass: set the regulator in bypass mode */
+#define STPMIC1_REGUL_ENABLE_BYPASS	BIT(13)
+
 /* Expect a single PMIC instance */
 static struct i2c_handle_s *i2c_pmic_handle;
 static uint32_t pmic_i2c_addr;
@@ -49,7 +59,8 @@ static char cpu_supply_name[PMIC_REGU_SUPPLY_NAME_LEN];
 /* Mutex for protecting PMIC accesses */
 static struct mutex pmic_mu = MUTEX_INITIALIZER;
 
-static TEE_Result register_pmic_regulator(const char *regu_name, int node);
+static TEE_Result register_pmic_regulator(const void *fdt,
+					  const char *regu_name, int node);
 
 static int dt_get_pmic_node(const void *fdt)
 {
@@ -145,7 +156,7 @@ static void parse_regulator_fdt_nodes(void)
 
 		assert(stpmic1_regulator_is_valid(regu_name));
 
-		if (register_pmic_regulator(regu_name, regu_node))
+		if (register_pmic_regulator(fdt, regu_name, regu_node))
 			panic();
 	}
 
@@ -266,13 +277,13 @@ static TEE_Result pmic_set_flag(const struct regul_desc *desc, uint16_t flag)
 	case REGUL_PULL_DOWN:
 		ret = stpmic1_regulator_pull_down_set(desc->node_name);
 		break;
-	case REGUL_MASK_RESET:
+	case STPMIC1_REGUL_MASK_RESET:
 		ret = stpmic1_regulator_mask_reset_set(desc->node_name);
 		break;
-	case REGUL_SINK_SOURCE:
+	case STPMIC1_REGUL_SINK_SOURCE:
 		ret = stpmic1_regulator_sink_mode_set(desc->node_name);
 		break;
-	case REGUL_ENABLE_BYPASS:
+	case STPMIC1_REGUL_ENABLE_BYPASS:
 		ret = stpmic1_regulator_bypass_mode_set(desc->node_name);
 		break;
 	default:
@@ -390,7 +401,51 @@ static const struct regul_desc pmic_reguls[] = {
 };
 DECLARE_KEEP_PAGER(pmic_reguls);
 
-static TEE_Result register_pmic_regulator(const char *regu_name, int node)
+struct regul_property {
+	const char *name;
+	uint16_t flag;
+};
+
+static struct regul_property flag_prop[] = {
+	{
+		.name = "st,mask-reset",
+		.flag = STPMIC1_REGUL_MASK_RESET,
+	},
+	{
+		.name = "st,regulator-sink-source",
+		.flag = STPMIC1_REGUL_SINK_SOURCE,
+	},
+	{
+		.name = "st,regulator-bypass",
+		.flag = STPMIC1_REGUL_ENABLE_BYPASS,
+	},
+};
+
+static TEE_Result parse_properties(const void *fdt,
+				   const struct regul_desc *desc, int node)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+	struct regul_property *p = NULL;
+
+	stm32mp_get_pmic();
+
+	for (p = flag_prop; p < (flag_prop + ARRAY_SIZE(flag_prop)); p++) {
+		if (fdt_getprop(fdt, node, p->name, NULL)) {
+			FMSG("%s: %#"PRIx32, desc->node_name, p->flag);
+
+			res = pmic_set_flag(desc, p->flag);
+			if (res)
+				return res;
+		}
+	}
+
+	stm32mp_put_pmic();
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result register_pmic_regulator(const void *fdt,
+					  const char *regu_name, int node)
 {
 	TEE_Result res = TEE_ERROR_GENERIC;
 	size_t i = 0;
@@ -401,9 +456,15 @@ static TEE_Result register_pmic_regulator(const char *regu_name, int node)
 
 	assert(i < ARRAY_SIZE(pmic_reguls));
 
-	res = regulator_register(pmic_reguls + i, node);
+	res = parse_properties(fdt, pmic_reguls + i, node);
 	if (res)
+		EMSG("Failed to parse properties for %s", regu_name);
+
+	res = regulator_register(pmic_reguls + i, node);
+	if (res) {
 		EMSG("Failed to register %s, error: %#"PRIx32, regu_name, res);
+		return res;
+	}
 
 	return res;
 }
