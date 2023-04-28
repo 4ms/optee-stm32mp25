@@ -14,6 +14,7 @@ properties:
     enum:
       - st,stm32-tamp
       - st,stm32mp13-tamp
+      - st,stm32mp25-tamp
 
   reg:
     maxItems: 1
