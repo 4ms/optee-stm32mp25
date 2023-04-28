@@ -1,8 +1,12 @@
 flavor_dts_file-257F_DK = stm32mp257f-dk.dts
-flavor_dts_file-257F_EV = stm32mp257f-ev.dts
+flavor_dts_file-257F_EV1 = stm32mp257f-ev.dts
+flavor_dts_file-257F_EV_REV_B = stm32mp257f-ev-revB.dts
 
 flavorlist-MP25 = $(flavor_dts_file-257F_DK) \
-		  $(flavor_dts_file-257F_EV)
+		  $(flavor_dts_file-257F_EV) \
+		  $(flavor_dts_file-257F_EV_REV_B)
+
+flavorlist-MP25-REV-A-B = $(flavor_dts_file-257F_EV_REV_B)
 
 ifneq ($(PLATFORM_FLAVOR),)
 ifeq ($(flavor_dts_file-$(PLATFORM_FLAVOR)),)
@@ -11,7 +15,7 @@ endif
 CFG_EMBED_DTB_SOURCE_FILE ?= $(flavor_dts_file-$(PLATFORM_FLAVOR))
 endif
 
-ifneq ($(filter $(CFG_EMBED_DTB_SOURCE_FILE),$(flavorlist-MP25)),)
+ifneq ($(filter $(CFG_EMBED_DTB_SOURCE_FILE),$(flavorlist-MP25) $(flavorlist-MP25-REV-A-B)),)
 $(call force,CFG_STM32MP25,y)
 endif
 
@@ -95,7 +99,10 @@ CFG_STM32_EARLY_CONSOLE_UART ?= 2
 CFG_EXTERNAL_DT ?= n
 
 # Enable if board is Rev.A
-CFG_STM32MP25x_REVA ?= y
+ifneq ($(filter $(CFG_EMBED_DTB_SOURCE_FILE),$(flavorlist-MP25-REV-A-B)),)
+$(call force,CFG_STM32MP25x_REVA,y)
+endif
+CFG_STM32MP25x_REVA ?= n
 
 # Default enable HWRNG PTA support
 CFG_HWRNG_PTA ?= y
