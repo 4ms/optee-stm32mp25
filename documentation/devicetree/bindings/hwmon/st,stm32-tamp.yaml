@@ -61,6 +61,16 @@ properties:
       are low.
     type: boolean
 
+  st,backup-zones:
+    description: Defines the topology of the backup registers zones. The number of zones and their
+                 access restrictions varies from one platform to another.
+                 For STM32MP1x platforms, it corresponds to
+                 <zone1 zone1 zone3>
+                 For STM32MP2x platforms, it corresponds to
+                 <zone1-rif1 zone1-rif2 zone2-rif1 zone2-rif2 zone3-rif1 zone3-rif0 zone3-rif2>;
+    minItems: 1
+    maxItems: 7
+
 patternProperties:
   "^tamp_passive@[0-9]+$":
     description: Describe the passive tamper with its allocated pinctrl.
