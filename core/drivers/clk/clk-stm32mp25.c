@@ -19,6 +19,7 @@
 #include <kernel/dt.h>
 #include <mm/core_memprot.h>
 #include <stdio.h>
+#include <stm32_sysconf.h>
 #include <stm32_util.h>
 
 #include "clk-stm32-core.h"
@@ -184,6 +185,7 @@ struct stm32_clk_platdata {
 	uint32_t nflexgen;
 	uint32_t *flexgen;
 	uint32_t c1msrd;
+	bool safe_rst;
 	struct rif_conf_data conf_data;
 	unsigned int nb_res;
 };
@@ -1332,6 +1334,9 @@ static int stm32_clk_parse_fdt(const void *fdt, int node,
 		return err;
 
 	pdata->c1msrd = _fdt_read_uint32_default(fdt, node, "st,c1msrd", 0);
+
+	pdata->safe_rst = fdt_getprop(fdt, node, "st,safe_rst",
+				      NULL) ? true : false;
 
 	pdata->rcc_base = stm32_rcc_base();
 
@@ -3647,6 +3652,9 @@ static TEE_Result clk_stm32_apply_rcc_config(struct stm32_clk_platdata *pdata)
 {
 	io_write32(pdata->rcc_base + RCC_C1MSRDCR, pdata->c1msrd &
 		   RCC_C1MSRDCR_C1MSRD_MASK);
+
+	if (pdata->safe_rst)
+		stm32mp25_syscfg_set_safe_reset(true);
 
 	return TEE_SUCCESS;
 }
