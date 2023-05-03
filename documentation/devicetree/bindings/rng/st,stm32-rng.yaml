@@ -18,8 +18,9 @@ properties:
     oneOf:
       - items:
         - enum:
+            - st,stm32-rng
             - st,stm32mp13-rng
-        - const: st,stm32-rng
+            - st,stm32mp25-rng
 
   reg:
     maxItems: 1
