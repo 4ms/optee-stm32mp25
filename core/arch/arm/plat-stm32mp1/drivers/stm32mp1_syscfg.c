@@ -157,8 +157,6 @@ static void disable_io_compensation(int cmpcr_offset)
 	io_setbits32(cmpcr_base + CMPENCLRR_OFFSET, SYSCFG_CMPENSETR_MPU_EN);
 }
 
-static bool iocomp_enabled;
-
 TEE_Result stm32mp_syscfg_erase_sram3(void)
 {
 	vaddr_t base = get_syscfg_base();
@@ -192,50 +190,22 @@ TEE_Result stm32mp_syscfg_erase_sram3(void)
 	return TEE_SUCCESS;
 }
 
-void stm32mp_syscfg_enable_io_compensation(void)
+static TEE_Result stm32mp_syscfg_enable_io_compensation(void)
 {
-	if (iocomp_enabled)
-		return;
-
 	if (clk_enable(stm32mp_rcc_clock_id_to_clk(CK_CSI)) ||
 	    clk_enable(stm32mp_rcc_clock_id_to_clk(SYSCFG)))
 		panic();
 
 	enable_io_compensation(SYSCFG_CMPCR);
-
 	if (IS_ENABLED(CFG_STM32MP13)) {
 		enable_io_compensation(SYSCFG_CMPSD1CR);
 		enable_io_compensation(SYSCFG_CMPSD2CR);
 	}
 
-	iocomp_enabled = true;
-}
-
-void stm32mp_syscfg_disable_io_compensation(void)
-{
-	if (!iocomp_enabled)
-		return;
-
-	disable_io_compensation(SYSCFG_CMPCR);
-
-	if (IS_ENABLED(CFG_STM32MP13)) {
-		disable_io_compensation(SYSCFG_CMPSD1CR);
-		disable_io_compensation(SYSCFG_CMPSD2CR);
-	}
-
-	clk_disable(stm32mp_rcc_clock_id_to_clk(CK_CSI));
-	clk_disable(stm32mp_rcc_clock_id_to_clk(SYSCFG));
-
-	iocomp_enabled = false;
-}
-
-static TEE_Result stm32mp1_iocomp(void)
-{
-	stm32mp_syscfg_enable_io_comp();
-
 	return TEE_SUCCESS;
 }
-driver_init(stm32mp1_iocomp);
+
+driver_init(stm32mp_syscfg_enable_io_compensation);
 
 void stm32mp_set_io_comp_by_index(uint32_t index, bool state)
 {
