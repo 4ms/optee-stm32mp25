@@ -32,15 +32,23 @@
 #define RNG_CR_RNGEN		BIT(2)
 #define RNG_CR_IE		BIT(3)
 #define RNG_CR_CED		BIT(5)
+#define RNG_CR_CONFIG1		GENMASK_32(11, 8)
+#define RNG_CR_NISTC		BIT(12)
+#define RNG_CR_CONFIG2		GENMASK_32(15, 13)
 #define RNG_CR_CLKDIV		GENMASK_32(19, 16)
 #define RNG_CR_CLKDIV_SHIFT	U(16)
+#define RNG_CR_CONFIG3		GENMASK_32(25, 20)
 #define RNG_CR_CONDRST		BIT(30)
+#define RNG_CR_ENTROPY_SRC_MASK	(RNG_CR_CONFIG1 | RNG_CR_NISTC | \
+				 RNG_CR_CONFIG2 | RNG_CR_CONFIG3)
 
 #define RNG_SR_DRDY		BIT(0)
 #define RNG_SR_CECS		BIT(1)
 #define RNG_SR_SECS		BIT(2)
 #define RNG_SR_CEIS		BIT(5)
 #define RNG_SR_SEIS		BIT(6)
+
+#define RNG_NSCR_MASK		GENMASK_32(17, 0)
 
 #if TRACE_LEVEL > TRACE_DEBUG
 #define RNG_READY_TIMEOUT_US	U(100000)
@@ -50,16 +58,8 @@
 #define RNG_RESET_TIMEOUT_US	U(1000)
 
 #define RNG_FIFO_BYTE_DEPTH	U(16)
+#define RNG_CONF_LEN		U(3)
 
-#define RNG_NIST_CONFIG_A	U(0x0F00F00)
-#define RNG_HEALTH_CONFIG_A	U(0xAB39)
-#define RNG_NOISE_CTRL_CONFIG_A	U(0x0492)
-#define RNG_NIST_CONFIG_B	U(0x1801000)
-#define RNG_HEALTH_CONFIG_B	U(0xAAC7)
-#define RNG_NOISE_CTRL_CONFIG_B	U(0x3FFFF)
-#define RNG_NIST_CONFIG_C	U(0x0F00D00)
-#define RNG_HEALTH_CONFIG_C	U(0xAAC7)
-#define RNG_NOISE_CTRL_CONFIG_C	U(0x3FFFF)
 #define RNG_NIST_CONFIG_MASK	GENMASK_32(25, 8)
 
 #ifdef CFG_STM32MP25
@@ -70,6 +70,7 @@
 
 struct stm32_rng_driver_data {
 	bool has_cond_reset;
+	bool entropy_src_config;
 };
 
 struct stm32_rng_instance {
@@ -488,7 +489,7 @@ static TEE_Result stm32_rng_parse_fdt(const void *fdt, int node)
 	TEE_Result res = TEE_ERROR_GENERIC;
 	const fdt32_t *cuint = NULL;
 	struct dt_node_info dt_rng = { };
-	unsigned int config_id = 0;
+	int len = 0;
 
 	_fdt_fill_device_info(fdt, &dt_rng, node);
 	if (dt_rng.reg == DT_INFO_INVALID_REG)
@@ -514,40 +515,29 @@ static TEE_Result stm32_rng_parse_fdt(const void *fdt, int node)
 	stm32_rng->release_post_boot = IS_ENABLED(CFG_WITH_SOFTWARE_PRNG) &&
 				       !IS_ENABLED(CFG_PM);
 
-	if (!stm32_rng->ddata->has_cond_reset)
-		goto end;
+	if (!stm32_rng->ddata->entropy_src_config)
+		return TEE_SUCCESS;
 
-	cuint = fdt_getprop(fdt, node, "st,rng-config", NULL);
+	cuint = fdt_getprop(fdt, node, "st,rng-entropy-source-config", &len);
 	if (!cuint) {
-		IMSG("No RNG configuration specified, defaulting to NIST B");
-		stm32_rng->rng_config = RNG_NIST_CONFIG_B;
-		stm32_rng->health_test_conf = RNG_HEALTH_CONFIG_B;
-		stm32_rng->noise_ctrl_conf = RNG_NOISE_CTRL_CONFIG_B;
-		goto end;
+		if (len != -FDT_ERR_NOTFOUND)
+			panic();
+
+		IMSG("No RNG configuration specified, preserving default one");
+
+		return TEE_SUCCESS;
+	} else if (len / sizeof(uint32_t) != RNG_CONF_LEN) {
+		panic("Incorrect number of arguments for RNG configuration");
 	}
 
-	config_id = (unsigned int)fdt32_to_cpu(*cuint);
-	switch (config_id) {
-	case 0:
-		stm32_rng->rng_config = RNG_NIST_CONFIG_A;
-		stm32_rng->health_test_conf = RNG_HEALTH_CONFIG_A;
-		stm32_rng->noise_ctrl_conf = RNG_NOISE_CTRL_CONFIG_A;
-		break;
-	case 1:
-		stm32_rng->rng_config = RNG_NIST_CONFIG_B;
-		stm32_rng->health_test_conf = RNG_HEALTH_CONFIG_B;
-		stm32_rng->noise_ctrl_conf = RNG_NOISE_CTRL_CONFIG_B;
-		break;
-	case 2:
-		stm32_rng->rng_config = RNG_NIST_CONFIG_C;
-		stm32_rng->health_test_conf = RNG_HEALTH_CONFIG_C;
-		stm32_rng->noise_ctrl_conf = RNG_NOISE_CTRL_CONFIG_C;
-		break;
-	default:
-		panic("RNG config not supported");
-	}
+	stm32_rng->rng_config = fdt32_to_cpu(cuint[0]);
+	if (stm32_rng->rng_config & ~RNG_CR_ENTROPY_SRC_MASK)
+		panic("Incorrect entropy source configuration");
+	stm32_rng->health_test_conf = fdt32_to_cpu(cuint[1]);
+	stm32_rng->noise_ctrl_conf = fdt32_to_cpu(cuint[2]);
+	if (stm32_rng->noise_ctrl_conf & ~RNG_NSCR_MASK)
+		panic("Incorrect noise source control configuration");
 
-end:
 	return TEE_SUCCESS;
 }
 
@@ -609,11 +599,11 @@ err:
 }
 
 static const struct stm32_rng_driver_data mp13_data[] = {
-	{ .has_cond_reset = true },
+	{ .has_cond_reset = true, .entropy_src_config = true },
 };
 
 static const struct stm32_rng_driver_data mp15_data[] = {
-	{ .has_cond_reset = false },
+	{ .has_cond_reset = false, .entropy_src_config = false },
 };
 DECLARE_KEEP_PAGER(mp15_data);
 
