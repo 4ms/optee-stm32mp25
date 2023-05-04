@@ -576,7 +576,7 @@
 &rng {
 	status = "okay";
 	clock-error-detect;
-	st,rng-config = <RNG_CONFIG_NIST_B_ID>;
+	st,rng-entropy-source-config = <0x1801000 0xAAC7 0x3FFFF>;
 };
 
 &rtc {
