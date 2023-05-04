@@ -197,10 +197,6 @@ static TEE_Result stm32mp_syscfg_enable_io_compensation(void)
 		panic();
 
 	enable_io_compensation(SYSCFG_CMPCR);
-	if (IS_ENABLED(CFG_STM32MP13)) {
-		enable_io_compensation(SYSCFG_CMPSD1CR);
-		enable_io_compensation(SYSCFG_CMPSD2CR);
-	}
 
 	return TEE_SUCCESS;
 }
