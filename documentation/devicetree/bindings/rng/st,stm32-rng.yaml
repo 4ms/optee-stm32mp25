@@ -34,8 +34,15 @@ properties:
   clock-error-detect:
     description: If set enable the clock detection management
 
-  st,rng-config:
-    description: RNG configuration ID. Must be set at board level.
+  st,rng-entropy-source-config:
+    description: RNG entropy source configuration that can be NIST certified
+                 (refer to the SoC reference manual). It must be set at board
+                 level. First argument is the RNG_CR configuration related
+                 to bitfields RNG_CONFIG3, NISTC (NIST custom), RNG_CONFIG2
+                 and RNG_CONFIG1. The second is the health test control
+                 configuration in RNG_HTCR and the third is the noise source
+                 control configuration in RNG_NSCR.
+    const: 3
 
 required:
   - compatible
