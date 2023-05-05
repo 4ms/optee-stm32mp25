@@ -135,6 +135,7 @@ static void disable_io_compensation(int cmpcr_offset)
 {
 	vaddr_t cmpcr_base = get_syscfg_base() + cmpcr_offset;
 	uint32_t value_cmpcr = 0;
+	uint32_t apsrc_ansrc = 0;
 	uint32_t value_cmpcr2 = 0;
 
 	value_cmpcr = io_read32(cmpcr_base);
@@ -143,12 +144,10 @@ static void disable_io_compensation(int cmpcr_offset)
 	      value_cmpcr2 & SYSCFG_CMPENSETR_MPU_EN))
 		return;
 
-	value_cmpcr = io_read32(cmpcr_base) >> SYSCFG_CMPCR_ANSRC_SHIFT;
-
-	io_clrbits32(cmpcr_base, SYSCFG_CMPCR_RANSRC | SYSCFG_CMPCR_RAPSRC);
-
-	value_cmpcr <<= SYSCFG_CMPCR_RANSRC_SHIFT;
-	value_cmpcr |= io_read32(cmpcr_base);
+	/* copy apsrc / ansrc in ransrc /rapsrc */
+	apsrc_ansrc = value_cmpcr >> SYSCFG_CMPCR_ANSRC_SHIFT;
+	value_cmpcr &= ~(SYSCFG_CMPCR_RANSRC | SYSCFG_CMPCR_RAPSRC);
+	value_cmpcr |= apsrc_ansrc << SYSCFG_CMPCR_RANSRC_SHIFT;
 
 	io_write32(cmpcr_base, value_cmpcr | SYSCFG_CMPCR_SW_CTRL);
 
