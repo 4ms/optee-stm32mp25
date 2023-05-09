@@ -3581,7 +3581,6 @@ static bool clk_stm32_clock_is_critical(__maybe_unused struct clk *clk)
 		&ck_icn_hsl,
 		&ck_icn_nic,
 		&ck_icn_vid,
-		&ck_icn_m_gpu,
 		&ck_ker_sdmmc2,
 		&ck_ker_adf1,
 		&ck_icn_p_syscpu1,
