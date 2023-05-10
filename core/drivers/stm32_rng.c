@@ -28,6 +28,7 @@
 #define RNG_DR			U(0x08)
 #define RNG_NSCR		U(0x0C)
 #define RNG_HTCR		U(0x10)
+#define RNG_VERR		U(0x3F4)
 
 #define RNG_CR_RNGEN		BIT(2)
 #define RNG_CR_IE		BIT(3)
@@ -50,6 +51,10 @@
 #define RNG_SR_SEIS		BIT(6)
 
 #define RNG_NSCR_MASK		GENMASK_32(17, 0)
+
+#define RNG_VERR_MINOR_MASK	GENMASK_32(3, 0)
+#define RNG_VERR_MAJOR_MASK	GENMASK_32(7, 4)
+#define RNG_VERR_MAJOR_SHIFT	U(4)
 
 #if TRACE_LEVEL > TRACE_DEBUG
 #define RNG_READY_TIMEOUT_US	U(100000)
@@ -601,6 +606,7 @@ static TEE_Result stm32_rng_probe(const void *fdt, int offs,
 				  const void *compat_data)
 {
 	TEE_Result res = TEE_ERROR_GENERIC;
+	unsigned int __maybe_unused version = 0;
 
 	/* Expect a single RNG instance */
 	assert(!stm32_rng);
@@ -619,6 +625,11 @@ static TEE_Result stm32_rng_probe(const void *fdt, int offs,
 	res = clk_enable(stm32_rng->clock);
 	if (res)
 		goto err;
+
+	version = io_read32(get_base() + RNG_VERR);
+	DMSG("RNG version Major %u, Minor %u",
+	     (version & RNG_VERR_MAJOR_MASK) >> RNG_VERR_MAJOR_SHIFT,
+	     version & RNG_VERR_MINOR_MASK);
 
 	if (stm32_rng->rstctrl &&
 	    rstctrl_assert_to(stm32_rng->rstctrl, RNG_RESET_TIMEOUT_US))
