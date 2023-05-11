@@ -443,10 +443,10 @@ static TEE_Result stm32_rng_pm_resume(void)
 
 	if (stm32_rng->ddata->has_cond_reset) {
 		/*
-		 * Correct configuration in bits [29:4] must be set in the same
-		 * access that set RNG_CR_CONDRST bit. Else config setting is
-		 * not taken into account. CONFIGLOCK bit must also be unset but
-		 * it is not handled at the moment.
+		 * Configuration must be set in the same access that sets
+		 * RNG_CR_CONDRST bit. Otherwise, the configuration setting is
+		 * not taken into account. CONFIGLOCK bit is always cleared in
+		 * this configuration.
 		 */
 		io_write32(rng_base + RNG_CR,
 			   stm32_rng->pm_cr | RNG_CR_CONDRST);
