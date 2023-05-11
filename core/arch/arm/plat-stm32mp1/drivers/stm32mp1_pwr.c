@@ -156,26 +156,6 @@ static struct regul_desc stm32mp1_pwr_regs[] = {
 DECLARE_KEEP_PAGER(stm32mp1_pwr_regs);
 
 #ifdef CFG_EMBED_DTB
-static void enable_sd_io(uint32_t enable_mask, uint32_t ready_mask,
-			 uint32_t valid_mask)
-{
-	uintptr_t cr3 = stm32_pwr_base() + PWR_CR3_OFF;
-	uint64_t to = timeout_init_us(TIMEOUT_US_10MS);
-
-	io_setbits32(cr3, enable_mask);
-
-	while (!timeout_elapsed(to))
-		if (io_read32(cr3) & ready_mask)
-			break;
-
-	if (!(io_read32(cr3) & ready_mask))
-		DMSG("timeout during enable sd io for %#"PRIx32, enable_mask);
-
-	/* Disable voltage detector and keep the IOs powered */
-	io_setbits32(cr3, valid_mask);
-	io_clrbits32(cr3, enable_mask);
-}
-
 static TEE_Result stm32mp1_pwr_regu_probe(const void *fdt, int node,
 					  const void *compat_data __unused)
 {
@@ -200,13 +180,6 @@ static TEE_Result stm32mp1_pwr_regu_probe(const void *fdt, int node,
 				break;
 			}
 		}
-	}
-
-	if (IS_ENABLED(CFG_STM32MP13)) {
-		enable_sd_io(PWR_CR3_VDDSD1EN, PWR_CR3_VDDSD1RDY,
-			     PWR_CR3_VDDSD1VALID);
-		enable_sd_io(PWR_CR3_VDDSD2EN, PWR_CR3_VDDSD2RDY,
-			     PWR_CR3_VDDSD2VALID);
 	}
 
 	if (fdt_getprop(fdt, node, "st,enable-vbat-charge", NULL)) {
