@@ -60,7 +60,8 @@
 #define RNG_FIFO_BYTE_DEPTH	U(16)
 #define RNG_CONF_LEN		U(3)
 
-#define RNG_NIST_CONFIG_MASK	GENMASK_32(25, 8)
+#define RNG_CONFIG_MASK		(RNG_CR_ENTROPY_SRC_MASK | RNG_CR_CED | \
+				 RNG_CR_CLKDIV)
 
 #ifdef CFG_STM32MP25
 #define RNG_MAX_NOISE_CLK_FREQ	U(48000000)
@@ -293,11 +294,23 @@ static TEE_Result init_rng(void)
 	if (stm32_rng->ddata->has_cond_reset) {
 		uint32_t clock_div = stm32_rng_clock_freq_restrain();
 
-		/* Update configuration fields */
-		io_clrsetbits32(rng_base + RNG_CR, RNG_NIST_CONFIG_MASK,
+		/*
+		 * Keep default RNG configuration if none was specified.
+		 * 0 is an invalid value as it disables all entropy sources.
+		 */
+		if (!stm32_rng->rng_config)
+			stm32_rng->rng_config = io_read32(rng_base + RNG_CR) &
+						RNG_CR_ENTROPY_SRC_MASK;
+
+		/*
+		 * Configuration must be set in the same access that sets
+		 * RNG_CR_CONDRST bit. Otherwise, the configuration setting is
+		 * not taken into account. CONFIGLOCK bit is always cleared at
+		 * this stage.
+		 */
+		io_clrsetbits32(rng_base + RNG_CR, RNG_CONFIG_MASK,
 				stm32_rng->rng_config | RNG_CR_CONDRST |
-				cr_ced_mask);
-		io_clrsetbits32(rng_base + RNG_CR, RNG_CR_CLKDIV,
+				cr_ced_mask |
 				(clock_div << RNG_CR_CLKDIV_SHIFT));
 
 		/*
