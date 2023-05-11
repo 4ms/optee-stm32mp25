@@ -34,6 +34,7 @@
 #define RNG_CR_CED		BIT(5)
 #define RNG_CR_CONFIG1		GENMASK_32(11, 8)
 #define RNG_CR_NISTC		BIT(12)
+#define RNG_CR_POWER_OPTIM	BIT(13)
 #define RNG_CR_CONFIG2		GENMASK_32(15, 13)
 #define RNG_CR_CLKDIV		GENMASK_32(19, 16)
 #define RNG_CR_CLKDIV_SHIFT	U(16)
@@ -70,6 +71,7 @@
 #endif
 
 struct stm32_rng_driver_data {
+	bool has_power_optim;
 	bool has_cond_reset;
 	bool entropy_src_config;
 };
@@ -466,9 +468,35 @@ static TEE_Result stm32_rng_pm_resume(void)
 
 static TEE_Result stm32_rng_pm_suspend(void)
 {
-	stm32_rng->pm_cr = io_read32(get_base() + RNG_CR);
-	stm32_rng->pm_health = io_read32(get_base() + RNG_HTCR);
-	stm32_rng->pm_noise_ctrl = io_read32(get_base() + RNG_NSCR);
+	vaddr_t rng_base = get_base();
+
+	stm32_rng->pm_cr = io_read32(rng_base + RNG_CR);
+
+	if (stm32_rng->ddata->has_cond_reset) {
+		stm32_rng->pm_health = io_read32(rng_base + RNG_HTCR);
+		stm32_rng->pm_noise_ctrl = io_read32(rng_base + RNG_NSCR);
+	}
+
+	if (stm32_rng->ddata->has_power_optim) {
+		uint64_t timeout_ref = 0;
+
+		/*
+		 * As per reference manual, it is recommended to set
+		 * RNG_CONFIG2[bit0] when RNG power consumption is critical.
+		 */
+		io_setbits32(rng_base + RNG_CR, RNG_CR_POWER_OPTIM |
+				RNG_CR_CONDRST);
+		io_clrbits32(rng_base + RNG_CR, RNG_CR_CONDRST);
+
+		timeout_ref = timeout_init_us(RNG_READY_TIMEOUT_US);
+		while ((io_read32(rng_base + RNG_CR) & RNG_CR_CONDRST))
+			if (timeout_elapsed(timeout_ref))
+				break;
+		if ((io_read32(rng_base + RNG_CR) & RNG_CR_CONDRST))
+			panic();
+	} else {
+		io_clrbits32(rng_base + RNG_CR, RNG_CR_RNGEN);
+	}
 
 	return TEE_SUCCESS;
 }
@@ -600,6 +628,10 @@ static TEE_Result stm32_rng_probe(const void *fdt, int offs,
 			stm32mp_register_secure_periph_iomem(base_pa);
 	}
 
+	/* Power management implementation expects both or none are set */
+	assert(stm32_rng->ddata->has_power_optim ==
+	       stm32_rng->ddata->has_cond_reset);
+
 	register_pm_core_service_cb(stm32_rng_pm, &stm32_rng, "rng-service");
 
 	return TEE_SUCCESS;
@@ -612,17 +644,34 @@ err:
 }
 
 static const struct stm32_rng_driver_data mp13_data[] = {
-	{ .has_cond_reset = true, .entropy_src_config = true },
+	{
+		.has_cond_reset = true,
+		.entropy_src_config = true,
+		.has_power_optim = true,
+	},
 };
 
 static const struct stm32_rng_driver_data mp15_data[] = {
-	{ .has_cond_reset = false, .entropy_src_config = false },
+	{
+		.has_cond_reset = false,
+		.entropy_src_config = false,
+		.has_power_optim = false,
+	},
 };
 DECLARE_KEEP_PAGER(mp15_data);
+
+static const struct stm32_rng_driver_data mp25_data[] = {
+	{
+		.has_cond_reset = true,
+		.entropy_src_config = true,
+		.has_power_optim = true,
+	},
+};
 
 static const struct dt_device_match rng_match_table[] = {
 	{ .compatible = "st,stm32-rng", .compat_data = &mp15_data },
 	{ .compatible = "st,stm32mp13-rng", .compat_data = &mp13_data },
+	{ .compatible = "st,stm32mp25-rng", .compat_data = &mp25_data },
 	{ }
 };
 
