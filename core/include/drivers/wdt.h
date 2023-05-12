@@ -26,6 +26,8 @@ struct wdt_chip {
  * @ping:	The routine that sends a keepalive ping to the watchdog device.
  * @set_timeout:The routine that finds the load value that will reset system in
  * required timeout (in seconds).
+ * @get_timeleft:The routine that finds if the watchdog is already started and
+ * the time left (in seconds) before the watchdog timeouts.
  *
  * The wdt_ops structure contains a list of low-level operations
  * that control a watchdog device.
@@ -37,6 +39,8 @@ struct wdt_ops {
 	void (*stop)(struct wdt_chip *chip);
 	void (*ping)(struct wdt_chip *chip);
 	TEE_Result (*set_timeout)(struct wdt_chip *chip, unsigned long timeout);
+	TEE_Result (*get_timeleft)(struct wdt_chip *chip, bool *is_enabled,
+				   unsigned long *timeleft);
 };
 
 #ifdef CFG_WDT
@@ -80,6 +84,15 @@ static inline void watchdog_settimeout(unsigned long timeout)
 	if (wdt_chip)
 		wdt_chip->ops->set_timeout(wdt_chip, timeout);
 }
+
+static inline TEE_Result watchdog_gettimeleft(bool *is_enabled,
+					      unsigned long *timeleft)
+{
+	if (!wdt_chip || !wdt_chip->ops->get_timeleft)
+		return TEE_ERROR_NOT_SUPPORTED;
+
+	return wdt_chip->ops->get_timeleft(wdt_chip, is_enabled, timeleft);
+}
 #else
 static inline TEE_Result watchdog_register(struct wdt_chip *chip __unused)
 {
@@ -96,6 +109,11 @@ static inline void watchdog_start(void) {}
 static inline void watchdog_stop(void) {}
 static inline void watchdog_ping(void) {}
 static inline void watchdog_settimeout(unsigned long timeout __unused) {}
+static inline TEE_Result watchdog_gettimeleft(bool *is_enabled __unused,
+					      unsigned long *timeleft __unused)
+{
+	return TEE_ERROR_NOT_SUPPORTED;
+}
 #endif
 
 #ifdef CFG_WDT_SM_HANDLER

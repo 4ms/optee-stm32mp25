@@ -27,6 +27,8 @@ enum sm_handler_ret __wdt_sm_handler(struct thread_smc_args *args)
 	uint32_t exceptions = 0;
 	unsigned long min_timeout = 0;
 	unsigned long max_timeout = 0;
+	unsigned long timeleft = 0;
+	bool is_enabled = false;
 
 	switch (args->a1) {
 	case SMCWD_INIT:
@@ -73,6 +75,18 @@ enum sm_handler_ret __wdt_sm_handler(struct thread_smc_args *args)
 		break;
 	/* SMCWD_GET_TIMELEFT is optional */
 	case SMCWD_GET_TIMELEFT:
+		res = watchdog_gettimeleft(&is_enabled, &timeleft);
+		if (res == TEE_ERROR_NOT_SUPPORTED) {
+			args->a0 = PSCI_RET_NOT_SUPPORTED;
+		} else if (res) {
+			args->a0 = PSCI_RET_INTERNAL_FAILURE;
+		} else if (!is_enabled) {
+			args->a0 = PSCI_RET_DISABLED;
+		} else {
+			args->a0 = PSCI_RET_SUCCESS;
+			args->a1 = timeleft;
+		}
+		break;
 	default:
 		args->a0 = PSCI_RET_NOT_SUPPORTED;
 	}
