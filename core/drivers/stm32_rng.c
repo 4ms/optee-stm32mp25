@@ -317,7 +317,7 @@ static TEE_Result init_rng(void)
 
 		/*
 		 * Write health test and noise source control configuration
-		 * according to current RNG NIST configuration
+		 * according to current RNG entropy source configuration
 		 */
 		if (stm32_rng->noise_ctrl_conf)
 			io_write32(rng_base + RNG_NSCR, stm32_rng->noise_ctrl_conf);
