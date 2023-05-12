@@ -325,9 +325,15 @@ static TEE_Result init_rng(void)
 		if(stm32_rng->health_test_conf)
 			io_write32(rng_base + RNG_HTCR, stm32_rng->health_test_conf);
 
-		/* No need to wait for RNG_CR_CONDRST toggle as we enable clk */
 		io_clrsetbits32(rng_base + RNG_CR, RNG_CR_CONDRST,
 				RNG_CR_RNGEN);
+
+		timeout_ref = timeout_init_us(RNG_READY_TIMEOUT_US);
+		while ((io_read32(rng_base + RNG_CR) & RNG_CR_CONDRST))
+			if (timeout_elapsed(timeout_ref))
+				break;
+		if ((io_read32(rng_base + RNG_CR) & RNG_CR_CONDRST))
+			panic();
 
 		DMSG("RNG control register %#"PRIx32,
 		     io_read32(rng_base + RNG_CR));
@@ -444,6 +450,8 @@ static TEE_Result stm32_rng_pm_resume(void)
 	io_write32(rng_base + RNG_SR, 0);
 
 	if (stm32_rng->ddata->has_cond_reset) {
+		uint64_t timeout_ref = 0;
+
 		/*
 		 * Configuration must be set in the same access that sets
 		 * RNG_CR_CONDRST bit. Otherwise, the configuration setting is
@@ -459,6 +467,13 @@ static TEE_Result stm32_rng_pm_resume(void)
 
 		io_clrsetbits32(rng_base + RNG_CR, RNG_CR_CONDRST,
 				RNG_CR_RNGEN);
+
+		timeout_ref = timeout_init_us(RNG_READY_TIMEOUT_US);
+		while ((io_read32(rng_base + RNG_CR) & RNG_CR_CONDRST))
+			if (timeout_elapsed(timeout_ref))
+				break;
+		if ((io_read32(rng_base + RNG_CR) & RNG_CR_CONDRST))
+			panic();
 	} else {
 		io_write32(rng_base + RNG_CR, RNG_CR_RNGEN | stm32_rng->pm_cr);
 	}
