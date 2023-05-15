@@ -18,12 +18,14 @@
 #include <kernel/panic.h>
 #include <kernel/pm.h>
 #include <kernel/spinlock.h>
+#include <kernel/tee_time.h>
 #include <libfdt.h>
 #include <mm/core_memprot.h>
 #include <sm/sm.h>
 #include <stm32_util.h>
 #include <string.h>
 #include <trace.h>
+#include <utee_defines.h>
 
 /* IWDG Compatibility */
 #define IWDG_TIMEOUT_US		U(10000)
@@ -84,6 +86,7 @@
  * @flags - Property flags for the IWDG instance
  * @timeout - Watchdog elaspure timeout
  * @hw_version - Watchdog HW version
+ * @last_refresh - Time of last watchdog refresh
  * @wdt_chip - Wathcdog chip instance
  * @link - Link in registered watchdog instance list
  */
@@ -96,6 +99,7 @@ struct stm32_iwdg_device {
 	uint32_t flags;
 	unsigned long timeout;
 	unsigned int hw_version;
+	TEE_Time last_refresh;
 	struct wdt_chip wdt_chip;
 	SLIST_ENTRY(stm32_iwdg_device) link;
 };
@@ -218,6 +222,9 @@ static TEE_Result configure_timeout(struct stm32_iwdg_device *iwdg)
 
 static void iwdg_start(struct stm32_iwdg_device *iwdg)
 {
+	if (tee_time_get_sys_time(&iwdg->last_refresh))
+		panic();
+
 	io_write32(get_base(iwdg) + IWDG_KR_OFFSET, IWDG_KR_START_KEY);
 
 	iwdg_wdt_set_enabled(iwdg);
@@ -225,6 +232,9 @@ static void iwdg_start(struct stm32_iwdg_device *iwdg)
 
 static void iwdg_refresh(struct stm32_iwdg_device *iwdg)
 {
+	if (tee_time_get_sys_time(&iwdg->last_refresh))
+		panic();
+
 	io_write32(get_base(iwdg) + IWDG_KR_OFFSET, IWDG_KR_RELOAD_KEY);
 }
 
@@ -286,11 +296,43 @@ static TEE_Result iwdg_wdt_set_timeout(struct wdt_chip *chip,
 	return TEE_SUCCESS;
 }
 
+static TEE_Result iwdg_wdt_get_timeleft(struct wdt_chip *chip, bool *is_enabled,
+					unsigned long *timeleft)
+{
+	struct stm32_iwdg_device *iwdg = wdt_chip_to_iwdg(chip);
+	TEE_Result res = TEE_ERROR_GENERIC;
+	TEE_Time time = { };
+	TEE_Time now = { };
+
+	*is_enabled = iwdg_wdt_is_enabled(iwdg);
+
+	if (!*is_enabled) {
+		*timeleft = 0;
+		return TEE_SUCCESS;
+	}
+
+	res = tee_time_get_sys_time(&now);
+	if (res)
+		panic();
+
+	time.seconds = iwdg->timeout;
+	TEE_TIME_ADD(iwdg->last_refresh, time, time);
+	if (TEE_TIME_LE(time, now)) {
+		*timeleft = 0;
+	} else {
+		TEE_TIME_SUB(time, now, time);
+		*timeleft = time.seconds;
+	}
+
+	return TEE_SUCCESS;
+}
+
 static const struct wdt_ops stm32_iwdg_ops = {
 	.init = iwdg_wdt_init,
 	.start = iwdg_wdt_start,
 	.ping = iwdg_wdt_refresh,
 	.set_timeout = iwdg_wdt_set_timeout,
+	.get_timeleft = iwdg_wdt_get_timeleft,
 };
 DECLARE_KEEP_PAGER(stm32_iwdg_ops);
 
