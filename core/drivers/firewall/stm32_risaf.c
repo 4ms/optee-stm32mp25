@@ -119,8 +119,8 @@
 
 struct stm32_risaf_region {
 	uint32_t cfg;
-	uint32_t addr;
-	uint32_t len;
+	uintptr_t addr;
+	size_t len;
 };
 
 struct stm32_risaf_pdata {
@@ -131,8 +131,8 @@ struct stm32_risaf_pdata {
 	char risaf_name[20];
 #endif
 	unsigned int nregions;
-	uint32_t mem_base;
-	uint32_t mem_size;
+	uintptr_t mem_base;
+	size_t mem_size;
 	bool enc_supported;
 };
 
@@ -239,19 +239,18 @@ static TEE_Result check_region_address(struct stm32_risaf_instance *risaf,
 				       struct stm32_risaf_region *region)
 {
 	uint32_t granularity = 0;
-	uint32_t end_paddr = 0;
+	uintptr_t end_paddr = 0;
 
 	assert(region->len != 0U);
 
-	if (region->addr < (uint32_t)risaf->pdata.mem_base) {
+	if (region->addr < risaf->pdata.mem_base) {
 		EMSG("RISAF %#"PRIxPTR": region start address lower than memory base",
 		     risaf->pdata.base.pa);
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
 
 	/* Get physical end address */
-	end_paddr = (uint32_t)risaf->pdata.mem_base +
-		    (risaf->pdata.mem_size - 1U);
+	end_paddr = risaf->pdata.mem_base + (risaf->pdata.mem_size - 1U);
 	if (region->addr > end_paddr ||
 	    ((region->addr - 1U + region->len) > end_paddr)) {
 		EMSG("RISAF %#"PRIxPTR": start/end address higher than physical end",
@@ -275,8 +274,8 @@ static TEE_Result check_region_address(struct stm32_risaf_instance *risaf,
 
 static TEE_Result risaf_configure_region(struct stm32_risaf_instance *risaf,
 					 uint32_t region_id, uint32_t cfg,
-					 uint32_t cid_cfg, uint32_t saddr,
-					 uint32_t eaddr)
+					 uint32_t cid_cfg, uintptr_t saddr,
+					 uintptr_t eaddr)
 {
 	vaddr_t base = risaf_base(risaf);
 	uint32_t mask = risaf->ddata->mask_regions;
@@ -423,8 +422,8 @@ TEE_Result stm32_risaf_reconfigure(paddr_t base)
 			uint32_t cfg = _RISAF_GET_REGION_CFG(regions[i].cfg);
 			uint32_t cid_cfg =
 				_RISAF_GET_REGION_CID_CFG(regions[i].cfg);
-			uint32_t start_addr = regions[i].addr;
-			uint32_t end_addr = start_addr + regions[i].len - 1U;
+			uintptr_t start_addr = regions[i].addr;
+			uintptr_t end_addr = start_addr + regions[i].len - 1U;
 
 			if (risaf_configure_region(risaf, id, cfg, cid_cfg,
 						   start_addr, end_addr))
@@ -497,8 +496,8 @@ static TEE_Result stm32_risaf_probe(const void *fdt, int node,
 	if (!cuint)
 		panic();
 
-	risaf->pdata.mem_base = fdt32_to_cpu(*cuint);
-	risaf->pdata.mem_size = fdt32_to_cpu(*(cuint + 1));
+	risaf->pdata.mem_base = (uintptr_t)fdt32_to_cpu(*cuint);
+	risaf->pdata.mem_size = (size_t)fdt32_to_cpu(*(cuint + 1));
 
 	nregions = (unsigned int)len / sizeof(uint32_t);
 
@@ -514,20 +513,16 @@ static TEE_Result stm32_risaf_probe(const void *fdt, int node,
 		uint32_t id = 0;
 		uint32_t cfg = 0;
 		uint32_t cid_cfg = 0;
-		uint32_t start_addr = 0;
-		uint32_t end_addr = 0;
+		uintptr_t start_addr = 0;
+		uintptr_t end_addr = 0;
 
 		pnode =
 		fdt_node_offset_by_phandle(fdt, fdt32_to_cpu(*(conf_list + i)));
 		if (pnode < 0)
 			continue;
 
-		prop = fdt_getprop(fdt, pnode, "reg", NULL);
-		if (!prop)
-			continue;
-
-		regions[i].addr = fdt32_to_cpu(prop[0]);
-		regions[i].len = fdt32_to_cpu(prop[1]);
+		regions[i].addr = (uintptr_t)_fdt_reg_base_address(fdt, pnode);
+		regions[i].len = _fdt_reg_size(fdt, pnode);
 
 		if (!regions[i].len)
 			continue;
@@ -548,7 +543,7 @@ static TEE_Result stm32_risaf_probe(const void *fdt, int node,
 
 		regions[i].cfg = fdt32_to_cpu(*prop);
 
-		DMSG("RISAF %#"PRIxPTR": cfg 0x%08x - addr 0x%08x - len 0x%08x",
+		DMSG("RISAF %#"PRIxPTR": cfg 0x%08x - addr 0x%08lx - len 0x%08lx",
 		     risaf->pdata.base.pa, regions[i].cfg, regions[i].addr,
 		     regions[i].len);
 
