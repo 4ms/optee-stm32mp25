@@ -108,21 +108,13 @@ static vaddr_t get_base(struct stm32_iwdg_device *iwdg)
 	return io_pa_or_va(&iwdg->base, 1);
 }
 
-static uint32_t get_sr_val(struct stm32_iwdg_device *iwdg)
+static void iwdg_wdt_set_enabled(struct stm32_iwdg_device *iwdg)
 {
-	uint32_t sr = 0;
-	vaddr_t iwdg_base = get_base(iwdg);
-
-	sr = io_read32(iwdg_base + IWDG_SR_OFFSET);
-
-	return sr;
+	iwdg->flags |= IWDG_FLAGS_ENABLED;
 }
 
-static bool is_enable(struct stm32_iwdg_device *iwdg)
+static bool iwdg_wdt_is_enabled(struct stm32_iwdg_device *iwdg)
 {
-	if (iwdg->hw_version >= IWDG_ONF_MIN_VER)
-		return get_sr_val(iwdg) & IWDG_SR_ONF;
-
 	return iwdg->flags & IWDG_FLAGS_ENABLED;
 }
 
@@ -191,7 +183,7 @@ static TEE_Result configure_timeout(struct stm32_iwdg_device *iwdg)
 	uint32_t ewie_value = 0;
 	int early_timeout = iwdg->timeout - IWDG_ETIMEOUT_SEC;
 
-	assert(is_enable(iwdg));
+	assert(iwdg_wdt_is_enabled(iwdg));
 
 	rlr_value = iwdg_timeout_cnt(iwdg, iwdg->timeout);
 	if (!rlr_value)
@@ -228,7 +220,7 @@ static void iwdg_start(struct stm32_iwdg_device *iwdg)
 {
 	io_write32(get_base(iwdg) + IWDG_KR_OFFSET, IWDG_KR_START_KEY);
 
-	iwdg->flags |= IWDG_FLAGS_ENABLED;
+	iwdg_wdt_set_enabled(iwdg);
 }
 
 static void iwdg_refresh(struct stm32_iwdg_device *iwdg)
@@ -283,7 +275,7 @@ static TEE_Result iwdg_wdt_set_timeout(struct wdt_chip *chip,
 
 	iwdg->timeout = timeout;
 
-	if (is_enable(iwdg)) {
+	if (iwdg_wdt_is_enabled(iwdg)) {
 		TEE_Result res = TEE_ERROR_GENERIC;
 
 		res = configure_timeout(iwdg);
@@ -351,12 +343,16 @@ static TEE_Result stm32_iwdg_parse_fdt(struct stm32_iwdg_device *iwdg,
 	return TEE_SUCCESS;
 }
 
-static void iwdg_wdt_get_version(struct stm32_iwdg_device *iwdg)
+static void iwdg_wdt_get_version_and_status(struct stm32_iwdg_device *iwdg)
 {
 	vaddr_t iwdg_base = get_base(iwdg);
 
 	iwdg->hw_version = io_read32(iwdg_base + IWDG_VERR_OFFSET) &
 			   IWDG_VERR_REV_MASK;
+
+	if (iwdg->hw_version >= IWDG_ONF_MIN_VER &&
+	    io_read32(iwdg_base + IWDG_SR_OFFSET) & IWDG_SR_ONF)
+		iwdg_wdt_set_enabled(iwdg);
 }
 
 static TEE_Result stm32_iwdg_setup(struct stm32_iwdg_device *iwdg,
@@ -372,9 +368,9 @@ static TEE_Result stm32_iwdg_setup(struct stm32_iwdg_device *iwdg,
 	clk_enable(iwdg->clk_lsi);
 	clk_enable(iwdg->clk_pclk);
 
-	iwdg_wdt_get_version(iwdg);
+	iwdg_wdt_get_version_and_status(iwdg);
 
-	if (is_enable(iwdg)) {
+	if (iwdg_wdt_is_enabled(iwdg)) {
 		res = configure_timeout(iwdg);
 		if (res)
 			return res;
