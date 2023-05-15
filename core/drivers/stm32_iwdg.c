@@ -61,6 +61,8 @@
 #define IWDG_EWCR_EWIC		BIT(14)
 #define IWDG_EWCR_EWIT_MASK	GENMASK_32(11, 0)
 
+#define IWDG_VERR_REV_MASK	GENMASK_32(7, 0)
+
 /* Define default early timeout to 5 sec before timeout */
 #define IWDG_ETIMEOUT_SEC	U(5)
 
@@ -81,6 +83,7 @@
  * @irq - Interrupt number for the IWDG instance
  * @flags - Property flags for the IWDG instance
  * @timeout - Watchdog elaspure timeout
+ * @hw_version - Watchdog HW version
  * @wdt_chip - Wathcdog chip instance
  * @link - Link in registered watchdog instance list
  */
@@ -92,6 +95,7 @@ struct stm32_iwdg_device {
 	int irq;
 	uint32_t flags;
 	unsigned long timeout;
+	unsigned int hw_version;
 	struct wdt_chip wdt_chip;
 	SLIST_ENTRY(stm32_iwdg_device) link;
 };
@@ -116,12 +120,7 @@ static uint32_t get_sr_val(struct stm32_iwdg_device *iwdg)
 
 static bool is_enable(struct stm32_iwdg_device *iwdg)
 {
-	vaddr_t iwdg_base = get_base(iwdg);
-	uint32_t ver = 0;
-
-	ver = io_read32(iwdg_base + IWDG_VERR_OFFSET);
-
-	if (ver >= IWDG_ONF_MIN_VER)
+	if (iwdg->hw_version >= IWDG_ONF_MIN_VER)
 		return get_sr_val(iwdg) & IWDG_SR_ONF;
 
 	return iwdg->flags & IWDG_FLAGS_ENABLED;
@@ -352,6 +351,14 @@ static TEE_Result stm32_iwdg_parse_fdt(struct stm32_iwdg_device *iwdg,
 	return TEE_SUCCESS;
 }
 
+static void iwdg_wdt_get_version(struct stm32_iwdg_device *iwdg)
+{
+	vaddr_t iwdg_base = get_base(iwdg);
+
+	iwdg->hw_version = io_read32(iwdg_base + IWDG_VERR_OFFSET) &
+			   IWDG_VERR_REV_MASK;
+}
+
 static TEE_Result stm32_iwdg_setup(struct stm32_iwdg_device *iwdg,
 				   const void *fdt, int node)
 {
@@ -364,6 +371,8 @@ static TEE_Result stm32_iwdg_setup(struct stm32_iwdg_device *iwdg,
 	/* Enable watchdog source and bus clocks once for all */
 	clk_enable(iwdg->clk_lsi);
 	clk_enable(iwdg->clk_pclk);
+
+	iwdg_wdt_get_version(iwdg);
 
 	if (is_enable(iwdg)) {
 		res = configure_timeout(iwdg);
