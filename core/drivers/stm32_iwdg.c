@@ -189,12 +189,6 @@ static enum itr_return stm32_iwdg_it_handler(struct itr_handler *h)
 
 	clk_disable(iwdg->clock);
 
-	/*
-	 * Ack interrupt as we do not return from next call
-	 * and interrupt is no more considered as pending here.
-	 */
-	stm32mp_gic_set_end_of_interrupt(h->it);
-
 	panic("Watchdog");
 
 	return ITRR_HANDLED;
