@@ -31,6 +31,7 @@
 #define IWDG_TIMEOUT_US		U(10000)
 #define IWDG_CNT_MASK		GENMASK_32(11, 0)
 #define IWDG_ONF_MIN_VER	U(0x31)
+#define IWDG_ICR_MIN_VER	U(0x40)
 
 /* IWDG registers offsets */
 #define IWDG_KR_OFFSET		U(0x00)
@@ -38,6 +39,7 @@
 #define IWDG_RLR_OFFSET		U(0x08)
 #define IWDG_SR_OFFSET		U(0x0C)
 #define IWDG_EWCR_OFFSET	U(0x14)
+#define IWDG_ICR_OFFSET		U(0x18)
 #define IWDG_VERR_OFFSET	U(0x3F4)
 
 #define IWDG_KR_WPROT_KEY	U(0x0000)
@@ -58,10 +60,13 @@
 				 IWDG_SR_EWU)
 #define IWDG_SR_ONF		BIT(8)
 #define IWDG_SR_EWIF		BIT(14)
+#define IWDG_SR_EWIF_V40	BIT(15)
 
 #define IWDG_EWCR_EWIE		BIT(15)
 #define IWDG_EWCR_EWIC		BIT(14)
 #define IWDG_EWCR_EWIT_MASK	GENMASK_32(11, 0)
+
+#define IWDG_ICR_EWIC		BIT(15)
 
 #define IWDG_VERR_REV_MASK	GENMASK_32(7, 0)
 
@@ -106,6 +111,14 @@ struct stm32_iwdg_device {
 
 static SLIST_HEAD(iwdg_dev_list_head, stm32_iwdg_device) iwdg_dev_list =
 	SLIST_HEAD_INITIALIZER(iwdg_dev_list_head);
+
+static uint32_t sr_ewif_mask(struct stm32_iwdg_device *iwdg)
+{
+	if (iwdg->hw_version >= IWDG_ICR_MIN_VER)
+		return IWDG_SR_EWIF_V40;
+	else
+		return IWDG_SR_EWIF;
+}
 
 static vaddr_t get_base(struct stm32_iwdg_device *iwdg)
 {
@@ -161,7 +174,7 @@ static enum itr_return stm32_iwdg_it_handler(struct itr_handler *h)
 	DMSG("CPU %u IT Watchdog %#"PRIxPA, cpu, iwdg->base.pa);
 
 	/* Check for spurious interrupt */
-	if (!(io_read32(iwdg_base + IWDG_SR_OFFSET) & IWDG_SR_EWIF))
+	if (!(io_read32(iwdg_base + IWDG_SR_OFFSET) & sr_ewif_mask(iwdg)))
 		return ITRR_NONE;
 
 	/*
@@ -172,7 +185,10 @@ static enum itr_return stm32_iwdg_it_handler(struct itr_handler *h)
 	io_write32(iwdg_base + IWDG_KR_OFFSET, IWDG_KR_WPROT_KEY);
 
 	/* Disable early interrupt */
-	io_setbits32(iwdg_base + IWDG_EWCR_OFFSET, IWDG_EWCR_EWIC);
+	if (iwdg->hw_version >= IWDG_ICR_MIN_VER)
+		io_setbits32(iwdg_base + IWDG_ICR_OFFSET, IWDG_ICR_EWIC);
+	else
+		io_setbits32(iwdg_base + IWDG_EWCR_OFFSET, IWDG_EWCR_EWIC);
 
 	panic("Watchdog");
 
