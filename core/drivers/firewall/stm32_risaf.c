@@ -236,8 +236,9 @@ bool risaf_is_hw_encryption_enabled(struct stm32_risaf_instance *risaf)
 		_RISAF_SR_ENCDIS) != _RISAF_SR_ENCDIS;
 }
 
-static TEE_Result check_region_address(struct stm32_risaf_instance *risaf,
-				       struct stm32_risaf_region *region)
+static TEE_Result
+risaf_check_region_boundaries(struct stm32_risaf_instance *risaf,
+			      struct stm32_risaf_region *region)
 {
 	uintptr_t end_paddr = 0;
 
@@ -264,6 +265,30 @@ static TEE_Result check_region_address(struct stm32_risaf_instance *risaf,
 		EMSG("RISAF %#"PRIxPTR": start/end address granularity not respected",
 		     risaf->pdata.base.pa);
 		return TEE_ERROR_BAD_PARAMETERS;
+	}
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result risaf_check_overlap(struct stm32_risaf_instance *risaf,
+				      struct stm32_risaf_region *region,
+				      unsigned int index)
+{
+	unsigned int i = 0;
+
+	for (i = 0; i < index; i++) {
+		/* Skip region if there's no configuration */
+		if (!region[i].cfg)
+			continue;
+
+		if (core_is_buffer_intersect(region[index].addr,
+					     region[index].len,
+					     region[i].addr,
+					     region[i].len)) {
+			EMSG("RISAF %#"PRIxPTR": Regions %u and %u overlap",
+			     risaf->pdata.base.pa, index, i);
+			return TEE_ERROR_GENERIC;
+		}
 	}
 
 	return TEE_SUCCESS;
@@ -551,7 +576,8 @@ static TEE_Result stm32_risaf_probe(const void *fdt, int node,
 		     risaf->pdata.base.pa, regions[i].cfg, regions[i].addr,
 		     regions[i].len);
 
-		if (check_region_address(risaf, &regions[i]))
+		if (risaf_check_region_boundaries(risaf, &regions[i]) ||
+		    risaf_check_overlap(risaf, regions, i))
 			panic();
 
 		id = _RISAF_GET_REGION_ID(regions[i].cfg);
