@@ -339,18 +339,6 @@ void stm32_exit_cstop(void)
 }
 
 /*
- * GIC support required in low power sequences and reset sequences
- */
-#define GICC_EOIR			0x010
-
-void stm32mp_gic_set_end_of_interrupt(uint32_t it)
-{
-	vaddr_t gicc_base = get_gicc_base();
-
-	io_write32(gicc_base + GICC_EOIR, it);
-}
-
-/*
  * stm32_enter_cstop_shutdown - Shutdown CPUs to target low power mode
  * @mode - Target low power mode
  */
