@@ -346,13 +346,31 @@ static TEE_Result stm32_iwdg_parse_fdt(struct stm32_iwdg_device *iwdg,
 static void iwdg_wdt_get_version_and_status(struct stm32_iwdg_device *iwdg)
 {
 	vaddr_t iwdg_base = get_base(iwdg);
+	uint32_t rlr_value = 0;
 
 	iwdg->hw_version = io_read32(iwdg_base + IWDG_VERR_OFFSET) &
 			   IWDG_VERR_REV_MASK;
 
-	if (iwdg->hw_version >= IWDG_ONF_MIN_VER &&
-	    io_read32(iwdg_base + IWDG_SR_OFFSET) & IWDG_SR_ONF)
-		iwdg_wdt_set_enabled(iwdg);
+	if (iwdg->hw_version >= IWDG_ONF_MIN_VER) {
+		if (io_read32(iwdg_base + IWDG_SR_OFFSET) & IWDG_SR_ONF)
+			iwdg_wdt_set_enabled(iwdg);
+	} else {
+		/*
+		 * Workaround for old versions without IWDG_SR_ONF bit:
+		 * - write in IWDG_RLR_OFFSET
+		 * - wait for sync
+		 * - if sync succeeds, then iwdg is running
+		 */
+		io_write32(iwdg_base + IWDG_KR_OFFSET, IWDG_KR_ACCESS_KEY);
+
+		rlr_value = io_read32(iwdg_base + IWDG_RLR_OFFSET);
+		io_write32(iwdg_base + IWDG_RLR_OFFSET, rlr_value);
+
+		if (!iwdg_wait_sync(iwdg))
+			iwdg_wdt_set_enabled(iwdg);
+
+		io_write32(iwdg_base + IWDG_KR_OFFSET, IWDG_KR_WPROT_KEY);
+	}
 }
 
 static TEE_Result stm32_iwdg_setup(struct stm32_iwdg_device *iwdg,
