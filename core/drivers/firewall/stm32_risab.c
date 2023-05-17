@@ -11,8 +11,9 @@
 #include <drivers/stm32_risab.h>
 #include <dt-bindings/soc/stm32mp25-risab.h>
 #include <io.h>
-#include <kernel/dt.h>
 #include <kernel/boot.h>
+#include <kernel/dt.h>
+#include <kernel/pm.h>
 #include <libfdt.h>
 #include <mm/core_memprot.h>
 #include <platform_config.h>
@@ -462,6 +463,92 @@ static void set_vderam_syscfg(struct stm32_risab_pdata *risab_d)
 #endif /* CFG_STM32MP25x_REVA */
 }
 
+static TEE_Result stm32_risab_pm_resume(struct stm32_risab_pdata *risab)
+{
+	size_t i = 0;
+
+	if (is_tdcid) {
+		set_srswiad_conf(risab);
+		clean_iac_regs(risab);
+	}
+
+	for (i = 0; i < risab->nb_regions_cfged; i++) {
+		/* Restoring RISAB RIF configuration */
+		set_block_dprivcfgr(risab, i);
+
+		if (!regs_access_granted(risab, i))
+			continue;
+
+		set_cidcfgr(risab, i);
+
+		/*
+		 * This sequence will generate an IAC if the CID filtering
+		 * configuration is inconsistent with these desired rights
+		 * to apply.
+		 */
+		set_block_seccfgr(risab, i);
+		set_read_conf(risab, i);
+		set_write_conf(risab, i);
+		set_cid_priv_conf(risab, i);
+	}
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result stm32_risab_pm_suspend(struct stm32_risab_pdata *risab)
+{
+	size_t i = 0;
+
+	for (i = 0; i < risab->nb_regions_cfged; i++) {
+		size_t j = 0;
+		uintptr_t base = risab->base;
+		unsigned int first_page = risab->subr_cfg[i].first_page;
+
+		/* Save all configuration fields that need to be restored */
+		risab->subr_cfg[i].seccfgr =
+			io_read32(base + _RISAB_PGy_SECCFGR(first_page));
+		risab->subr_cfg[i].dprivcfgr =
+			io_read32(base + _RISAB_PGy_PRIVCFGR(first_page));
+		risab->subr_cfg[i].cidcfgr =
+			io_read32(base + _RISAB_PGy_CIDCFGR(first_page));
+
+		for (j = 0; j < RISAB_NB_MAX_CID_SUPPORTED; j++) {
+			risab->subr_cfg[i].rlist[j] =
+				io_read32(base + _RISAB_CIDxRDCFGR(j));
+			risab->subr_cfg[i].wlist[j] =
+				io_read32(base + _RISAB_CIDxWRCFGR(j));
+			risab->subr_cfg[i].plist[j] =
+				io_read32(base + _RISAB_CIDxPRIVCFGR(j));
+		}
+	}
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result
+stm32_risab_pm(enum pm_op op, unsigned int pm_hint,
+	       const struct pm_callback_handle *pm_handle)
+{
+	struct stm32_risab_pdata *risab = pm_handle->handle;
+	TEE_Result res = TEE_ERROR_GENERIC;
+
+	if (pm_hint != PM_HINT_CONTEXT_STATE || !is_tdcid)
+		return TEE_SUCCESS;
+
+	res = clk_enable(risab->clock);
+	if (res)
+		return res;
+
+	if (op == PM_OP_RESUME)
+		res = stm32_risab_pm_resume(risab);
+	else
+		res = stm32_risab_pm_suspend(risab);
+
+	clk_disable(risab->clock);
+
+	return res;
+}
+
 static TEE_Result stm32_risab_probe(const void *fdt, int node,
 				    const void *compat_data __maybe_unused)
 {
@@ -495,6 +582,10 @@ static TEE_Result stm32_risab_probe(const void *fdt, int node,
 	clk_disable(risab_d->clock);
 
 	SLIST_INSERT_HEAD(&risab_list, risab_d, link);
+
+	if (IS_ENABLED(CFG_PM))
+		register_pm_core_service_cb(stm32_risab_pm, risab_d,
+					    "stm32-risab");
 
 	return TEE_SUCCESS;
 
