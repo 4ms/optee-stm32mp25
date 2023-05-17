@@ -190,17 +190,26 @@
 			};
 
 			usart3: serial@400f0000 {
+				compatible = "st,stm32h7-uart";
 				reg = <0x400f0000 0x400>;
+				interrupts = <GIC_SPI 116 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&rcc CK_KER_USART3>;
 				status = "disabled";
 			};
 
 			uart4: serial@40100000 {
+				compatible = "st,stm32h7-uart";
 				reg = <0x40100000 0x400>;
+				interrupts = <GIC_SPI 126 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&rcc CK_KER_UART4>;
 				status = "disabled";
 			};
 
 			uart5: serial@40110000 {
+				compatible = "st,stm32h7-uart";
 				reg = <0x40110000 0x400>;
+				interrupts = <GIC_SPI 127 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&rcc CK_KER_UART5>;
 				status = "disabled";
 			};
 
@@ -227,27 +236,42 @@
 			};
 
 			usart6: serial@40220000 {
+				compatible = "st,stm32h7-uart";
 				reg = <0x40220000 0x400>;
+				interrupts = <GIC_SPI 136 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&rcc CK_KER_USART6>;
 				status = "disabled";
 			};
 
 			uart9: serial@402c0000 {
+				compatible = "st,stm32h7-uart";
 				reg = <0x402c0000 0x400>;
+				interrupts = <GIC_SPI 150 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&rcc CK_KER_UART9>;
 				status = "disabled";
 			};
 
 			usart1: serial@40330000 {
+				compatible = "st,stm32h7-uart";
 				reg = <0x40330000 0x400>;
+				interrupts = <GIC_SPI 114 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&rcc CK_KER_USART1>;
 				status = "disabled";
 			};
 
 			uart7: serial@40370000 {
+				compatible = "st,stm32h7-uart";
 				reg = <0x40370000 0x400>;
+				interrupts = <GIC_SPI 148 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&rcc CK_KER_UART7>;
 				status = "disabled";
 			};
 
 			uart8: serial@40380000 {
+				compatible = "st,stm32h7-uart";
 				reg = <0x40380000 0x400>;
+				interrupts = <GIC_SPI 149 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&rcc CK_KER_UART8>;
 				status = "disabled";
 			};
 
