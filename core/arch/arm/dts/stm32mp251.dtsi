@@ -310,7 +310,11 @@
 			};
 
 			hash: hash@42010000  {
+				compatible = "st,stm32mp13-hash";
 				reg = <0x42010000  0x400>;
+				interrupts = <GIC_SPI 145 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&rcc CK_BUS_HASH>;
+				resets = <&rcc HASH_R>;
 				status = "disabled";
 			};
 
