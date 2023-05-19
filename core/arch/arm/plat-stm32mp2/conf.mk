@@ -88,6 +88,7 @@ CFG_STM32_CRYP ?= y
 CFG_STM32_EXTI ?= y
 CFG_STM32_FMC ?= y
 CFG_STM32_GPIO ?= y
+CFG_STM32_HASH ?= y
 CFG_STM32_HPDMA ?= y
 CFG_STM32_HSEM ?= y
 CFG_STM32_I2C ?= y
@@ -123,6 +124,7 @@ CFG_EXTERNAL_DT ?= n
 
 # If any crypto driver is enabled, enable the crypto-framework layer
 ifeq ($(call cfg-one-enabled, CFG_STM32_CRYP \
+			      CFG_STM32_HASH \
 			      CFG_STM32_SAES ),y)
 $(call force,CFG_STM32_CRYPTO_DRIVER,y)
 endif
