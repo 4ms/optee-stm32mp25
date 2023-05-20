@@ -387,7 +387,9 @@ static TEE_Result parse_dt(const void *fdt, int node,
 		return TEE_ERROR_OUT_OF_MEMORY;
 
 	for (i = 0; i < risab_d->nb_regions_cfged; i++) {
-		unsigned int sub_region_offset = 0;
+		uintptr_t sub_region_offset = 0;
+		uintptr_t address = 0;
+		size_t length = 0;
 
 		mem_reg_node =
 		fdt_node_offset_by_phandle(fdt, fdt32_to_cpu(mem_regions[i]));
@@ -398,23 +400,19 @@ static TEE_Result parse_dt(const void *fdt, int node,
 		 * Get the reg property to determine the number of pages
 		 * to configure
 		 */
-		cuint = fdt_getprop(fdt, mem_reg_node, "reg", &lenp);
-		if (!cuint)
-			panic("Missing reg property in memory region");
-
-		assert((unsigned int)(lenp / sizeof(uint32_t)) == 2);
+		address = (uintptr_t)_fdt_reg_base_address(fdt, mem_reg_node);
+		length = _fdt_reg_size(fdt, mem_reg_node);
 
 		/*
 		 * Get the sub region offset and check if it is not out
 		 * of bonds
 		 */
-		sub_region_offset = (unsigned int)fdt32_to_cpu(cuint[0]) -
-				    risab_d->region_cfged.base;
+		sub_region_offset = address - risab_d->region_cfged.base;
 
 		assert(sub_region_offset < (risab_d->region_cfged.base +
 					    risab_d->region_cfged.size));
 
-		risab_d->subr_cfg[i].nb_pages_cfged = fdt32_to_cpu(cuint[1]) /
+		risab_d->subr_cfg[i].nb_pages_cfged = length /
 						      _RISAB_PAGE_SIZE;
 		if (!risab_d->subr_cfg[i].nb_pages_cfged)
 			panic("Range to configure is < to the size of a page");
