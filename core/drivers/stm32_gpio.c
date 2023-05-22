@@ -596,13 +596,12 @@ static TEE_Result add_pinctrl(const void *fdt, const int phandle,
 	return TEE_SUCCESS;
 }
 
-static __unused struct stm32_pinctrl_list
-*stm32_pinctrl_dt_get(struct dt_driver_phandle_args *args __maybe_unused,
-		      void *data, TEE_Result *res)
+static __unused struct stm32_pinctrl_list *
+stm32_pinctrl_dt_get(struct dt_pargs *args __maybe_unused, void *data,
+		     TEE_Result *res)
 {
 	struct stm32_pinctrl_list *list = NULL;
-	struct stm32_data_pinctrl *data_pin =
-		(struct stm32_data_pinctrl *)data;
+	struct stm32_data_pinctrl *data_pin = (struct stm32_data_pinctrl *)data;
 
 	*res = add_pinctrl(data_pin->fdt, data_pin->phandle, &list);
 	return list;

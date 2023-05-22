@@ -42,7 +42,7 @@ struct clk *pmc_clk_get_by_name(struct pmc_clk *clks, unsigned int nclk,
 	return NULL;
 }
 
-struct clk *clk_dt_pmc_get(struct dt_driver_phandle_args *clkspec, void *data,
+struct clk *clk_dt_pmc_get(struct dt_pargs *clkspec, void *data,
 			   TEE_Result *res)
 {
 	unsigned int type = clkspec->args[0];

@@ -602,7 +602,7 @@ struct clk *stm32mp_rcc_clock_id_to_clk(unsigned long clock_id)
 }
 #endif
 
-static struct clk *stm32mp_clk_dt_get_clk(struct dt_driver_phandle_args *pargs,
+static struct clk *stm32mp_clk_dt_get_clk(struct dt_pargs *pargs,
 					  void *data __unused, TEE_Result *res)
 {
 	unsigned long clock_id = pargs->args[0];

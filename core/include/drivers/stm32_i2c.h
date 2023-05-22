@@ -285,8 +285,8 @@ TEE_Result i2c_dt_get_by_subnode(const void *fdt, int subnode,
  * the devicetree description or NULL if invalid description in which case
  * @res provides the error code.
  */
-typedef struct i2c_handle_s *(*i2c_dt_get_func)
-	(struct dt_driver_phandle_args *a, void *data, TEE_Result *res);
+typedef struct i2c_handle_s *(*i2c_dt_get_func)(struct dt_pargs *a, void *data,
+						TEE_Result *res);
 
 /*
  * i2c_dt_register_provider - Register an i2c provider

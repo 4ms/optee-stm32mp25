@@ -337,8 +337,8 @@ static const char *dt_test_clk_name[DT_TEST_CLK_COUNT] = {
 /* Emulating a clock does not require operators */
 static const struct clk_ops dt_test_clock_provider_ops;
 
-static struct clk *dt_test_get_clk(struct dt_driver_phandle_args *args,
-				   void *data, TEE_Result *res)
+static struct clk *dt_test_get_clk(struct dt_pargs *args, void *data,
+				   TEE_Result *res)
 {
 	struct clk *clk_ref = data;
 	struct clk *clk = NULL;
@@ -460,8 +460,8 @@ const struct rstctrl_ops dt_test_rstctrl_ops = {
 	.get_name = dt_test_rstctrl_name,
 };
 
-static struct rstctrl *dt_test_get_rstctrl(struct dt_driver_phandle_args *args,
-					   void *data, TEE_Result *res)
+static struct rstctrl *dt_test_get_rstctrl(struct dt_pargs *args, void *data,
+					   TEE_Result *res)
 {
 	struct dt_test_rstctrl *ref = data;
 	struct rstctrl *rstctrl = NULL;

@@ -921,8 +921,8 @@ stm32_adc_pm(enum pm_op op, unsigned int pm_hint __unused,
 }
 
 static struct adc_consumer *
-stm32_adc_register_cons(struct dt_driver_phandle_args *pargs __unused,
-			void *data, TEE_Result *res)
+stm32_adc_register_cons(struct dt_pargs *pargs __unused, void *data,
+			TEE_Result *res)
 {
 	struct stm32_adc_data *adc = data;
 	struct adc_device *adc_dev = adc->dev;

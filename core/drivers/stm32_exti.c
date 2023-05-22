@@ -506,8 +506,8 @@ stm32_exti_pm(enum pm_op op, unsigned int pm_hint,
 #endif /* CFG_PM */
 
 static struct stm32_exti_pdata *
-stm32_exti_get_handle(struct dt_driver_phandle_args *pargs __unused,
-		      void *data, TEE_Result *res)
+stm32_exti_get_handle(struct dt_pargs *pargs __unused, void *data,
+		      TEE_Result *res)
 {
 	*res = TEE_SUCCESS;
 	return data;

@@ -219,8 +219,8 @@ struct rstctrl_ops stm32_rstctrl_clr_offset_ops = {
 };
 
 #ifdef CFG_EMBED_DTB
-static struct rstctrl *stm32_rstctrl_get_dev(struct dt_driver_phandle_args *arg,
-					     void *priv_data,
+static struct rstctrl *stm32_rstctrl_get_dev(struct dt_pargs *arg,
+					     void *priv_data __unused,
 					     TEE_Result *res)
 {
 	struct stm32_rstline *stm32_rstline = NULL;

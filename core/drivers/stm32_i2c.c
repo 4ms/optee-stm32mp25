@@ -1532,8 +1532,8 @@ void stm32_i2c_suspend(struct i2c_handle_s *hi2c)
 }
 
 static struct i2c_handle_s *
-stm32_get_i2c_handle(struct dt_driver_phandle_args *pargs __unused,
-		     void *data, TEE_Result *res)
+stm32_get_i2c_handle(struct dt_pargs *pargs __unused, void *data,
+		     TEE_Result *res)
 {
 	*res = TEE_SUCCESS;
 	return (struct i2c_handle_s *)data;

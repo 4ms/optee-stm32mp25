@@ -219,8 +219,8 @@ out:
 }
 
 static struct stm32_adc_common *
-stm32_adc_core_get_common_data(struct dt_driver_phandle_args *pargs __unused,
-			       void *data, TEE_Result *res)
+stm32_adc_core_get_common_data(struct dt_pargs *pargs __unused, void *data,
+			       TEE_Result *res)
 {
 	if (data)
 		*res = TEE_SUCCESS;
