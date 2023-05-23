@@ -429,6 +429,8 @@ static void iwdg_wdt_get_version_and_status(struct stm32_iwdg_device *iwdg)
 
 		io_write32(iwdg_base + IWDG_KR_OFFSET, IWDG_KR_WPROT_KEY);
 	}
+
+	DMSG("Watchdog is %sabled", iwdg_wdt_is_enabled(iwdg) ? "en" : "dis");
 }
 
 static TEE_Result stm32_iwdg_setup(struct stm32_iwdg_device *iwdg,
