@@ -15,6 +15,7 @@
 #include <kernel/dt.h>
 #include <kernel/dt_driver.h>
 #include <kernel/panic.h>
+#include <kernel/pm.h>
 #include <libfdt.h>
 #include <mm/core_memprot.h>
 #include <stdbool.h>
@@ -247,6 +248,66 @@ static TEE_Result parse_dt(const void *fdt, int node,
 	return TEE_SUCCESS;
 }
 
+static void stm32_hpdma_pm_resume(struct hpdma_pdata *hpdma)
+{
+	apply_rif_config(hpdma, true);
+}
+
+static void stm32_hpdma_pm_suspend(struct hpdma_pdata *hpdma)
+{
+	size_t i = 0;
+
+	for (i = 0; i < HPDMA_RIF_CHANNELS; i++)
+		hpdma->conf_data.cid_confs[i] = io_read32(hpdma->base +
+							  _HPDMA_CIDCFGR(i)) &
+						_HPDMA_CIDCFGR_CONF_MASK;
+
+	hpdma->conf_data.priv_conf[0] = io_read32(hpdma->base +
+						  _HPDMA_PRIVCFGR) &
+					_HPDMA_PRIVCFGR_MASK;
+	hpdma->conf_data.sec_conf[0] = io_read32(hpdma->base +
+						 _HPDMA_SECCFGR) &
+				       _HPDMA_SECCFGR_MASK;
+	hpdma->conf_data.lock_conf[0] = io_read32(hpdma->base +
+						  _HPDMA_RCFGLOCKR) &
+					_HPDMA_RCFGLOCKR_MASK;
+
+	/*
+	 * The access mask is modified to restore the conf for all
+	 * resources.
+	 */
+	hpdma->conf_data.access_mask[0] = GENMASK_32(HPDMA_RIF_CHANNELS - 1, 0);
+}
+
+static TEE_Result
+stm32_hpdma_pm(enum pm_op op, unsigned int pm_hint,
+	       const struct pm_callback_handle *pm_handle)
+{
+	struct hpdma_pdata *hpdma = pm_handle->handle;
+	TEE_Result res = TEE_ERROR_GENERIC;
+	bool is_tdcid = false;
+
+	res = stm32_rifsc_check_tdcid(&is_tdcid);
+	if (res)
+		panic();
+
+	if (pm_hint != PM_HINT_CONTEXT_STATE || !is_tdcid)
+		return TEE_SUCCESS;
+
+	res = clk_enable(hpdma->hpdma_clock);
+	if (res)
+		return res;
+
+	if (op == PM_OP_RESUME)
+		stm32_hpdma_pm_resume(hpdma);
+	else
+		stm32_hpdma_pm_suspend(hpdma);
+
+	clk_disable(hpdma->hpdma_clock);
+
+	return TEE_SUCCESS;
+}
+
 static TEE_Result stm32_hpdma_probe(const void *fdt, int node,
 				    const void *compat_data __unused)
 {
@@ -279,6 +340,10 @@ static TEE_Result stm32_hpdma_probe(const void *fdt, int node,
 	clk_disable(hpdma_d->hpdma_clock);
 
 	SLIST_INSERT_HEAD(&hpdma_list, hpdma_d, link);
+
+	if (IS_ENABLED(CFG_PM))
+		register_pm_core_service_cb(stm32_hpdma_pm, hpdma_d,
+					    "stm32-hpdma");
 
 	return res;
 }
