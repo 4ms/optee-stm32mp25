@@ -121,7 +121,8 @@ static void enable_io_compensation(int cmpcr_offset)
 
 	while (!(io_read32(cmpcr_base) & SYSCFG_CMPCR_READY))
 		if (timeout_elapsed(timeout_ref)) {
-			EMSG("IO compensation cell not ready");
+			if (!(io_read32(cmpcr_base) & SYSCFG_CMPCR_READY))
+				EMSG("IO compensation cell not ready");
 			/* Allow an almost silent failure here */
 			break;
 		}
