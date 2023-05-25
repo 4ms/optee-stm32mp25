@@ -331,6 +331,8 @@ __maybe_unused static void save_ddr_training_area(void)
 	paddr_t pa = DDR_BASE;
 	void *va = phys_to_virt(pa, MEM_AREA_RAM_NSEC, SMALL_PAGE_SIZE);
 
+	assert(va);
+
 	memcpy(&mailbox->ddr_training_backup[0], va, size);
 }
 
@@ -365,12 +367,12 @@ static void load_earlyboot_pm_mailbox(void)
 
 	mailbox->zq0cr0_zdata = get_ddrphy_calibration();
 
-	save_ddr_training_area();
-
 #if CFG_STM32MP1_PM_CONTEXT_VERSION >= 2
 	save_pll1_settings();
 #endif
 #endif /* CFG_STM32MP1_OPTEE_IN_SYSRAM */
+
+	save_ddr_training_area();
 }
 
 #if defined(CFG_STM32_CRYP) && defined(CFG_STM32MP1_OPTEE_IN_SYSRAM)
