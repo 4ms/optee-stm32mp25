@@ -61,6 +61,14 @@
  */
 #define _FMC_SECCFGR_MASK		GENMASK_32(5, 0)
 
+#ifdef CFG_STM32MP25x_REVA
+/*
+ * SEMCR register bitfields
+ */
+#define _FMC_SEMCR_SCID_MASK		GENMASK_32(7, 5)
+#define _FMC_SEMCR_SCID_SHIFT		U(5)
+#endif /* CFG_STM32MP25x_REVA */
+
 /*
  * Miscellaneous
  */
@@ -87,6 +95,60 @@ static bool is_fmc_controller_secure(uint8_t controller)
 {
 	return io_read32(fmc_d->base + _FMC_SECCFGR) & BIT(controller);
 }
+
+#ifdef CFG_STM32MP25x_REVA
+/* FMC specific acquire_semaphore function due to hardware misalignement */
+static TEE_Result acquire_semaphore(vaddr_t addr)
+{
+	io_setbits32(addr, _SEMCR_MUTEX);
+
+	/* Check that cortex A has the semaphore */
+	if (stm32_rif_is_semaphore_available(addr) ||
+	    ((io_read32(addr) & _FMC_SEMCR_SCID_MASK) >>
+	     _FMC_SEMCR_SCID_SHIFT) != RIF_CID1)
+		return TEE_ERROR_ACCESS_DENIED;
+
+	return TEE_SUCCESS;
+}
+
+/* FMC specific RIF access check function due to hardware misalignement */
+static TEE_Result check_access(uint32_t cidcfgr,
+			       uint32_t semcr,
+			       uint32_t cid_to_check)
+{
+	if (!(cidcfgr & _CIDCFGR_CFEN))
+		return TEE_SUCCESS;
+
+	if (SCID_OK(cidcfgr, _FMC_CIDCFGR_SCID_MASK, RIF_CID1))
+		return TEE_SUCCESS;
+
+	if (SEM_EN_AND_OK(cidcfgr, cid_to_check)) {
+		if (!(semcr & _SEMCR_MUTEX) ||
+		    ((semcr & _FMC_SEMCR_SCID_MASK) >>
+		     _FMC_SEMCR_SCID_SHIFT) == cid_to_check) {
+			return TEE_SUCCESS;
+		}
+	}
+
+	return TEE_ERROR_ACCESS_DENIED;
+}
+
+static TEE_Result release_semaphore(vaddr_t addr)
+{
+	if (stm32_rif_is_semaphore_available(addr))
+		return TEE_SUCCESS;
+
+	io_clrbits32(addr, _SEMCR_MUTEX);
+
+	/* Ok if another compartment takes the semaphore before the check */
+	if (!stm32_rif_is_semaphore_available(addr) &&
+	    ((io_read32(addr) & _FMC_SEMCR_SCID_MASK) >>
+	     _FMC_SEMCR_SCID_SHIFT) == RIF_CID1)
+		return TEE_ERROR_ACCESS_DENIED;
+
+	return TEE_SUCCESS;
+}
+#endif /* CFG_STM32MP25x_REVA */
 
 static TEE_Result apply_rif_config(void)
 {
@@ -120,8 +182,12 @@ static TEE_Result apply_rif_config(void)
 			continue;
 
 		/* If not TDCID, we want to acquire semaphores assigned to us */
+#ifdef CFG_STM32MP25x_REVA
+		res = acquire_semaphore(fmc_d->base + _FMC_SEMCR(i));
+#else /* CFG_STM32MP25x_REVA */
 		res = stm32_rif_acquire_semaphore(fmc_d->base + _FMC_SEMCR(i),
 						  FMC_NB_MAX_CID_SUPPORTED);
+#endif /* CFG_STM32MP25x_REVA */
 		if (res) {
 			EMSG("Couldn't acquire semaphore for controller %u", i);
 			clk_disable(fmc_d->fmc_clock);
@@ -151,17 +217,25 @@ static TEE_Result apply_rif_config(void)
 		 */
 		if (SEM_MODE_INCORRECT(cidcfgr) ||
 		    !(io_read32(fmc_d->base + _FMC_SECCFGR) & BIT(i))) {
+#ifdef CFG_STM32MP25x_REVA
+			res = release_semaphore(fmc_d->base + _FMC_SEMCR(i));
+#else /* CFG_STM32MP25x_REVA */
 			res =
 			stm32_rif_release_semaphore(fmc_d->base + _FMC_SEMCR(i),
 						    FMC_NB_MAX_CID_SUPPORTED);
+#endif /* CFG_STM32MP25x_REVA */
 			if (res) {
 				EMSG("Couldn't release semaphore for res%u", i);
 				return res;
 			}
 		} else {
+#ifdef CFG_STM32MP25x_REVA
+			res = acquire_semaphore(fmc_d->base + _FMC_SEMCR(i));
+#else /* CFG_STM32MP25x_REVA */
 			res =
 			stm32_rif_acquire_semaphore(fmc_d->base + _FMC_SEMCR(i),
 						    FMC_NB_MAX_CID_SUPPORTED);
+#endif /* CFG_STM32MP25x_REVA */
 			if (res) {
 				EMSG("Couldn't acquire semaphore for res%u", i);
 				return res;
@@ -306,9 +380,13 @@ static TEE_Result check_fmc_rif_conf(void)
 		 * Check if a controller is shared with incorrect CID
 		 * (!= RIF_CID1)
 		 */
+#ifdef CFG_STM32MP25x_REVA
+		res = check_access(cidcfgr, semcr, RIF_CID1);
+#else /* CFG_STM32MP25x_REVA */
 		res = stm32_rif_check_access(cidcfgr, semcr,
 					     FMC_NB_MAX_CID_SUPPORTED,
 					     RIF_CID1);
+#endif /* CFG_STM32MP25x_REVA */
 		if (res)
 			return res;
 	}
@@ -330,8 +408,12 @@ static void configure_fmc(void)
 	semcr = io_read32(fmc_d->base + _FMC_SEMCR(0));
 	cidcfgr = io_read32(fmc_d->base + _FMC_CIDCFGR(0));
 
+#ifdef CFG_STM32MP25x_REVA
+	if (check_access(cidcfgr, semcr, RIF_CID1))
+#else /* CFG_STM32MP25x_REVA */
 	if (stm32_rif_check_access(cidcfgr, semcr,
 				   FMC_NB_MAX_CID_SUPPORTED, RIF_CID1))
+#endif /* CFG_STM32MP25x_REVA */
 		/*
 		 * If OP-TEE doesn't have access to the controller 0,
 		 * then we don't want to try to enable the FMC.
@@ -343,10 +425,14 @@ static void configure_fmc(void)
 		DMSG("Controller 0 non-secure, FMC not enabled");
 		goto end;
 	}
-
+#ifdef CFG_STM32MP25x_REVA
+	if (cidcfgr & _CIDCFGR_SEMEN &&
+	    acquire_semaphore(fmc_d->base + _FMC_SEMCR(0)))
+#else /* CFG_STM32MP25x_REVA */
 	if (cidcfgr & _CIDCFGR_SEMEN &&
 	    stm32_rif_acquire_semaphore(fmc_d->base + _FMC_SEMCR(0),
 					FMC_NB_MAX_CID_SUPPORTED))
+#endif /* CFG_STM32MP25x_REVA */
 		panic("Couldn't acquire controller 0 semaphore");
 
 	stm32_pinctrl_load_config(fmc_d->pinctrl_l);
