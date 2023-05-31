@@ -73,6 +73,7 @@ static struct mutex pwr_regu_mu = MUTEX_INITIALIZER;
 #define PWR_UCPDR_UCPD_STBY	BIT(1)
 
 #define TIMEOUT_US_10MS		U(10000)
+#define DELAY_100US		U(100)
 
 #define IO_VOLTAGE_THRESHOLD_MV U(2700)
 
@@ -99,7 +100,7 @@ static TEE_Result pwr_enable_reg(const struct regul_desc *desc)
 {
 	struct pwr_regu *regu = (struct pwr_regu *)desc->driver_data;
 	uintptr_t pwr_reg = stm32_pwr_base() + regu->enable_reg;
-	uint64_t to = timeout_init_us(TIMEOUT_US_10MS);
+	uint64_t to = U(0);
 
 	FMSG("%s: enable", desc->node_name);
 
@@ -108,6 +109,11 @@ static TEE_Result pwr_enable_reg(const struct regul_desc *desc)
 
 	io_setbits32(pwr_reg, regu->enable_mask);
 
+	/* Wait for vddgpu to enable as stated in the reference manual */
+	if (regu->keep_monitor_on)
+		udelay(DELAY_100US);
+
+	to = timeout_init_us(TIMEOUT_US_10MS);
 	while (!timeout_elapsed(to))
 		if (io_read32(pwr_reg) & regu->ready_mask)
 			break;
