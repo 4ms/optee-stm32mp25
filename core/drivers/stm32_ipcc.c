@@ -13,6 +13,7 @@
 #include <kernel/dt.h>
 #include <kernel/dt_driver.h>
 #include <kernel/panic.h>
+#include <kernel/pm.h>
 #include <libfdt.h>
 #include <mm/core_memprot.h>
 #include <stdbool.h>
@@ -188,6 +189,48 @@ static void apply_rif_config(struct ipcc_pdata *ipcc_d, bool is_tdcid)
 			ipcc_d->conf_data.cid_confs[IPCC_NB_MAX_RIF_CHAN]);
 }
 
+static void stm32_ipcc_pm_resume(struct ipcc_pdata *ipcc)
+{
+	apply_rif_config(ipcc, true);
+}
+
+static void stm32_ipcc_pm_suspend(struct ipcc_pdata *ipcc __unused)
+{
+	/*
+	 * Do nothing because IPCC forbids RIF configuration read if CID
+	 * filtering is enabled. We'll simply restore the device tree RIF
+	 * configuration.
+	 */
+}
+
+static TEE_Result
+stm32_ipcc_pm(enum pm_op op, unsigned int pm_hint,
+	      const struct pm_callback_handle *pm_handle)
+{
+	struct ipcc_pdata *ipcc = pm_handle->handle;
+	TEE_Result res = TEE_ERROR_GENERIC;
+	bool is_tdcid = false;
+
+	if (stm32_rifsc_check_tdcid(&is_tdcid))
+		panic();
+
+	if (pm_hint != PM_HINT_CONTEXT_STATE || !is_tdcid)
+		return TEE_SUCCESS;
+
+	res = clk_enable(ipcc->ipcc_clock);
+	if (res)
+		return res;
+
+	if (op == PM_OP_RESUME)
+		stm32_ipcc_pm_resume(ipcc);
+	else
+		stm32_ipcc_pm_suspend(ipcc);
+
+	clk_disable(ipcc->ipcc_clock);
+
+	return TEE_SUCCESS;
+}
+
 static TEE_Result parse_dt(const void *fdt, int node, struct ipcc_pdata *ipcc_d)
 {
 	int lenp = 0;
@@ -266,6 +309,10 @@ static TEE_Result stm32_ipcc_probe(const void *fdt, int node,
 	clk_disable(ipcc_d->ipcc_clock);
 
 	STAILQ_INSERT_TAIL(&ipcc_list, ipcc_d, link);
+
+	if (IS_ENABLED(CFG_PM))
+		register_pm_core_service_cb(stm32_ipcc_pm, ipcc_d,
+					    "stm32-ipcc");
 
 	return res;
 
