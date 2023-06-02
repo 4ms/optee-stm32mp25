@@ -139,6 +139,7 @@ struct stm32_risaf_pdata {
 struct stm32_risaf_ddata {
 	uint32_t mask_regions;
 	uint32_t max_base_regions;
+	uint32_t granularity;
 };
 
 struct stm32_risaf_instance {
@@ -238,7 +239,6 @@ bool risaf_is_hw_encryption_enabled(struct stm32_risaf_instance *risaf)
 static TEE_Result check_region_address(struct stm32_risaf_instance *risaf,
 				       struct stm32_risaf_region *region)
 {
-	uint32_t granularity = 0;
 	uintptr_t end_paddr = 0;
 
 	assert(region->len != 0U);
@@ -258,12 +258,9 @@ static TEE_Result check_region_address(struct stm32_risaf_instance *risaf,
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
 
-	/* Get IP region granularity */
-	granularity = io_read32(risaf_base(risaf) + _RISAF_HWCFGR);
-	granularity = BIT((granularity & _RISAF_HWCFGR_CFG3_MASK) >>
-			  _RISAF_HWCFGR_CFG3_SHIFT);
-	if (((region->addr % granularity) != 0U) ||
-	    ((region->len % granularity) != 0U)) {
+	if (!risaf->ddata->granularity ||
+	    (region->addr % risaf->ddata->granularity) ||
+	    (region->len % risaf->ddata->granularity)) {
 		EMSG("RISAF %#"PRIxPTR": start/end address granularity not respected",
 		     risaf->pdata.base.pa);
 		return TEE_ERROR_BAD_PARAMETERS;
@@ -383,6 +380,7 @@ static TEE_Result stm32_risaf_init_ddata(struct stm32_risaf_instance *risaf)
 	uint32_t hwcfgr = 0;
 	uint32_t mask_lsb = 0;
 	uint32_t mask_msb = 0;
+	uint32_t granularity = 0;
 
 	risaf->ddata = calloc(1, sizeof(*risaf->ddata));
 	if (!risaf->ddata)
@@ -397,6 +395,12 @@ static TEE_Result stm32_risaf_init_ddata(struct stm32_risaf_instance *risaf)
 	risaf->ddata->mask_regions = GENMASK_32(mask_msb, mask_lsb);
 	risaf->ddata->max_base_regions = (hwcfgr & _RISAF_HWCFGR_CFG1_MASK) >>
 					 _RISAF_HWCFGR_CFG1_SHIFT;
+
+	/* Get IP region granularity */
+	granularity = io_read32(risaf_base(risaf) + _RISAF_HWCFGR);
+	granularity = BIT((granularity & _RISAF_HWCFGR_CFG3_MASK) >>
+			  _RISAF_HWCFGR_CFG3_SHIFT);
+	risaf->ddata->granularity = granularity;
 
 	return TEE_SUCCESS;
 }
