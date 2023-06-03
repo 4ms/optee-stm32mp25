@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 /*
  * Copyright (c) 2019-2022, Linaro Limited
+ * Copyright (c) 2023, STMicroelectronics
  */
 
 #include <arch_main.h>
@@ -9,6 +10,7 @@
 #include <kernel/panic.h>
 #include <mm/core_memprot.h>
 #include <optee_scmi.h>
+#include <scmi_regulator_consumer.h>
 #include <scmi/scmi_server.h>
 
 /*
@@ -72,7 +74,16 @@ TEE_Result scmi_server_msg_process_thread(unsigned int channel_id,
 
 static TEE_Result scmi_server_initialize(void)
 {
+	TEE_Result res = TEE_ERROR_GENERIC;
 	int rc = 0;
+
+	if (IS_ENABLED(CFG_SCMI_SERVER_REGULATOR_CONSUMER)) {
+		res = scmi_regulator_consumer_init();
+		if (res) {
+			EMSG("SCMI regulator consumer init: %#"PRIx32, res);
+			return res;
+		}
+	}
 
 	rc = scmi_arch_init();
 	if (rc < 0) {
