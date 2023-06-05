@@ -203,7 +203,6 @@ TEE_Result stm32_bsec_find_otp_by_phandle(const uint32_t phandle,
  *             00b: Sec Open
  *             01b: Sec Closed
  *             11b: Invalid
- *           [8]: Hardware Key set = 1b
  * Return a TEE_Result compliant status
  */
 TEE_Result stm32_bsec_get_state(uint32_t *state);
@@ -212,7 +211,5 @@ TEE_Result stm32_bsec_get_state(uint32_t *state);
 #define BSEC_STATE_SEC_CLOSED	U(0x1)
 #define BSEC_STATE_INVALID	U(0x3)
 #define BSEC_STATE_MASK		GENMASK_32(1, 0)
-
-#define BSEC_HARDWARE_KEY	BIT(8)
 
 #endif /*__STM32_BSEC_H*/

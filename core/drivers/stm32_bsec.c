@@ -690,10 +690,6 @@ TEE_Result stm32_bsec_find_otp_by_phandle(const uint32_t phandle,
 
 TEE_Result stm32_bsec_get_state(uint32_t *state)
 {
-	uint32_t otp_enc_id = 0;
-	size_t otp_bit_len = 0;
-	TEE_Result res = TEE_SUCCESS;
-
 	if (!state)
 		return TEE_ERROR_BAD_PARAMETERS;
 
@@ -704,27 +700,6 @@ TEE_Result stm32_bsec_get_state(uint32_t *state)
 			*state = BSEC_STATE_SEC_CLOSED;
 		else
 			*state = BSEC_STATE_SEC_OPEN;
-	}
-
-	if (!IS_ENABLED(CFG_STM32MP13))
-		return TEE_SUCCESS;
-
-	res = stm32_bsec_find_otp_in_nvmem_layout("oem_enc_key", &otp_enc_id,
-						  NULL, &otp_bit_len);
-	if (!res && otp_bit_len) {
-		unsigned int start = otp_enc_id / BSEC_BITS_PER_WORD;
-		size_t otp_nb = ROUNDUP_DIV(otp_bit_len, BSEC_BITS_PER_WORD);
-		unsigned int idx = 0;
-
-		for (idx = start; idx < start + otp_nb; idx++) {
-			bool locked = false;
-
-			res = stm32_bsec_read_sp_lock(idx, &locked);
-			if (res || !locked)
-				return TEE_SUCCESS;
-		}
-
-		*state |= BSEC_HARDWARE_KEY;
 	}
 
 	return TEE_SUCCESS;
