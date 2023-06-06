@@ -322,7 +322,11 @@
 			};
 
 			iwdg1: watchdog@44010000 {
+				compatible = "st,stm32mp1-iwdg";
 				reg = <0x44010000 0x400>;
+				interrupts = <GIC_SPI 2 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&rcc CK_BUS_IWDG1>, <&rcc LSI_CK>;
+				clock-names = "pclk", "lsi";
 				status = "disabled";
 			};
 		};
