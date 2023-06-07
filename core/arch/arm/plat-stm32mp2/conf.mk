@@ -1,12 +1,12 @@
 flavor_dts_file-257F_DK = stm32mp257f-dk.dts
-flavor_dts_file-257F_EV1 = stm32mp257f-ev.dts
-flavor_dts_file-257F_EV_REV_B = stm32mp257f-ev-revB.dts
+flavor_dts_file-257F_EV1 = stm32mp257f-ev1.dts
+flavor_dts_file-257F_EV1_REV_B = stm32mp257f-ev1-revB.dts
 
 flavorlist-MP25 = $(flavor_dts_file-257F_DK) \
-		  $(flavor_dts_file-257F_EV) \
-		  $(flavor_dts_file-257F_EV_REV_B)
+		  $(flavor_dts_file-257F_EV1) \
+		  $(flavor_dts_file-257F_EV1_REV_B)
 
-flavorlist-MP25-REV-A-B = $(flavor_dts_file-257F_EV_REV_B)
+flavorlist-MP25-REV-A-B = $(flavor_dts_file-257F_EV1_REV_B)
 
 # Check if device-tree exist in OP-TEE source code, else search it in external
 # device tree repository
