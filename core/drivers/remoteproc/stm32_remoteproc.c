@@ -372,7 +372,6 @@ static TEE_Result stm32_rproc_parse_mems(struct stm32_rproc_instance *rproc,
 	rproc->nregions = 0;
 	for (i = 0; i < nregions; i++) {
 		int pnode = 0;
-		const fdt32_t *prop = NULL;
 		uint32_t sec_mem = 0;
 
 		pnode = fdt_node_offset_by_phandle(fdt,
@@ -380,12 +379,8 @@ static TEE_Result stm32_rproc_parse_mems(struct stm32_rproc_instance *rproc,
 		if (pnode < 0)
 			continue;
 
-		prop = fdt_getprop(fdt, pnode, "reg", NULL);
-		if (!prop)
-			continue;
-
-		regions[i].addr = fdt32_to_cpu(prop[0]);
-		regions[i].size = fdt32_to_cpu(prop[1]);
+		regions[i].addr = _fdt_reg_base_address(fdt, pnode);
+		regions[i].size = _fdt_reg_size(fdt, pnode);
 
 		if (regions[i].addr <= 0 || regions[i].size <= 0)
 			return TEE_ERROR_CORRUPT_OBJECT;
