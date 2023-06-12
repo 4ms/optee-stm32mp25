@@ -120,7 +120,7 @@ enum pkcs11_rc step_asymm_operation(struct pkcs11_session *session,
 /*
  * Symmetric crypto algorithm specific functions
  */
-bool processing_is_tee_symm(uint32_t proc_id);
+bool processing_is_tee_symm(enum pkcs11_mechanism_id proc_id);
 
 enum pkcs11_rc init_symm_operation(struct pkcs11_session *session,
 				   enum processing_func function,
