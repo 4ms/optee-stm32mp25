@@ -72,11 +72,12 @@ static TEE_Result pwr_set_state(const struct regul_desc *desc, bool enable)
 	uint32_t enable_mask = p->cr3_enable_mask;
 
 	if (enable) {
-		uint64_t to = timeout_init_us(TIMEOUT_US_10MS);
+		uint64_t to = 0;
 		uint32_t ready_mask = p->cr3_ready_mask;
 
 		io_setbits32(pwr_cr3, enable_mask);
 
+		to = timeout_init_us(TIMEOUT_US_10MS);
 		while (!timeout_elapsed(to))
 			if (io_read32(pwr_cr3) & ready_mask)
 				break;
