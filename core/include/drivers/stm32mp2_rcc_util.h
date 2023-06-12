@@ -6,6 +6,10 @@
 #ifndef __DRIVERS_STM32MP2_RCC_UTIL_H__
 #define __DRIVERS_STM32MP2_RCC_UTIL_H__
 
+#include <stdint.h>
+#include <tee_api_types.h>
+#include <types_ext.h>
+
 /* Platform util for the RCC drivers */
 vaddr_t stm32_rcc_base(void);
 
