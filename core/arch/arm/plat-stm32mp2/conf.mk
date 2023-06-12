@@ -57,6 +57,7 @@ $(call force,CFG_DRIVERS_CLK_EARLY_PROBE,y)
 $(call force,CFG_REGULATOR_DRIVERS,y)
 $(call force,CFG_REGULATOR_FIXED,y)
 $(call force,CFG_REMOTEPROC_DRIVERS,y)
+$(call force,CFG_SCMI_PTA,y)
 $(call force,CFG_STM32_FIREWALL,y)
 $(call force,CFG_STM32_REGULATOR_GPIO,y)
 $(call force,CFG_STM32MP_CLK_CORE,y)
@@ -156,10 +157,24 @@ $(call force,CFG_WITH_SOFTWARE_PRNG,n,Mandated by CFG_HWRNG_PTA)
 CFG_HWRNG_QUALITY ?= 1024
 endif
 
-# Default enable SCMI PTA support
-CFG_SCMI_PTA ?= y
-ifeq ($(CFG_SCMI_PTA),y)
-$(call force,CFG_SCMI_MSG_DRIVERS,y,Mandated by CFG_SCMI_PTA)
+# Default enable SCMI PTA support with SCP firmware SCMI server
+CFG_SCMI_SCPFW ?= n
+
+# CFG_SCMI_MSG_DRIVERS will soon be deprecated for this platform.
+# Until then, enable it as fallback configuration if CFG_SCMI_SCPFW is disabled.
+ifneq ($(CFG_SCMI_SCPFW),y)
+$(call force,CFG_SCMI_MSG_DRIVERS,y)
+endif
+ifeq ($(CFG_SCMI_MSG_DRIVERS)-$(CFG_SCMI_SCPFW),y-y)
+$(error CFG_SCMI_MSG_DRIVERS and CFG_SCMI_SCPFW are exclusive)
+endif
+ifeq ($(filter $(CFG_SCMI_MSG_DRIVERS) $(CFG_SCMI_SCPFW),y),)
+$(error One of CFG_SCMI_MSG_DRIVERS or CFG_SCMI_SCPFW must be enabled)
+endif
+
+ifeq ($(CFG_SCMI_SCPFW),y)
+$(call force,CFG_SCMI_SCPFW_PRODUCT,optee-stm32mp2)
+$(call force,CFG_SCMI_SERVER_REGULATOR_CONSUMER,y)
 endif
 
 CFG_SCMI_MSG_DRIVERS ?= n
