@@ -71,10 +71,11 @@ static TEE_Result iod_set_state(const struct regul_desc *desc, bool enable)
 	FMSG("%s: set state %u", desc->node_name, enable);
 
 	if (enable) {
-		uint64_t to = timeout_init_us(TIMEOUT_US_10MS);
+		uint64_t to = 0;
 
 		io_setbits32(pwr_reg, iod->enable_mask);
 
+		to = timeout_init_us(TIMEOUT_US_10MS);
 		while (!timeout_elapsed(to))
 			if (io_read32(pwr_reg) & iod->ready_mask)
 				break;
