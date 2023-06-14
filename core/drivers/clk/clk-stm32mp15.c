@@ -3566,6 +3566,7 @@ static TEE_Result stm32mp1_clock_provider_probe(const void *fdt, int offs,
 	struct clk_stm32_priv *priv = &stm32mp15_clock_data;
 	struct stm32_clk_platdata *pdata = &stm32mp15_clock_pdata;
 	int rc = 0;
+	int subnode = 0;
 
 	if (compat_data == &non_secure_rcc)
 		disable_rcc_tzen();
@@ -3576,6 +3577,15 @@ static TEE_Result stm32mp1_clock_provider_probe(const void *fdt, int offs,
 	if (rc) {
 		EMSG("Failed to parse clock node: %d", rc);
 		return TEE_ERROR_GENERIC;
+	}
+
+	fdt_for_each_subnode(subnode, fdt, offs) {
+		res = dt_driver_maybe_add_probe_node(fdt, subnode);
+		if (res) {
+			EMSG("Failed on node %s with %#"PRIx32,
+			     fdt_get_name(fdt, subnode, NULL), res);
+			return res;
+		}
 	}
 
 	res = clk_stm32_init(priv, stm32_rcc_base());
@@ -4259,25 +4269,6 @@ static TEE_Result stm32_clock_pm(enum pm_op op, unsigned int pm_hint __unused,
 }
 DECLARE_KEEP_PAGER(stm32_clock_pm);
 
-static TEE_Result stm32mp1_rcc_mco_probe(const void *fdt, int node,
-					 const void *compat_data __unused)
-{
-	static struct stm32_pinctrl_list *pinctrl_cfg = NULL;
-
-	/* Get pinctrl config loaded */
-	return stm32_pinctrl_dt_get_by_index(fdt, node, 0, &pinctrl_cfg);
-}
-
-static const struct dt_device_match stm32mp1_rcc_mco_match_table[] = {
-	{ .compatible = "st,stm32mp1-rcc-mco" },
-	{ }
-};
-
-DEFINE_DT_DRIVER(stm32mp1_rcc_mco_dt_driver) = {
-	.name = "stm32mp1_rcc_mco",
-	.match_table = stm32mp1_rcc_mco_match_table,
-	.probe = stm32mp1_rcc_mco_probe,
-};
 
 void stm32_reset_system(void)
 {

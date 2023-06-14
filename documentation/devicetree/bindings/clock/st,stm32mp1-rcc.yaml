@@ -7,7 +7,7 @@ $schema: http://devicetree.org/meta-schemas/core.yaml#
 title: Reset Clock Controller Binding
 
 maintainers:
-  - Gabriel Fernandez <gabriel.fernandez@st.com>
+  - Gabriel Fernandez <gabriel.fernandez@foss.st.com>
 
 description: |
   The RCC IP is both a reset and a clock controller.
@@ -21,7 +21,7 @@ description: |
   =================
 
   All available clocks are defined as preprocessor macros in
-  dt-bindings/clock/stm32mp1-clks.h header and can be used in device
+  dt-bindings/clock/stm32mp*-clks.h header and can be used in device
   tree sources.
 
   Specifying softreset control of devices
@@ -41,11 +41,18 @@ description: |
 
   The list of valid indices for STM32MP1 is available in:
   include/dt-bindings/reset-controller/stm32mp1-resets.h
+  include/dt-bindings/reset-controller/stm32mp13-resets.h
 
   This file implements defines like:
   #define LTDC_R	3072
 
 properties:
+  "#address-cells":
+    const: 1
+
+  "#size-cells":
+    const: 0
+
   "#clock-cells":
     const: 1
 
@@ -57,19 +64,11 @@ properties:
       - enum:
           - st,stm32mp1-rcc-secure
           - st,stm32mp1-rcc
-          - st,stm32mp1-rcc-mco
           - st,stm32mp13-rcc
-          - st,stm32mp13-rcc-mco
       - const: syscon
 
   reg:
     maxItems: 1
-
-  pinctrl-0:
-    description: |
-      Describes the default pin control associated to the IP.
-      Contains the pinmux and the bias config.
-    minItems: 1
 
   st,clkdiv:
     description: Clock divisions used for dividers configuration, mandatory for MP13
@@ -78,6 +77,30 @@ properties:
   st,clksrc:
     description: Clock sources used for mux configuration, mandatory for MP13
     minItems: 1
+
+  st,rcc:
+    type: object
+
+    properties:
+      compatible:
+        const: st,rcc
+
+      clocks:
+        description: >
+          List of phandles for clocks activated by RCC himself.
+          This properties allows to set always on clocks for clocks, used by
+          RCC subsystem or required by the board.
+        minItems: 1
+
+      pinctrl-0:
+        description: >
+          Describes the default pin control associated to the RCC subsystem.
+          Contains the pinmux and the bias config.
+          This properties can be used, for example, to configure an MCO clock
+          output through an output pin.
+        minItems: 1
+
+       additionalProperties: false
 
 patternProperties:
   '^st,pll@[0-9]*$':
@@ -125,19 +148,9 @@ then:
   required:
     - clocks
 
-if:
-  compatible:
-    items:
-      - enum:
-        # Micro-controller clock output (MCO) pins may be available
-        - st,stm32mp1-rcc-mco
-        - st,stm32mp13-rcc-mco
-then:
-  required:
-    # They generate clock signals, therefore need a pinctrl
-    - pinctrl-0
-
 required:
+  - "#address-cells"
+  - "#size-cells"
   - "#clock-cells"
   - "#reset-cells"
   - compatible

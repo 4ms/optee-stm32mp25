@@ -44,14 +44,8 @@ description: |
 
 properties:
   compatible:
-    oneOf:
-      - items:
-          - const: st,stm32mp13-rcc
-          - const: st,stm32mp13-rcc-mco
-          - const: syscon
-      - items:
-          - const: st,stm32mp13-rcc
-          - const: syscon
+    - const: st,stm32mp13-rcc
+    - const: syscon
 
   "#address-cells":
     const: 1
@@ -128,12 +122,6 @@ properties:
                     CLK_I2C4_HSI
             >;
     $ref: "/schemas/types.yaml#/definitions/uint32-array"
-
-  pinctrl-0:
-    description: |
-      Describes the default pin control for MCO usage.
-      Contains the pinmux and the bias config.
-    minItems: 1
 
 patternProperties:
   '^st,pll@[0-9]*$':
@@ -268,18 +256,6 @@ required:
   - compatible
   - reg
   - interrupts
-
-if:
-  properties:
-    compatible:
-      contains:
-        enum:
-          # Micro-controller clock output (MCO) pins may be available
-          - st,stm32mp13-rcc-mco
-then:
-  required:
-    # They generate clock signals, therefore need a pinctrl
-    - pinctrl-0
 
 additionalProperties: false
 

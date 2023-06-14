@@ -417,9 +417,7 @@
 };
 
 &rcc {
-	compatible = "st,stm32mp13-rcc", "syscon", "st,stm32mp13-rcc-mco";
-	pinctrl-0 = <&rcc_mco_pins_a>;
-	pinctrl-names = "default";
+	compatible = "st,stm32mp13-rcc", "syscon";
 
 	st,clksrc = <
 		CLK_MPU_PLL1P
@@ -570,6 +568,11 @@
 				st,pll = <&pll1_cfg2>;
 			};
 		};
+	};
+
+	st,rcc {
+		compatible = "st,rcc";
+		pinctrl-0 = <&rcc_mco_pins_a>;
 	};
 };
 
