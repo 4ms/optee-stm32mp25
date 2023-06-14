@@ -14,6 +14,7 @@
 #include <dt-bindings/clock/stm32mp25-clksrc.h>
 #include <kernel/boot.h>
 #include <kernel/delay.h>
+#include <kernel/pm.h>
 #include <initcall.h>
 #include <io.h>
 #include <kernel/dt.h>
@@ -4092,6 +4093,56 @@ end:
 	return TEE_SUCCESS;
 }
 
+static TEE_Result stm32_rcc_rif_pm_resume(void)
+{
+	return apply_rcc_rif_config(true);
+}
+
+static TEE_Result stm32_rcc_rif_pm_suspend(void)
+{
+	struct stm32_clk_platdata *pdata = &stm32mp25_clock_pdata;
+	unsigned int i = 0;
+
+	for (i = 0; i < RCC_NB_RIF_RES; i++) {
+		pdata->conf_data.cid_confs[i] = io_read32(pdata->rcc_base +
+							  RCC_CIDCFGR(i));
+	}
+
+	for (i = 0; i < RCC_NB_CONFS; i++) {
+		pdata->conf_data.priv_conf[i] = io_read32(pdata->rcc_base +
+							  RCC_PRIVCFGR(i));
+		pdata->conf_data.sec_conf[i] = io_read32(pdata->rcc_base +
+							 RCC_SECCFGR(i));
+		pdata->conf_data.lock_conf[i] = io_read32(pdata->rcc_base +
+							  RCC_RCFGLOCKR(i));
+		pdata->conf_data.access_mask[i] = GENMASK_32(31, 0);
+	}
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result
+stm32_rcc_rif_pm(enum pm_op op, unsigned int pm_hint __unused,
+		 const struct pm_callback_handle *pm_handle __unused)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+	bool is_tdcid = false;
+
+	res = stm32_rifsc_check_tdcid(&is_tdcid);
+	if (res)
+		return res;
+
+	if (pm_hint != PM_HINT_CONTEXT_STATE || !is_tdcid)
+		return TEE_SUCCESS;
+
+	if (op == PM_OP_RESUME)
+		res = stm32_rcc_rif_pm_resume();
+	else
+		res = stm32_rcc_rif_pm_suspend();
+
+	return res;
+}
+
 static TEE_Result rcc_rif_config(void)
 {
 	TEE_Result res = TEE_ERROR_ACCESS_DENIED;
@@ -4101,7 +4152,15 @@ static TEE_Result rcc_rif_config(void)
 	if (res)
 		return res;
 
-	return apply_rcc_rif_config(is_tdcid);
+	res = apply_rcc_rif_config(is_tdcid);
+	if (res)
+		panic();
+
+	if (IS_ENABLED(CFG_PM))
+		register_pm_core_service_cb(stm32_rcc_rif_pm, NULL,
+					    "stm32-rcc-rif");
+
+	return TEE_SUCCESS;
 }
 
 driver_init_late(rcc_rif_config);
