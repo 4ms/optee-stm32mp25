@@ -38,7 +38,7 @@
 #define GPIO_AFRH_OFFSET	U(0x24)
 #define GPIO_SECR_OFFSET	U(0x30)
 #define GPIO_PRIVCFGR_OFFSET	U(0x34)
-#define GPIO_RCFGLOCKR		U(0x38)
+#define GPIO_RCFGLOCKR_OFFSET	U(0x38)
 #define GPIO_CIDCFGR(X)		(U(0x50) + U(0x8) * (X))
 #define GPIO_SEMCR(X)		(U(0x54) + U(0x8) * (X))
 
@@ -791,7 +791,7 @@ static TEE_Result apply_rif_config(struct stm32_gpio_bank *bank)
 	 * Lock RIF configuration if configured. This cannot be undone until
 	 * next reset.
 	 */
-	io_clrsetbits32(bank->base + GPIO_RCFGLOCKR, GPIO_RCFGLOCKR_MASK,
+	io_clrsetbits32(bank->base + GPIO_RCFGLOCKR_OFFSET, GPIO_RCFGLOCKR_MASK,
 			bank->conf_data.lock_conf[0]);
 
 	if (IS_ENABLED(CFG_TEE_CORE_DEBUG)) {
@@ -814,6 +814,22 @@ static TEE_Result apply_rif_config(struct stm32_gpio_bank *bank)
 	}
 
 	return TEE_SUCCESS;
+}
+
+static void stm32_gpio_save_rif_config(struct stm32_gpio_bank *bank)
+{
+	size_t i = 0;
+
+	for (i = 0; i < bank->ngpios; i++)
+		bank->conf_data.cid_confs[i] = io_read32(bank->base +
+							 GPIO_CIDCFGR(i));
+
+	bank->conf_data.priv_conf[0] = io_read32(bank->base +
+						 GPIO_PRIVCFGR_OFFSET);
+	bank->conf_data.sec_conf[0] = io_read32(bank->base +
+						 GPIO_SECR_OFFSET);
+	bank->conf_data.lock_conf[0] = io_read32(bank->base +
+						 GPIO_RCFGLOCKR_OFFSET);
 }
 
 static void stm32_parse_gpio_rif_conf(struct stm32_gpio_bank *bank,
@@ -977,11 +993,27 @@ static TEE_Result stm32_gpio_pm_resume(void)
 	struct stm32_pinctrl_backup *backup = NULL;
 
 	STAILQ_FOREACH(bank, &bank_list, link) {
-		stm32_gpio_set_conf_sec(bank);
+		if (bank->secure_extended) {
+			bool is_tdcid = false;
+
+			if (stm32_rifsc_check_tdcid(&is_tdcid))
+				panic();
+
+			if (!is_tdcid)
+				return TEE_SUCCESS;
+
+			bank->conf_data.access_mask[0] =
+					GENMASK_32(bank->ngpios, 0);
+
+			apply_rif_config(bank);
+		} else {
+			stm32_gpio_set_conf_sec(bank);
+		}
 
 		STAILQ_FOREACH(backup, &bank->backups, link)
-			set_gpio_cfg(backup->pinctrl.bank, backup->pinctrl.pin,
-				     &backup->pinctrl.config);
+			       set_gpio_cfg(backup->pinctrl.bank,
+					    backup->pinctrl.pin,
+					    &backup->pinctrl.config);
 	}
 
 	return TEE_SUCCESS;
@@ -993,11 +1025,23 @@ static TEE_Result stm32_gpio_pm_suspend(void)
 	struct stm32_pinctrl_backup *backup = NULL;
 
 	STAILQ_FOREACH(bank, &bank_list, link) {
-		stm32_gpio_get_conf_sec(bank);
+		if (bank->secure_extended) {
+			bool is_tdcid = false;
+
+			if (stm32_rifsc_check_tdcid(&is_tdcid))
+				panic();
+
+			if (!is_tdcid)
+				return TEE_SUCCESS;
+
+			stm32_gpio_save_rif_config(bank);
+		} else {
+			stm32_gpio_get_conf_sec(bank);
+		}
 
 		STAILQ_FOREACH(backup, &bank->backups, link)
-			get_gpio_cfg(bank, backup->pinctrl.pin,
-				     &backup->pinctrl.config);
+			       get_gpio_cfg(bank, backup->pinctrl.pin,
+					    &backup->pinctrl.config);
 	}
 
 	return TEE_SUCCESS;
@@ -1008,6 +1052,10 @@ stm32_gpio_pm(enum pm_op op, unsigned int pm_hint __unused,
 	      const struct pm_callback_handle *pm_handle __unused)
 {
 	TEE_Result ret = 0;
+
+	if (!IS_ENABLED(CFG_STM32MP13) && !IS_ENABLED(CFG_STM32MP15) &&
+	    pm_hint != PM_HINT_CONTEXT_STATE)
+		return TEE_SUCCESS;
 
 	if (op == PM_OP_RESUME)
 		ret = stm32_gpio_pm_resume();
