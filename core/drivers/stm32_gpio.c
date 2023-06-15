@@ -692,7 +692,9 @@ TEE_Result stm32_pinctrl_dt_get_by_name(const void *fdt, int nodeoffset,
 	char prop_name[PROP_NAME_MAX] = { };
 
 	idx = fdt_stringlist_search(fdt, nodeoffset, "pinctrl-names", name);
-	if (idx < 0)
+	if (idx == -FDT_ERR_NOTFOUND)
+		return TEE_ERROR_ITEM_NOT_FOUND;
+	else if (idx < 0)
 		return TEE_ERROR_GENERIC;
 
 	check = snprintf(prop_name, sizeof(prop_name), "pinctrl-%d", idx);
