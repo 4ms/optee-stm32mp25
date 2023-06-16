@@ -7,6 +7,7 @@
 #include <config.h>
 #include <drivers/clk.h>
 #include <drivers/clk_dt.h>
+#include <drivers/rstctrl.h>
 #include <drivers/stm32_firewall.h>
 #include <drivers/stm32_gpio.h>
 #include <io.h>
@@ -15,6 +16,7 @@
 #include <kernel/dt.h>
 #include <kernel/dt_driver.h>
 #include <kernel/panic.h>
+#include <kernel/pm.h>
 #include <libfdt.h>
 #include <mm/core_memprot.h>
 #include <stdbool.h>
@@ -52,6 +54,9 @@
 
 #define OSPI_NB				U(2)
 #define OSPIM_NSEC_PER_SEC		UL(1000000000)
+#define OSPI_NB_RESET			U(2)
+#define OSPI_TIMEOUT_US_1MS		U(1000)
+#define OSPI_RESET_DELAY		U(2)
 
 struct stm32_mm_region {
 	paddr_t start;
@@ -60,13 +65,14 @@ struct stm32_mm_region {
 
 struct stm32_ospi_pdata {
 	struct clk *clock;
+	struct rstctrl *reset[OSPI_NB_RESET];
 	struct stm32_mm_region region;
-	vaddr_t base;
 };
 
 struct stm32_omm_pdata {
 	struct clk *clock;
-	struct stm32_pinctrl_list *pinctrl_l;
+	struct stm32_pinctrl_list *pinctrl_d;
+	struct stm32_pinctrl_list *pinctrl_s;
 	struct stm32_ospi_pdata ospi_d[OSPI_NB];
 	struct stm32_mm_region region;
 	void *firewall_dt_config;
@@ -88,12 +94,11 @@ static TEE_Result stm32_omm_parse_fdt(const void *fdt, int node)
 	size_t size = DT_INFO_INVALID_REG_SIZE;
 	int ctrl_node = 0;
 	int len = 0;
-	int ac = 0;
-	int parent = 0;
 	unsigned int i = 0;
 	uint32_t ospi_i = 0;
-	paddr_t ospi_address[OSPI_NB] = {};
 	uint8_t ospi_assigned = 0;
+	unsigned int reset_i = 0;
+	struct stm32_ospi_pdata *ospi_d = NULL;
 
 	if (_fdt_get_reg_props_by_name(fdt, node, "omm", &base, &size) < 0)
 		panic();
@@ -111,7 +116,13 @@ static TEE_Result stm32_omm_parse_fdt(const void *fdt, int node)
 	if (res)
 		return res;
 
-	res = stm32_pinctrl_dt_get_by_index(fdt, node, 0, &omm_d->pinctrl_l);
+	res = stm32_pinctrl_dt_get_by_name(fdt, node, "default",
+					   &omm_d->pinctrl_d);
+	if (res && res != TEE_ERROR_ITEM_NOT_FOUND)
+		return res;
+
+	res = stm32_pinctrl_dt_get_by_name(fdt, node, "sleep",
+					   &omm_d->pinctrl_s);
 	if (res && res != TEE_ERROR_ITEM_NOT_FOUND)
 		return res;
 
@@ -131,31 +142,6 @@ static TEE_Result stm32_omm_parse_fdt(const void *fdt, int node)
 						  "st,omm-req2ack-ns", 0);
 	omm_d->cssel_ovr = _fdt_read_uint32_default(fdt, node,
 						    "st,omm-cssel-ovr", 0xff);
-
-	parent = fdt_parent_offset(fdt, node);
-	if (parent < 0)
-		panic();
-
-	ac = fdt_address_cells(fdt, parent);
-	if (ac < 0)
-		panic();
-
-	cuint = fdt_getprop(fdt, node, "ranges", NULL);
-	if (!cuint)
-		panic();
-
-	for (i = 0; i < OSPI_NB; i++) {
-		ospi_i = fdt32_to_cpu(*cuint);
-		if (ospi_i >= OSPI_NB || (ospi_assigned & BIT(ospi_i)))
-			panic();
-
-		ospi_assigned |= BIT(ospi_i);
-		ospi_address[ospi_i] = _fdt_read_paddr(cuint + 2, ac);
-		if (ospi_address[ospi_i] == DT_INFO_INVALID_REG)
-			panic();
-
-		cuint += 4;
-	}
 
 	cuint = fdt_getprop(fdt, node, "memory-region", &len);
 	if (cuint) {
@@ -193,14 +179,12 @@ static TEE_Result stm32_omm_parse_fdt(const void *fdt, int node)
 		}
 	}
 
-	ospi_i = 0;
 	fdt_for_each_subnode(ctrl_node, fdt, node)
 		ospi_i++;
 
 	if (ospi_i != OSPI_NB)
 		panic();
 
-	ospi_assigned = 0;
 	fdt_for_each_subnode(ctrl_node, fdt, node) {
 		cuint = fdt_getprop(fdt, ctrl_node, "reg", NULL);
 		if (!cuint)
@@ -210,16 +194,19 @@ static TEE_Result stm32_omm_parse_fdt(const void *fdt, int node)
 		if (ospi_i >= OSPI_NB || (ospi_assigned & BIT(ospi_i)))
 			panic();
 
+		ospi_d = &omm_d->ospi_d[ospi_i];
 		ospi_assigned |= BIT(ospi_i);
-		addr.pa = fdt32_to_cpu(*(cuint + 1)) + ospi_address[ospi_i];
-		addr.va = 0;
-		size = fdt32_to_cpu(*(cuint + 2));
-		omm_d->ospi_d[ospi_i].base = io_pa_or_va(&addr, size);
 
-		res = clk_dt_get_by_index(fdt, ctrl_node, 0,
-					  &omm_d->ospi_d[ospi_i].clock);
+		res = clk_dt_get_by_index(fdt, ctrl_node, 0, &ospi_d->clock);
 		if (res)
 			return res;
+
+		for (reset_i = 0; reset_i < OSPI_NB_RESET; reset_i++) {
+			res = rstctrl_dt_get_by_index(fdt, ctrl_node, reset_i,
+						      &ospi_d->reset[reset_i]);
+			if (res)
+				return res;
+		}
 	}
 
 	return TEE_SUCCESS;
@@ -271,18 +258,31 @@ static void stm32_omm_configure(void)
 	unsigned long clk_rate_max = 0;
 	uint32_t cssel_ovr = 0;
 	uint32_t req2ack = 0;
+	unsigned int reset_i = 0;
+	struct stm32_ospi_pdata *ospi_d = NULL;
 
 	for (ospi_i = 0; ospi_i < OSPI_NB; ospi_i++) {
-		clk_rate_max = MAX(clk_get_rate(omm_d->ospi_d[ospi_i].clock),
-				   clk_rate_max);
+		ospi_d = &omm_d->ospi_d[ospi_i];
+		clk_rate_max = MAX(clk_get_rate(ospi_d->clock), clk_rate_max);
 
-		if (clk_enable(omm_d->ospi_d[ospi_i].clock))
+		if (clk_enable(ospi_d->clock))
 			panic();
 
-		io_clrbits32(omm_d->ospi_d[ospi_i].base + _OCTOSPI_CR,
-			     _OCTOSPI_CR_EN);
+		for (reset_i = 0; reset_i < OSPI_NB_RESET; reset_i++) {
+			if (rstctrl_assert_to(ospi_d->reset[reset_i],
+					      OSPI_TIMEOUT_US_1MS))
+				panic();
+		}
 
-		clk_disable(omm_d->ospi_d[ospi_i].clock);
+		udelay(OSPI_RESET_DELAY);
+
+		for (reset_i = 0; reset_i < OSPI_NB_RESET; reset_i++) {
+			if (rstctrl_deassert_to(ospi_d->reset[reset_i],
+						OSPI_TIMEOUT_US_1MS))
+				panic();
+		}
+
+		clk_disable(ospi_d->clock);
 	}
 
 	if (omm_d->mux & _OCTOSPIM_CR_MUXEN && omm_d->req2ack) {
@@ -312,6 +312,40 @@ static void stm32_omm_configure(void)
 	clk_disable(omm_d->clock);
 }
 
+static void stm32_omm_setup(void)
+{
+	stm32_omm_set_mm();
+	stm32_omm_configure();
+	if (omm_d->pinctrl_d)
+		stm32_pinctrl_load_config(omm_d->pinctrl_d);
+
+	if (stm32_firewall_set_data_config(virt_to_phys((void *)omm_d->base),
+					   0, omm_d->firewall_nb_config,
+					   omm_d->firewall_dt_config))
+		panic();
+}
+
+static void stm32_omm_suspend(void)
+{
+	if (omm_d->pinctrl_s)
+		stm32_pinctrl_load_config(omm_d->pinctrl_s);
+}
+
+static TEE_Result
+stm32_omm_pm(enum pm_op op, unsigned int pm_hint,
+	     const struct pm_callback_handle *pm_handle __unused)
+{
+	if (pm_hint != PM_HINT_CONTEXT_STATE)
+		return TEE_SUCCESS;
+
+	if (op == PM_OP_RESUME)
+		stm32_omm_setup();
+	else
+		stm32_omm_suspend();
+
+	return TEE_SUCCESS;
+}
+
 static TEE_Result stm32_omm_probe(const void *fdt, int node,
 				  const void *compat_data __unused)
 {
@@ -325,16 +359,10 @@ static TEE_Result stm32_omm_probe(const void *fdt, int node,
 	if (res)
 		goto err_free;
 
-	stm32_omm_set_mm();
-	stm32_omm_configure();
-	if (omm_d->pinctrl_l)
-		stm32_pinctrl_load_config(omm_d->pinctrl_l);
+	stm32_omm_setup();
 
-	res = stm32_firewall_set_data_config(virt_to_phys((void *)omm_d->base),
-					     0, omm_d->firewall_nb_config,
-					     omm_d->firewall_dt_config);
-	if (res)
-		panic();
+	if (IS_ENABLED(CFG_PM))
+		register_pm_core_service_cb(stm32_omm_pm, NULL, "stm32-omm");
 
 	return TEE_SUCCESS;
 
@@ -355,7 +383,7 @@ static const struct dt_device_match stm32_omm_match_table[] = {
 };
 
 DEFINE_DT_DRIVER(stm32_omm_dt_driver) = {
-	.name = "st,stm32mp25-omm",
+	.name = "stm32_omm",
 	.match_table = stm32_omm_match_table,
 	.probe = stm32_omm_probe,
 };
