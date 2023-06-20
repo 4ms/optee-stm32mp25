@@ -692,8 +692,8 @@ static const struct dt_device_match stm32_cpu_opp_match_table[] = {
 	{ }
 };
 
-DEFINE_DT_DRIVER(stm32mp1_opp_dt_driver) = {
-	.name = "stm32mp1-cpu-opp",
+DEFINE_DT_DRIVER(stm32_opp_dt_driver) = {
+	.name = "stm32-cpu-opp",
 	.match_table = stm32_cpu_opp_match_table,
 	.probe = &stm32_cpu_opp_init,
 };
