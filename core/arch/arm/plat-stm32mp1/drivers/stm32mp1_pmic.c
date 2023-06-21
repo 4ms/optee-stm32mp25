@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 /*
- * Copyright (c) 2017-2021, STMicroelectronics
+ * Copyright (c) 2017-2023, STMicroelectronics
  */
 
 #include <config.h>
@@ -9,6 +9,7 @@
 #include <drivers/regulator.h>
 #include <drivers/stm32_firewall.h>
 #include <drivers/stm32_i2c.h>
+#include <drivers/stm32mp_dt_bindings.h>
 #include <drivers/stm32mp1_pmic.h>
 #include <drivers/stm32mp1_pwr.h>
 #include <drivers/stpmic1.h>
@@ -48,6 +49,12 @@
 #define STPMIC1_REGUL_SINK_SOURCE	BIT(14)
 /* st,regulator-bypass: set the regulator in bypass mode */
 #define STPMIC1_REGUL_ENABLE_BYPASS	BIT(13)
+
+/* suspend() arguments */
+#define STPMIC1_LP_STATE_OFF		BIT(0)
+#define STPMIC1_LP_STATE_ON		BIT(1)
+#define STPMIC1_LP_STATE_UNCHANGED	BIT(2)
+#define STPMIC1_LP_STATE_SET_VOLT	BIT(3)
 
 /* Expect a single PMIC instance */
 static struct i2c_handle_s *i2c_pmic_handle;
@@ -328,19 +335,19 @@ static TEE_Result driver_suspend(const struct regul_desc *desc, uint8_t state,
 	if (ret)
 		return TEE_ERROR_GENERIC;
 
-	if ((state & LP_STATE_OFF) != 0U) {
+	if ((state & STPMIC1_LP_STATE_OFF) != 0U) {
 		ret = stpmic1_lp_reg_on_off(desc->node_name, 0);
 		if (ret)
 			return TEE_ERROR_GENERIC;
 	}
 
-	if ((state & LP_STATE_ON) != 0U) {
+	if ((state & STPMIC1_LP_STATE_ON) != 0U) {
 		ret = stpmic1_lp_reg_on_off(desc->node_name, 1);
 		if (ret)
 			return TEE_ERROR_GENERIC;
 	}
 
-	if ((state & LP_STATE_SET_VOLT) != 0U) {
+	if ((state & STPMIC1_LP_STATE_SET_VOLT) != 0U) {
 		ret = stpmic1_lp_set_voltage(desc->node_name, mv);
 		if (ret)
 			return TEE_ERROR_GENERIC;
@@ -348,6 +355,12 @@ static TEE_Result driver_suspend(const struct regul_desc *desc, uint8_t state,
 
 	return 0;
 }
+
+struct regu_handle_s {
+	struct regul_desc *desc;
+	uint8_t lp_state[STM32_PM_MAX_SOC_MODE];
+	uint16_t lp_mv[STM32_PM_MAX_SOC_MODE];
+};
 
 const struct regul_ops pmic_ops = {
 	.set_state = pmic_set_state,
@@ -358,7 +371,6 @@ const struct regul_ops pmic_ops = {
 	.set_flag = pmic_set_flag,
 	.lock = driver_lock,
 	.unlock = driver_unlock,
-	.suspend = driver_suspend,
 };
 
 #define DEFINE_REGU(name) { \
@@ -374,7 +386,6 @@ static const struct regul_ops pmic_sw_ops = {
 	.set_flag = pmic_set_flag,
 	.lock = driver_lock,
 	.unlock = driver_unlock,
-	.suspend = driver_suspend,
 };
 
 #define DEFINE_SWITCH(name) { \
@@ -383,7 +394,7 @@ static const struct regul_ops pmic_sw_ops = {
 	.enable_ramp_delay_us = 1000, \
 }
 
-static const struct regul_desc pmic_reguls[] = {
+static struct regul_desc pmic_reguls[] = {
 	DEFINE_REGU("buck1"),
 	DEFINE_REGU("buck2"),
 	DEFINE_REGU("buck3"),
@@ -444,11 +455,86 @@ static TEE_Result parse_properties(const void *fdt,
 	return TEE_SUCCESS;
 }
 
+static void parse_low_power_mode(const void *fdt,
+				 const struct regul_desc *desc,
+				 int node, int mode)
+{
+	struct regu_handle_s *regu = (struct regu_handle_s *)desc->driver_data;
+	const fdt32_t *cuint = NULL;
+
+	regu->lp_state[mode] = 0;
+
+	if (fdt_getprop(fdt, node, "regulator-off-in-suspend", NULL)) {
+		FMSG("%s: mode:%d OFF", desc->node_name, mode);
+		regu->lp_state[mode] |= STPMIC1_LP_STATE_OFF;
+	} else if (fdt_getprop(fdt, node, "regulator-on-in-suspend", NULL)) {
+		FMSG("%s: mode:%d ON", desc->node_name, mode);
+		regu->lp_state[mode] |= STPMIC1_LP_STATE_ON;
+	} else {
+		regu->lp_state[mode] |= STPMIC1_LP_STATE_UNCHANGED;
+	}
+
+	cuint = fdt_getprop(fdt, node, "regulator-suspend-microvolt", NULL);
+	if (cuint) {
+		uint16_t mv = (uint16_t)(fdt32_to_cpu(*cuint) / 1000U);
+
+		FMSG("%s: mode:%d suspend mv=%"PRIu16, desc->node_name,
+		     mode, mv);
+
+		regu->lp_state[mode] |= STPMIC1_LP_STATE_SET_VOLT;
+		regu->lp_mv[mode] = mv;
+	}
+}
+
+static void parse_low_power_modes(const void *fdt,
+				  const struct regul_desc *desc, int node)
+{
+	int mode_count = STM32_PM_MAX_SOC_MODE;
+	int mode = 0;
+
+	for (mode = 0; mode < mode_count; mode++) {
+		const char *lp_mode_name = plat_get_lp_mode_name(mode);
+
+		if (lp_mode_name) {
+			int n = 0;
+
+			/* Get the configs from regulator_state_node subnode */
+			n = fdt_subnode_offset(fdt, node, lp_mode_name);
+			if (n >= 0)
+				parse_low_power_mode(fdt, desc, n, mode);
+		}
+	}
+}
+
+#ifdef CFG_PM
+static TEE_Result stpmic1_regu_pm(enum pm_op op, uint32_t pm_hint,
+				  const struct pm_callback_handle *pm_handle)
+{
+	TEE_Result res = TEE_SUCCESS;
+	struct regul_desc *desc = (struct regul_desc *)pm_handle->handle;
+	struct regu_handle_s *regu = (struct regu_handle_s *)desc->driver_data;
+
+	if (op == PM_OP_SUSPEND) {
+		stm32mp_get_pmic();
+
+		res = driver_suspend(desc, regu->lp_state[pm_hint],
+				     regu->lp_mv[pm_hint]);
+
+		stm32mp_put_pmic();
+	}
+
+	return res;
+}
+DECLARE_KEEP_PAGER(stpmic1_regu_pm);
+#endif
+
 static TEE_Result register_pmic_regulator(const void *fdt,
 					  const char *regu_name, int node)
 {
 	TEE_Result res = TEE_ERROR_GENERIC;
 	size_t i = 0;
+	struct regul_desc *desc = NULL;
+	struct regu_handle_s *regu = NULL;
 
 	for (i = 0; i < ARRAY_SIZE(pmic_reguls); i++)
 		if (!strcmp(pmic_reguls[i].node_name, regu_name))
@@ -456,15 +542,30 @@ static TEE_Result register_pmic_regulator(const void *fdt,
 
 	assert(i < ARRAY_SIZE(pmic_reguls));
 
-	res = parse_properties(fdt, pmic_reguls + i, node);
+	regu = calloc(1, sizeof(*regu));
+	if (!regu)
+		panic();
+
+	desc = &pmic_reguls[i];
+	desc->driver_data = regu;
+	regu->desc = desc;
+
+	res = parse_properties(fdt, desc, node);
 	if (res)
 		EMSG("Failed to parse properties for %s", regu_name);
 
-	res = regulator_register(pmic_reguls + i, node);
+	parse_low_power_modes(fdt, desc, node);
+
+	res = regulator_register(desc, node);
 	if (res) {
 		EMSG("Failed to register %s, error: %#"PRIx32, regu_name, res);
+		free(regu);
 		return res;
 	}
+
+#ifdef CFG_PM
+	register_pm_core_service_cb(stpmic1_regu_pm, desc, desc->node_name);
+#endif
 
 	return res;
 }
