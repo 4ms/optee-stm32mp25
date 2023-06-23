@@ -27,11 +27,64 @@
 /* Mutex for protecting PMIC accesses */
 static struct mutex pmic_mu = MUTEX_INITIALIZER;
 
+/*
+ * Low power configurations:
+ *
+ * STM32_PM_DEFAULT
+ *   "default" sub nodes in device-tree
+ *   is applied at probe, and re-applied at PM resume.
+ *   should support STOP1, LP-STOP1, STOP2, LP-STOP2
+ *
+ * STM32_PM_LPLV
+ *   "lplv" sub nodes in device-tree
+ *   should support STOP1, LPLV-STOP1, STOP2, LPLV-STOP2
+ *
+ * STM32_PM_STANDBY
+ *   "standby" sub nodes in device-tree
+ *   should support STANDBY1-DDR-SR
+ *   is applied in pm suspend call back
+ *
+ * STM32_PM_OFF
+ *   "off" sub nodes in device-tree
+ *   should support STANDBY-DDR-OFF mode
+ *   and should be applied before shutdown
+ *
+ */
+#define STM32_PM_DEFAULT		0
+#define STM32_PM_LPLV			1
+#define STM32_PM_STANDBY		2
+#define STM32_PM_OFF			3
+#define STM32_PM_NB_SOC_MODES		4
+
+const char *plat_get_lp_mode_name(int mode __unused)
+{
+	switch (mode) {
+	case STM32_PM_DEFAULT:
+		return "default";
+	case STM32_PM_LPLV:
+		return "lplv";
+	case STM32_PM_STANDBY:
+		return "standby";
+	case STM32_PM_OFF:
+		return "off";
+	default:
+		EMSG("Invalid lp mode %d", mode);
+		panic();
+	}
+}
+
+#define STPMIC2_LP_STATE_OFF		BIT(0)
+#define STPMIC2_LP_STATE_ON		BIT(1)
+#define STPMIC2_LP_STATE_UNMODIFIED	BIT(2)
+#define STPMIC2_LP_STATE_SET_VOLT	BIT(3)
+
 struct regu_handle_s {
 	struct pmic_handle_s *pmic;
 	struct regul_desc desc;
 	uint32_t id;
 	uint16_t bypass_mv;
+	uint8_t lp_state[STM32_PM_NB_SOC_MODES];
+	uint16_t lp_mv[STM32_PM_NB_SOC_MODES];
 };
 
 static TEE_Result pmic_set_state(const struct regul_desc *desc, bool enable)
@@ -177,36 +230,38 @@ static void driver_unlock(const struct regul_desc *desc __unused)
 		mutex_unlock(&pmic_mu);
 }
 
-static TEE_Result driver_suspend(const struct regul_desc *desc, uint8_t state,
-				 uint16_t mv)
+static TEE_Result __maybe_unused
+regu_prepare_suspend(const struct regul_desc *desc, uint8_t mode)
 {
 	struct regu_handle_s *regu = (struct regu_handle_s *)desc->driver_data;
 	struct pmic_handle_s *pmic = regu->pmic;
 	uint32_t id = regu->id;
+	uint8_t state = regu->lp_state[mode];
+	uint16_t mv = regu->lp_mv[mode];
 	TEE_Result res = TEE_ERROR_GENERIC;
 
-	FMSG("%s: suspend state:0x%x %"PRIu16"mV", desc->node_name, state, mv);
+	FMSG("%s: suspend state:%#"PRIx8" %"PRIu16"mV", desc->node_name,
+	     state, mv);
 
-	if (state & LP_STATE_UNCHANGED)
-		return TEE_ERROR_BAD_PARAMETERS;
+	if (state & STPMIC2_LP_STATE_UNMODIFIED)
+		return TEE_SUCCESS;
 
-	if ((state & LP_STATE_OFF) != U(0)) {
+	if ((state & STPMIC2_LP_STATE_OFF) != U(0)) {
 		res = stpmic2_lp_set_state(pmic, id, false);
 		if (res)
 			return res;
 	}
 
-	if ((state & LP_STATE_ON) != U(0)) {
-		if (!(state & LP_STATE_SET_VOLT))
-			return TEE_ERROR_BAD_PARAMETERS;
-
+	if ((state & STPMIC2_LP_STATE_ON) != U(0)) {
 		res = stpmic2_lp_set_state(pmic, id, true);
 		if (res)
 			return res;
 
-		res = stpmic2_lp_set_voltage(pmic, id, mv);
-		if (res)
-			return res;
+		if ((state & STPMIC2_LP_STATE_SET_VOLT) != U(0)) {
+			res = stpmic2_lp_set_voltage(pmic, id, mv);
+			if (res)
+				return res;
+		}
 	}
 
 	return TEE_SUCCESS;
@@ -221,7 +276,6 @@ static const struct regul_ops pmic_ops = {
 	.set_flag = pmic_set_flag,
 	.lock = driver_lock,
 	.unlock = driver_unlock,
-	.suspend = driver_suspend,
 };
 
 #define DEFINE_REGU(name) { \
@@ -328,6 +382,73 @@ static TEE_Result parse_properties(const void *fdt,
 	return TEE_SUCCESS;
 }
 
+static void parse_low_power_mode(const void *fdt,
+				 const struct regul_desc *desc,
+				 int node, int mode)
+{
+	struct regu_handle_s *regu = (struct regu_handle_s *)desc->driver_data;
+	const fdt32_t *cuint = NULL;
+
+	regu->lp_state[mode] = 0;
+
+	if (fdt_getprop(fdt, node, "regulator-off-in-suspend", NULL)) {
+		FMSG("%s: mode:%d OFF", desc->node_name, mode);
+		regu->lp_state[mode] |= STPMIC2_LP_STATE_OFF;
+	} else if (fdt_getprop(fdt, node, "regulator-on-in-suspend", NULL)) {
+		FMSG("%s: mode:%d ON", desc->node_name, mode);
+		regu->lp_state[mode] |= STPMIC2_LP_STATE_ON;
+	} else {
+		regu->lp_state[mode] |= STPMIC2_LP_STATE_UNMODIFIED;
+	}
+
+	cuint = fdt_getprop(fdt, node, "regulator-suspend-microvolt", NULL);
+	if (cuint) {
+		uint16_t mv = (uint16_t)(fdt32_to_cpu(*cuint) / 1000U);
+
+		FMSG("%s: mode:%d suspend mv=%"PRIu16, desc->node_name,
+		     mode, mv);
+
+		regu->lp_state[mode] |= STPMIC2_LP_STATE_SET_VOLT;
+		regu->lp_mv[mode] = mv;
+	}
+}
+
+static void parse_low_power_modes(const void *fdt,
+				  const struct regul_desc *desc, int node)
+{
+	int mode = 0;
+
+	for (mode = 0; mode < STM32_PM_NB_SOC_MODES; mode++) {
+		const char *lp_mode_name = plat_get_lp_mode_name(mode);
+
+		if (lp_mode_name) {
+			int n = 0;
+
+			/* Get the configs from regulator_state_node subnode */
+			n = fdt_subnode_offset(fdt, node, lp_mode_name);
+			if (n >= 0)
+				parse_low_power_mode(fdt, desc, n, mode);
+		}
+	}
+}
+
+#ifdef CFG_PM
+static TEE_Result stpmic2_regu_pm(enum pm_op op, uint32_t pm_hint __unused,
+				  const struct pm_callback_handle *pm_handle)
+{
+	struct regul_desc *desc = (struct regul_desc *)pm_handle->handle;
+	TEE_Result res = TEE_SUCCESS;
+
+	if (op == PM_OP_SUSPEND)
+		res = regu_prepare_suspend(desc, STM32_PM_STANDBY);
+
+	else if (op == PM_OP_RESUME)
+		res = regu_prepare_suspend(desc, STM32_PM_DEFAULT);
+
+	return res;
+}
+#endif
+
 static TEE_Result register_pmic_regulator(const void *fdt,
 					  struct pmic_handle_s *pmic,
 					  const char *regu_name, int node)
@@ -368,6 +489,18 @@ static TEE_Result register_pmic_regulator(const void *fdt,
 		EMSG("Failed to parse properties for %s", regu_name);
 		free(regu);
 	}
+
+	parse_low_power_modes(fdt, desc, node);
+
+	res = regu_prepare_suspend(desc, STM32_PM_DEFAULT);
+	if (res) {
+		EMSG("Failed to prepare regu suspend %s", regu_name);
+		free(regu);
+	}
+
+#ifdef CFG_PM
+	register_pm_core_service_cb(stpmic2_regu_pm, desc, desc->node_name);
+#endif
 
 	return res;
 }
