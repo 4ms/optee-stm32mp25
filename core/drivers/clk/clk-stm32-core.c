@@ -62,7 +62,7 @@ TEE_Result stm32_mux_set_parent(uint16_t mux_id, uint8_t sel)
 }
 
 /* STM32 GATE API */
-static void stm32_gate_endisable(uint16_t gate_id, bool enable)
+void stm32_gate_endisable(uint16_t gate_id, bool enable)
 {
 	struct clk_stm32_priv *priv = clk_stm32_get_priv();
 	const struct gate_cfg *gate = &priv->gates[gate_id];
@@ -295,7 +295,7 @@ TEE_Result stm32_div_set_value(uint32_t div_id, uint32_t value)
 	return stm32_gate_wait_ready((uint16_t)divider->ready, true);
 }
 
-static unsigned long stm32_div_get_rate(int div_id, unsigned long prate)
+unsigned long stm32_div_get_rate(int div_id, unsigned long prate)
 {
 	struct clk_stm32_priv *priv = clk_stm32_get_priv();
 	const struct div_cfg *divider = &priv->div[div_id];
@@ -346,7 +346,7 @@ const struct clk_ops clk_stm32_mux_ops = {
 };
 
 /* STM32 GATE clock operators */
-static TEE_Result clk_stm32_gate_enable(struct clk *clk)
+TEE_Result clk_stm32_gate_enable(struct clk *clk)
 {
 	struct clk_stm32_gate_cfg *cfg = clk->priv;
 
@@ -355,14 +355,14 @@ static TEE_Result clk_stm32_gate_enable(struct clk *clk)
 	return TEE_SUCCESS;
 }
 
-static void clk_stm32_gate_disable(struct clk *clk)
+void clk_stm32_gate_disable(struct clk *clk)
 {
 	struct clk_stm32_gate_cfg *cfg = clk->priv;
 
 	stm32_gate_disable(cfg->gate_id);
 }
 
-static bool clk_stm32_gate_is_enabled(struct clk *clk)
+bool clk_stm32_gate_is_enabled(struct clk *clk)
 {
 	struct clk_stm32_gate_cfg *cfg = clk->priv;
 
@@ -375,14 +375,14 @@ const struct clk_ops clk_stm32_gate_ops = {
 	.is_enabled	= clk_stm32_gate_is_enabled,
 };
 
-static TEE_Result clk_stm32_gate_ready_enable(struct clk *clk)
+TEE_Result clk_stm32_gate_ready_enable(struct clk *clk)
 {
 	struct clk_stm32_gate_cfg *cfg = clk->priv;
 
 	return stm32_gate_rdy_enable(cfg->gate_id);
 }
 
-static void clk_stm32_gate_ready_disable(struct clk *clk)
+void clk_stm32_gate_ready_disable(struct clk *clk)
 {
 	struct clk_stm32_gate_cfg *cfg = clk->priv;
 
