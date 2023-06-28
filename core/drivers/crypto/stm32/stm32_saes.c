@@ -139,6 +139,7 @@
 
 #define SAES_TIMEOUT_US			100000U
 #define TIMEOUT_US_1MS			1000U
+#define SAES_RESET_DELAY		U(2)
 
 /*
  * Macro to manage bit manipulation when we work on local variable
@@ -1441,16 +1442,47 @@ TEE_Result stm32_saes_get_platdata(struct stm32_saes_platdata *pdata __unused)
 }
 #endif
 
-static TEE_Result
-stm32_saes_pm(enum pm_op op, unsigned int pm_hint __unused,
-	      const struct pm_callback_handle *pm_handle __unused)
+static TEE_Result stm32_saes_reset(void)
 {
-	if (op == PM_OP_RESUME)
-		clk_enable(saes_pdata.clk);
-	else
-		clk_disable(saes_pdata.clk);
+	TEE_Result ret = TEE_SUCCESS;
 
-	return TEE_SUCCESS;
+	if (!saes_pdata.reset)
+		return ret;
+
+	ret = rstctrl_assert_to(saes_pdata.reset, TIMEOUT_US_1MS);
+	if (ret)
+		return ret;
+
+	udelay(SAES_RESET_DELAY);
+
+	return rstctrl_deassert_to(saes_pdata.reset, TIMEOUT_US_1MS);
+}
+
+static TEE_Result stm32_saes_pm(enum pm_op op, uint32_t pm_hint __unused,
+				const struct pm_callback_handle *hdl __unused)
+{
+	TEE_Result ret = TEE_ERROR_NOT_IMPLEMENTED;
+
+	switch (op) {
+	case PM_OP_SUSPEND:
+		clk_disable(saes_pdata.clk);
+		ret = TEE_SUCCESS;
+		break;
+	case PM_OP_RESUME:
+		ret = clk_enable(saes_pdata.clk);
+		if (ret)
+			return ret;
+
+		if (pm_hint == PM_HINT_CONTEXT_STATE) {
+			ret = stm32_saes_reset();
+			if (ret)
+				panic();
+		}
+		break;
+	default:
+		break;
+	}
+	return ret;
 }
 
 /**
@@ -1471,19 +1503,17 @@ static TEE_Result stm32_saes_probe(const void *fdt, int node,
 	if (res)
 		return res;
 
-	clk_enable(saes_pdata.clk);
+	res = clk_enable(saes_pdata.clk);
+	if (res)
+		return res;
 
-	if (saes_pdata.reset &&
-	    rstctrl_assert_to(saes_pdata.reset, TIMEOUT_US_1MS) != 0)
-		panic();
-
-	if (saes_pdata.reset &&
-	    rstctrl_deassert_to(saes_pdata.reset, TIMEOUT_US_1MS) != 0)
+	if (stm32_saes_reset())
 		panic();
 
 	base = io_pa_or_va(&saes_pdata.base, 1);
-	io_write32(base + _SAES_CR, 0XFFFFFFFF);
-	io_write32(base + _SAES_CR, 0X0);
+	/* Internal reset of SAES */
+	io_setbits32(base + _SAES_CR, _SAES_CR_IPRST);
+	io_clrbits32(base + _SAES_CR, _SAES_CR_IPRST);
 
 	if (IS_ENABLED(CFG_CRYPTO_DRV_CIPHER)) {
 		res = stm32_register_cipher(SAES_IP);
