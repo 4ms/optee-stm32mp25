@@ -13,6 +13,7 @@
 #include <kernel/dt.h>
 #include <kernel/mutex.h>
 #include <kernel/pm.h>
+#include <kernel/pm.h>
 #include <libfdt.h>
 #include <mm/core_memprot.h>
 #include <stm32_util.h>
@@ -1561,16 +1562,48 @@ int stm32_pka_get_platdata(struct stm32_pka_platdata *pdata __unused)
 }
 #endif
 
-static TEE_Result
-stm32_pka_pm(enum pm_op op, unsigned int pm_hint __unused,
-	     const struct pm_callback_handle *pm_handle __unused)
+static TEE_Result stm32_pka_reset(void)
 {
-	if (op == PM_OP_RESUME)
-		clk_enable(pka_pdata.clk);
-	else
-		clk_disable(pka_pdata.clk);
+	TEE_Result ret = TEE_SUCCESS;
 
-	return TEE_SUCCESS;
+	if (!pka_pdata.reset)
+		return ret;
+
+	ret = rstctrl_assert_to(pka_pdata.reset, TIMEOUT_US_1MS);
+	if (ret)
+		return ret;
+
+	udelay(PKA_RESET_DELAY);
+
+	return rstctrl_deassert_to(pka_pdata.reset, TIMEOUT_US_1MS);
+}
+
+static TEE_Result stm32_pka_pm(enum pm_op op, uint32_t pm_hint __unused,
+			       const struct pm_callback_handle *hdl __unused)
+{
+	TEE_Result ret = TEE_ERROR_NOT_IMPLEMENTED;
+
+	switch (op) {
+	case PM_OP_SUSPEND:
+		clk_disable(pka_pdata.clk);
+		ret = TEE_SUCCESS;
+		break;
+	case PM_OP_RESUME:
+		ret = clk_enable(pka_pdata.clk);
+		if (ret)
+			return ret;
+
+		if (pm_hint == PM_HINT_CONTEXT_STATE) {
+			ret = stm32_pka_reset();
+			if (ret)
+				panic();
+		}
+		break;
+	default:
+		break;
+	}
+
+	return ret;
 }
 
 /*
@@ -1593,15 +1626,11 @@ static TEE_Result stm32_pka_probe(const void *fdt, int node,
 	if (res)
 		return res;
 
-	clk_enable(pka_pdata.clk);
+	res = clk_enable(pka_pdata.clk);
+	if (res)
+		return res;
 
-	if (pka_pdata.reset &&
-	    rstctrl_assert_to(pka_pdata.reset, TIMEOUT_US_1MS) != 0)
-		panic();
-
-	udelay(PKA_RESET_DELAY);
-	if (pka_pdata.reset &&
-	    rstctrl_deassert_to(pka_pdata.reset, TIMEOUT_US_1MS) != 0)
+	if (stm32_pka_reset())
 		panic();
 
 #if TRACE_LEVEL >= TRACE_FLOW
