@@ -2347,10 +2347,24 @@ static void clk_stm32_osc_disable(struct clk *clk)
 		clk_stm32_gate_ready_disable(clk);
 }
 
+#ifdef CFG_PM
+static void clk_stm32_osc_pm_restore(struct clk *clk)
+{
+	if (!stm32_rcc_has_access_by_id(RCC_RIF_OSCILLATORS))
+		return;
+
+	if (clk_is_enabled(clk))
+		clk_stm32_osc_enable(clk);
+}
+#endif
+
 static const struct clk_ops clk_stm32_osc_ops = {
 	.enable		= clk_stm32_osc_enable,
 	.disable	= clk_stm32_osc_disable,
 	.is_enabled	= clk_stm32_gate_is_enabled,
+#ifdef CFG_PM
+	.restore_context = clk_stm32_osc_pm_restore,
+#endif
 };
 
 static unsigned long clk_stm32_msi_get_rate(__maybe_unused struct clk *clk,
@@ -2377,12 +2391,28 @@ static TEE_Result clk_stm32_msi_set_rate(__maybe_unused struct clk *clk,
 	return TEE_SUCCESS;
 }
 
+#ifdef CFG_PM
+static void clk_stm32_osc_msi_pm_restore(struct clk *clk)
+{
+	if (!stm32_rcc_has_access_by_id(RCC_RIF_OSCILLATORS))
+		return;
+
+	clk_stm32_msi_set_rate(clk, clk->rate, clk->parent->rate);
+
+	if (clk_is_enabled(clk))
+		clk_stm32_osc_enable(clk);
+}
+#endif
+
 static const struct clk_ops clk_stm32_oscillator_msi_ops = {
 	.enable		= clk_stm32_osc_enable,
 	.disable	= clk_stm32_osc_disable,
 	.is_enabled	= clk_stm32_gate_is_enabled,
 	.get_rate	= clk_stm32_msi_get_rate,
 	.set_rate	= clk_stm32_msi_set_rate,
+#ifdef CFG_PM
+	.restore_context = clk_stm32_osc_msi_pm_restore,
+#endif
 };
 
 static TEE_Result clk_stm32_hse_div_set_rate(struct clk *clk,
@@ -2395,9 +2425,22 @@ static TEE_Result clk_stm32_hse_div_set_rate(struct clk *clk,
 	return TEE_SUCCESS;
 }
 
+#ifdef CFG_PM
+static void clk_stm32_hse_div_pm_restore(struct clk *clk)
+{
+	if (!stm32_rcc_has_access_by_id(RCC_RIF_OSCILLATORS))
+		return;
+
+	clk_stm32_hse_div_set_rate(clk, clk->rate, clk->parent->rate);
+}
+#endif
+
 static const struct clk_ops  clk_stm32_hse_div_ops = {
 	.get_rate = clk_stm32_divider_get_rate,
 	.set_rate = clk_stm32_hse_div_set_rate,
+#ifdef CFG_PM
+	.restore_context = clk_stm32_hse_div_pm_restore,
+#endif
 };
 
 static TEE_Result clk_stm32_hsediv2_enable(struct clk *clk)
@@ -2426,11 +2469,27 @@ static unsigned long clk_stm32_hsediv2_get_rate(__maybe_unused struct clk *clk,
 	return prate / 2;
 }
 
+#ifdef CFG_PM
+static void clk_stm32_hsediv2_pm_restore(struct clk *clk)
+{
+	struct clk_stm32_gate_cfg *cfg = clk->priv;
+
+	if (!stm32_rcc_has_access_by_id(RCC_RIF_OSCILLATORS))
+		return;
+
+	if (clk_is_enabled(clk))
+		stm32_gate_endisable(cfg->gate_id, true);
+}
+#endif
+
 static const struct clk_ops clk_hsediv2_ops = {
 	.enable		= clk_stm32_hsediv2_enable,
 	.disable	= clk_stm32_hsediv2_disable,
 	.is_enabled	= clk_stm32_gate_is_enabled,
 	.get_rate	= clk_stm32_hsediv2_get_rate,
+#ifdef CFG_PM
+	.restore_context = clk_stm32_hsediv2_pm_restore,
+#endif
 };
 
 #define PLL_PARENTS { &ck_hsi, &ck_hse, &ck_msi }
