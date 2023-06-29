@@ -2677,12 +2677,26 @@ static bool clk_stm32_pll_is_enabled(struct clk *clk)
 	return stm32_gate_is_enabled(cfg->gate_id);
 }
 
+#ifdef CFG_PM
+static void clk_stm32_pll_pm_restore(struct clk *clk)
+{
+	if (!stm32_rcc_has_access_by_id(RCC_RIF_PLL4_TO_8))
+		return;
+
+	if (clk_is_enabled(clk))
+		clk_stm32_pll_enable(clk);
+}
+#endif
+
 static const struct clk_ops clk_stm32_pll_ops = {
 	.get_parent	= clk_stm32_pll_get_parent,
 	.get_rate	= clk_stm32_pll_get_rate,
 	.enable		= clk_stm32_pll_enable,
 	.disable	= clk_stm32_pll_disable,
 	.is_enabled	= clk_stm32_pll_is_enabled,
+#ifdef CFG_PM
+	.restore_context = clk_stm32_pll_pm_restore,
+#endif
 };
 
 static TEE_Result clk_stm32_pll3_enable(struct clk *clk)
