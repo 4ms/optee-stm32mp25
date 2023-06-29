@@ -280,22 +280,14 @@ void stm32_enter_cstop(uint32_t mode)
 #endif
 
 	if (mode == STM32_PM_CSTOP_ALLOW_STANDBY_DDR_SR) {
-		uint64_t to = 0;
-
 		/* set POPL to 20ms */
 		io_clrsetbits32(pwr_base + PWR_CR3_OFF, PWR_CR3_POPL_MASK,
 				20U << PWR_CR3_POPL_SHIFT);
 
-		/* Keep backup RAM content in standby */
-		io_setbits32(pwr_base + PWR_CR2_OFF, PWR_CR2_BREN);
-
-		to = timeout_init_us(TIMEOUT_US_10MS);
-		while (!(io_read32(pwr_base + PWR_CR2_OFF) & PWR_CR2_BRRDY))
-			if (timeout_elapsed(to))
-				panic();
-
 #ifdef CFG_STM32MP15
 		if (stm32mp1_is_retram_during_standby()) {
+			uint64_t to = 0;
+
 			/* Keep retention in standby */
 			to = timeout_init_us(TIMEOUT_US_10MS);
 			io_setbits32(pwr_base + PWR_CR2_OFF, PWR_CR2_RREN);
@@ -339,9 +331,6 @@ void stm32_exit_cstop(void)
 
 	dsb();
 	isb();
-
-	/* Disable retention and backup RAM content after stop */
-	io_clrbits32(stm32_pwr_base() + PWR_CR2_OFF, PWR_CR2_BREN);
 
 #ifndef CFG_STM32MP13
 	/* Disable retention and backup RAM content after stop */
@@ -459,6 +448,7 @@ static TEE_Result init_low_power(void)
 {
 	vaddr_t pwr_base __maybe_unused = stm32_pwr_base();
 	vaddr_t rcc_base = stm32_rcc_base();
+	uint64_t to = 0;
 
 	itr_add(&rcc_wakeup_handler);
 	itr_enable(rcc_wakeup_handler.it);
@@ -477,6 +467,14 @@ static TEE_Result init_low_power(void)
 	io_setbits32(rcc_base + RCC_MP_SREQCLRR,
 		     RCC_MP_SREQSETR_STPREQ_P0 | RCC_MP_SREQSETR_STPREQ_P1);
 #endif
+
+	/* Keep backup RAM content in standby */
+	io_setbits32(pwr_base + PWR_CR2_OFF, PWR_CR2_BREN);
+
+	to = timeout_init_us(TIMEOUT_US_10MS);
+	while (!(io_read32(pwr_base + PWR_CR2_OFF) & PWR_CR2_BRRDY))
+		if (timeout_elapsed(to))
+			panic();
 
 	return TEE_SUCCESS;
 }
