@@ -318,12 +318,7 @@ CFG_STM32MP_PANIC_ON_TZC_PERM_VIOLATION ?= y
 # SiP/OEM service for non-secure world
 CFG_STM32_LOWPOWER_SIP ?= $(CFG_PM)
 CFG_STM32_PWR_SIP ?= $(CFG_STM32MP15)
-CFG_STM32MP1_SCMI_SIP ?= n
-ifeq ($(CFG_STM32MP1_SCMI_SIP),y)
-$(call force,CFG_SCMI_MSG_DRIVERS,y,Mandated by CFG_STM32MP1_SCMI_SIP)
-$(call force,CFG_SCMI_MSG_SMT,y,Mandated by CFG_STM32MP1_SCMI_SIP)
-$(call force,CFG_SCMI_MSG_SMT_FASTCALL_ENTRY,y,Mandated by CFG_STM32MP1_SCMI_SIP)
-endif
+$(call force,CFG_STM32MP1_SCMI_SIP,n,Deprecated)
 
 # Enable BSEC Pseudo TA for fuses access management
 CFG_BSEC_PTA ?= y
@@ -357,6 +352,7 @@ $(call force,CFG_SCMI_MSG_CLOCK,y)
 $(call force,CFG_SCMI_MSG_RESET_DOMAIN,y)
 $(call force,CFG_SCMI_MSG_SHM_MSG,y)
 $(call force,CFG_SCMI_MSG_SMT,n)
+$(call force,CFG_SCMI_MSG_SMT_FASTCALL_ENTRY,n)
 CFG_SCMI_MSG_REGULATOR_CONSUMER ?= y
 $(call force,CFG_SCMI_MSG_VOLTAGE_DOMAIN,y)
 CFG_SCMI_MSG_PERF_DOMAIN ?= y
