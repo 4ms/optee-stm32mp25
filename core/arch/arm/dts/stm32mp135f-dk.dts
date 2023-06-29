@@ -619,6 +619,14 @@
 	};
 };
 
+&sdmmc1_io {
+	vddsd1-supply = <&vdd>;
+};
+
+&sdmmc2_io {
+	vddsd2-supply = <&vdd>;
+};
+
 &tamp {
 	status = "okay";
 	st,tamp_passive_nb_sample = <4>;

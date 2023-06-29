@@ -132,6 +132,18 @@
 		};
 	};
 
+	sdmmc1_io: sdmmc1_io {
+		compatible = "st,stm32mp13-iod";
+		regulator-name = "sdmmc1_io";
+		regulator-always-on;
+	};
+
+	sdmmc2_io: sdmmc2_io {
+		compatible = "st,stm32mp13-iod";
+		regulator-name = "sdmmc2_io";
+		regulator-always-on;
+	};
+
 	soc {
 		compatible = "simple-bus";
 		#address-cells = <1>;
