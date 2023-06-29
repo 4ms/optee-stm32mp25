@@ -362,6 +362,10 @@ $(call force,CFG_SCMI_MSG_VOLTAGE_DOMAIN,y)
 CFG_SCMI_MSG_PERF_DOMAIN ?= y
 endif
 
+ifeq ($(CFG_SCMI_MSG_DRIVERS)-$(CFG_SCMI_SCPFW),y-y)
+$(error CFG_SCMI_MSG_DRIVERS and CFG_SCMI_SCPFW are exclusive)
+endif
+
 # Default use stm32mp1 PM mailbox context version 3
 CFG_STM32MP1_PM_CONTEXT_VERSION ?= 3
 
