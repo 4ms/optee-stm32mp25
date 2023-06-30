@@ -75,7 +75,7 @@
 /*
  * IWDG watch instance data
  * @base - IWDG interface IOMEM base address
- * @clock - Bus clock
+ * @clk_pclk - Bus clock
  * @clk_lsi - IWDG source clock
  * @itr - Interrupt handler
  * @irq - Interrupt number for the IWDG instance
@@ -86,7 +86,7 @@
  */
 struct stm32_iwdg_device {
 	struct io_pa_va base;
-	struct clk *clock;
+	struct clk *clk_pclk;
 	struct clk *clk_lsi;
 	struct itr_handler *itr;
 	int irq;
@@ -109,9 +109,7 @@ static uint32_t get_sr_val(struct stm32_iwdg_device *iwdg)
 	uint32_t sr = 0;
 	vaddr_t iwdg_base = get_base(iwdg);
 
-	clk_enable(iwdg->clock);
 	sr = io_read32(iwdg_base + IWDG_SR_OFFSET);
-	clk_disable(iwdg->clock);
 
 	return sr;
 }
@@ -121,9 +119,7 @@ static bool is_enable(struct stm32_iwdg_device *iwdg)
 	vaddr_t iwdg_base = get_base(iwdg);
 	uint32_t ver = 0;
 
-	clk_enable(iwdg->clock);
 	ver = io_read32(iwdg_base + IWDG_VERR_OFFSET);
-	clk_disable(iwdg->clock);
 
 	if (ver >= IWDG_ONF_MIN_VER)
 		return get_sr_val(iwdg) & IWDG_SR_ONF;
@@ -169,13 +165,9 @@ static enum itr_return stm32_iwdg_it_handler(struct itr_handler *h)
 
 	DMSG("CPU %u IT Watchdog %#"PRIxPA, cpu, iwdg->base.pa);
 
-	clk_enable(iwdg->clock);
-
 	/* Check for spurious interrupt */
-	if (!(io_read32(iwdg_base + IWDG_SR_OFFSET) & IWDG_SR_EWIF)) {
-		clk_disable(iwdg->clock);
+	if (!(io_read32(iwdg_base + IWDG_SR_OFFSET) & IWDG_SR_EWIF))
 		return ITRR_NONE;
-	}
 
 	/*
 	 * Writing IWDG_EWCR_EWIT triggers a watchdog refresh.
@@ -186,8 +178,6 @@ static enum itr_return stm32_iwdg_it_handler(struct itr_handler *h)
 
 	/* Disable early interrupt */
 	io_setbits32(iwdg_base + IWDG_EWCR_OFFSET, IWDG_EWCR_EWIC);
-
-	clk_disable(iwdg->clock);
 
 	panic("Watchdog");
 
@@ -220,8 +210,6 @@ static TEE_Result configure_timeout(struct stm32_iwdg_device *iwdg)
 		itr_enable(iwdg->itr->it);
 	}
 
-	clk_enable(iwdg->clock);
-
 	io_write32(iwdg_base + IWDG_KR_OFFSET, IWDG_KR_ACCESS_KEY);
 	io_write32(iwdg_base + IWDG_PR_OFFSET, IWDG_PR_DIV_256);
 	io_write32(iwdg_base + IWDG_RLR_OFFSET, rlr_value);
@@ -234,25 +222,19 @@ static TEE_Result configure_timeout(struct stm32_iwdg_device *iwdg)
 
 	io_write32(iwdg_base + IWDG_KR_OFFSET, IWDG_KR_RELOAD_KEY);
 
-	clk_disable(iwdg->clock);
-
 	return res;
 }
 
 static void iwdg_start(struct stm32_iwdg_device *iwdg)
 {
-	clk_enable(iwdg->clock);
 	io_write32(get_base(iwdg) + IWDG_KR_OFFSET, IWDG_KR_START_KEY);
-	clk_disable(iwdg->clock);
 
 	iwdg->flags |= IWDG_FLAGS_ENABLED;
 }
 
 static void iwdg_refresh(struct stm32_iwdg_device *iwdg)
 {
-	clk_enable(iwdg->clock);
 	io_write32(get_base(iwdg) + IWDG_KR_OFFSET, IWDG_KR_RELOAD_KEY);
-	clk_disable(iwdg->clock);
 }
 
 /* Operators for watchdog OP-TEE interface */
@@ -335,7 +317,7 @@ static TEE_Result stm32_iwdg_parse_fdt(struct stm32_iwdg_device *iwdg,
 	    dt_info.reg_size == DT_INFO_INVALID_REG_SIZE)
 		panic();
 
-	res = clk_dt_get_by_name(fdt, node, "pclk", &iwdg->clock);
+	res = clk_dt_get_by_name(fdt, node, "pclk", &iwdg->clk_pclk);
 	if (res)
 		return res;
 
@@ -379,8 +361,9 @@ static TEE_Result stm32_iwdg_setup(struct stm32_iwdg_device *iwdg,
 	if (res)
 		return res;
 
-	/* Enable watchdog source clock once for all */
+	/* Enable watchdog source and bus clocks once for all */
 	clk_enable(iwdg->clk_lsi);
+	clk_enable(iwdg->clk_pclk);
 
 	if (is_enable(iwdg)) {
 		res = configure_timeout(iwdg);
