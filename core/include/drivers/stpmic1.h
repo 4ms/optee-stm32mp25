@@ -171,41 +171,6 @@
 #define USBSW_OTG_SWITCH_ENABLED_POS	1
 #define BOOST_ENABLED_POS		0
 
-/* IRQ definitions */
-#define IT_PONKEY_F	0
-#define IT_PONKEY_R	1
-#define IT_WAKEUP_F	2
-#define IT_WAKEUP_R	3
-#define IT_VBUS_OTG_F	4
-#define IT_VBUS_OTG_R	5
-#define IT_SWOUT_F	6
-#define IT_SWOUT_R	7
-
-#define IT_CURLIM_BUCK1	0
-#define IT_CURLIM_BUCK2	1
-#define IT_CURLIM_BUCK3	2
-#define IT_CURLIM_BUCK4	3
-#define IT_OCP_OTG	4
-#define IT_OCP_SWOUT	5
-#define IT_OCP_BOOST	6
-#define IT_OVP_BOOST	7
-
-#define IT_CURLIM_LDO1	0
-#define IT_CURLIM_LDO2	1
-#define IT_CURLIM_LDO3	2
-#define IT_CURLIM_LDO4	3
-#define IT_CURLIM_LDO5	4
-#define IT_CURLIM_LDO6	5
-#define IT_SHORT_SWOTG	6
-#define IT_SHORT_SWOUT	7
-
-#define IT_TWARN_F	0
-#define IT_TWARN_R	1
-#define IT_VINLOW_F	2
-#define IT_VINLOW_R	3
-#define IT_SWIN_F	4
-#define IT_SWIN_R	5
-
 /*
  * Bind SPMIC1 device driver with a specific I2C bus instance
  * @i2c_handle: target I2C instance to use

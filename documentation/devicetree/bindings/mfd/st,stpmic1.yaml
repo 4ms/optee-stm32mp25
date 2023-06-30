@@ -262,6 +262,51 @@ properties:
     minItems: 1
     maxItems: 1
 
+  st,pmic-it-id:
+    description: PMIC interruptions id to forward to the non-secure world
+      in the form of OPTEE notifications described by st,notif-it-id.
+        IT_PONKEY_F = 0
+        IT_PONKEY_R = 1
+        IT_WAKEUP_F = 2
+        IT_WAKEUP_R = 3
+        IT_VBUS_OTG_F = 4
+        IT_VBUS_OTG_R = 5
+        IT_SWOUT_F = 6
+        IT_SWOUT_R = 7
+        IT_CURLIM_BUCK1 = 8
+        IT_CURLIM_BUCK2 = 9
+        IT_CURLIM_BUCK3 = 10
+        IT_CURLIM_BUCK4 = 11
+        IT_OCP_OTG = 12
+        IT_OCP_SWOUT = 13
+        IT_OCP_BOOST = 14
+        IT_OVP_BOOST = 15
+        IT_CURLIM_LDO1 = 16
+        IT_CURLIM_LDO2 = 17
+        IT_CURLIM_LDO3 = 18
+        IT_CURLIM_LDO4 = 19
+        IT_CURLIM_LDO5 = 20
+        IT_CURLIM_LDO6 = 21
+        IT_SHORT_SWOTG = 22
+        IT_SHORT_SWOUT = 23
+        IT_TWARN_F = 24
+        IT_TWARN_R = 25
+        IT_VINLOW_F = 26
+        IT_VINLOW_R = 27
+        IT_SWIN_F = 30
+        IT_SWIN_R = 31
+    $ref: /schemas/types.yaml#/definitions/uint32
+    minItems: 1
+    maxItems: 32
+
+  st,notif-it-id:
+    description: OPTEE notification numbers to send to the non-secure world.
+      One notification is needed for each interruption listed by st,pmic-it-id,
+      so the number of notifications must be equal to the number of interrupts.
+    $ref: /schemas/types.yaml#/definitions/uint32
+    minItems: 1
+    maxItems: 32
+
 additionalProperties: false
 
 required:
@@ -270,6 +315,10 @@ required:
   - interrupts
   - "#interrupt-cells"
   - interrupt-controller
+
+dependencies:
+  st,notif-it-id: [ 'st,pmic-it-id' ]
+  st,pmic-it-id: [ 'st,notif-it-id' ]
 
 examples:
   - |
@@ -289,6 +338,8 @@ examples:
         #interrupt-cells = <2>;
 
         st,wakeup-pin-number = <1>;
+        st,pmic-it-id = <IT_PONKEY_F IT_PONKEY_R>;
+        st,notif-it-id = <0 2>;
 
         onkey {
           compatible = "st,stpmic1-onkey";
