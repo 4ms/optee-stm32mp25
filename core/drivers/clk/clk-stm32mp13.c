@@ -3392,7 +3392,6 @@ static bool clk_stm32_clock_is_critical(struct clk *clk __maybe_unused)
 		&ck_rtcapb,
 		&ck_tzc,
 		&ck_etzpcb,
-		&ck_iwdg1apb,
 		&ck_bsec,
 		&ck_stgen_k,
 		&ck_bkpsram,
