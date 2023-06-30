@@ -7,6 +7,7 @@
 /dts-v1/;
 
 #include <dt-bindings/clock/stm32mp13-clksrc.h>
+#include <dt-bindings/mfd/st,stpmic1.h>
 #include <dt-bindings/power/stm32mp1-power.h>
 #include <dt-bindings/random/stm32mp-rng.h>
 #include <dt-bindings/regulator/st,stm32mp13-regulator.h>
@@ -190,7 +191,8 @@
 		status = "okay";
 		wakeup-parent = <&pwr_irq>;
 		st,wakeup-pin-number = <1>;
-		st,notif-it-id = <0>;
+		st,pmic-it-id = <IT_PONKEY_F IT_PONKEY_R>;
+		st,notif-it-id = <0 2>;
 
 		regulators {
 			compatible = "st,stpmic1-regulators";
