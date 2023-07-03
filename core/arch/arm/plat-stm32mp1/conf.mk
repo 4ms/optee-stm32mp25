@@ -339,13 +339,6 @@ ifeq ($(CFG_SCMI_SCPFW),y)
 $(call force,CFG_SCMI_SCPFW_PRODUCT,optee-stm32mp1)
 endif
 
-# Enable Early TA NVMEM for provisioning management
-CFG_TA_STM32MP_NVMEM ?= y
-ifeq ($(CFG_TA_STM32MP_NVMEM),y)
-$(call force,CFG_BSEC_PTA,y,Mandated by CFG_TA_STM32MP_NVMEM)
-CFG_IN_TREE_EARLY_TAS += stm32mp_nvmem/1a8342cc-81a5-4512-99fe-9e2b3e37d626
-endif
-
 CFG_SCMI_MSG_DRIVERS ?= n
 ifeq ($(CFG_SCMI_MSG_DRIVERS),y)
 $(call force,CFG_SCMI_MSG_CLOCK,y)
@@ -361,6 +354,13 @@ endif
 
 ifeq ($(CFG_SCMI_MSG_DRIVERS)-$(CFG_SCMI_SCPFW),y-y)
 $(error CFG_SCMI_MSG_DRIVERS and CFG_SCMI_SCPFW are exclusive)
+endif
+
+# Enable Early TA NVMEM for provisioning management
+CFG_TA_STM32MP_NVMEM ?= y
+ifeq ($(CFG_TA_STM32MP_NVMEM),y)
+$(call force,CFG_BSEC_PTA,y,Mandated by CFG_TA_STM32MP_NVMEM)
+CFG_IN_TREE_EARLY_TAS += stm32mp_nvmem/1a8342cc-81a5-4512-99fe-9e2b3e37d626
 endif
 
 # Default use stm32mp1 PM mailbox context version 3
