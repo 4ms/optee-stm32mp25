@@ -277,6 +277,10 @@
 	status = "okay";
 };
 
+&rtc {
+	status = "okay";
+};
+
 &saes {
 	status = "okay";
 };
