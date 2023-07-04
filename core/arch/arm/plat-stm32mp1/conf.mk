@@ -134,6 +134,7 @@ $(call force,CFG_PM_ARM32,y)
 $(call force,CFG_PM_STUBS,y)
 $(call force,CFG_PSCI_ARM32,y)
 $(call force,CFG_REGULATOR_DRIVERS,y)
+$(call force,CFG_SCMI_PTA,y)
 $(call force,CFG_SECURE_TIME_SOURCE_CNTPCT,y)
 $(call force,CFG_SM_PLATFORM_HANDLER,y)
 $(call force,CFG_STM32_SHARED_IO,y)
@@ -162,6 +163,14 @@ $(call force,CFG_WITH_NSEC_GPIOS,n)
 CFG_STM32MP_OPP_COUNT ?= 2
 CFG_WITH_PAGER ?= n
 CFG_WITH_TUI ?= y
+CFG_SCMI_SCPFW ?= n
+ifeq ($(CFG_SCMI_SCPFW),y)
+$(call force,CFG_SCMI_SERVER_REGULATOR_CONSUMER,y)
+else
+$(call force,CFG_SCMI_MSG_DRIVERS,y)
+$(call force,CFG_SCMI_MSG_REGULATOR_CONSUMER,y)
+$(call force,CFG_SCMI_MSG_PERF_DOMAIN,y)
+endif
 endif # CFG_STM32MP13
 
 ifeq ($(CFG_STM32MP15),y)
@@ -169,6 +178,8 @@ $(call force,CFG_BOOT_SECONDARY_REQUEST,y)
 $(call force,CFG_CORE_RESERVED_SHM,n)
 $(call force,CFG_DDR_LOWPOWER,y)
 $(call force,CFG_SCMI_MSG_PERF_DOMAIN,n)
+$(call force,CFG_SCMI_MSG_REGULATOR_CONSUMER,n)
+$(call force,CFG_SCMI_SERVER_REGULATOR_CONSUMER,n)
 $(call force,CFG_DRIVERS_CLK_FIXED,y)
 $(call force,CFG_SECONDARY_INIT_CNTFRQ,y)
 $(call force,CFG_STM32MP1_SHARED_RESOURCES,y)
@@ -179,6 +190,10 @@ $(call force,CFG_STM32MP15_CLK,y)
 $(call force,CFG_STM32MP15_RSTCTRL,y)
 $(call force,CFG_STM32MP_CLK_CORE,y)
 CFG_SCMI_MSG_REGULATOR_CONSUMER ?= n
+CFG_SCMI_SCPFW ?= n
+ifneq ($(CFG_SCMI_SCPFW),y)
+$(call force,CFG_SCMI_MSG_DRIVERS,y)
+endif
 CFG_TEE_CORE_NB_CORE ?= 2
 CFG_STM32MP1_OPTEE_IN_SYSRAM ?= n
 ifeq ($(CFG_STM32MP1_OPTEE_IN_SYSRAM),y)
@@ -326,20 +341,20 @@ ifeq ($(CFG_BSEC_PTA),y)
 $(call force,CFG_STM32_BSEC,y,Mandated by CFG_BSEC_PTA)
 endif
 
-# Default enable SCMI PTA support
-CFG_SCMI_PTA ?= y
-ifeq ($(CFG_SCMI_PTA),y)
-ifneq ($(CFG_SCMI_SCPFW),y)
-$(call force,CFG_SCMI_MSG_DRIVERS,y,Mandated by CFG_SCMI_PTA)
-endif # !CFG_SCMI_SCPFW
-endif # CFG_SCMI_PTA
+# SCMI configuration
+# When SCMI is embedded, either CFG_SCMI_SCPFW or CFG_SCMI_MSG_DRIVERS
+# shall be enabled exclusively.
+ifeq ($(CFG_SCMI_MSG_DRIVERS)-$(CFG_SCMI_SCPFW),y-y)
+$(error CFG_SCMI_MSG_DRIVERS and CFG_SCMI_SCPFW are exclusive)
+endif
+ifeq ($(filter $(CFG_SCMI_MSG_DRIVERS) $(CFG_SCMI_SCPFW),y),)
+$(error One of CFG_SCMI_MSG_DRIVERS or CFG_SCMI_SCPFW must be enabled)
+endif
 
-CFG_SCMI_SCPFW ?= n
 ifeq ($(CFG_SCMI_SCPFW),y)
 $(call force,CFG_SCMI_SCPFW_PRODUCT,optee-stm32mp1)
 endif
 
-CFG_SCMI_MSG_DRIVERS ?= n
 ifeq ($(CFG_SCMI_MSG_DRIVERS),y)
 $(call force,CFG_SCMI_MSG_CLOCK,y)
 $(call force,CFG_SCMI_MSG_RESET_DOMAIN,y)
@@ -347,13 +362,7 @@ $(call force,CFG_SCMI_MSG_SHM_MSG,y)
 $(call force,CFG_SCMI_MSG_SMT,n)
 $(call force,CFG_SCMI_MSG_SMT_FASTCALL_ENTRY,n)
 $(call force,CFG_SCMI_MSG_SMT_THREAD_ENTRY,n)
-CFG_SCMI_MSG_REGULATOR_CONSUMER ?= y
 $(call force,CFG_SCMI_MSG_VOLTAGE_DOMAIN,y)
-CFG_SCMI_MSG_PERF_DOMAIN ?= y
-endif
-
-ifeq ($(CFG_SCMI_MSG_DRIVERS)-$(CFG_SCMI_SCPFW),y-y)
-$(error CFG_SCMI_MSG_DRIVERS and CFG_SCMI_SCPFW are exclusive)
 endif
 
 # Enable Early TA NVMEM for provisioning management
