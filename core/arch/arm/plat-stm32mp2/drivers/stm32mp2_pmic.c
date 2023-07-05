@@ -7,6 +7,7 @@
 #include <drivers/regulator.h>
 #include <drivers/stm32_exti.h>
 #include <drivers/stm32_i2c.h>
+#include <drivers/stm32mp25_pwr.h>
 #include <drivers/stm32mp2_pmic.h>
 #include <drivers/stpmic2.h>
 #include <kernel/boot.h>
@@ -559,9 +560,6 @@ static enum itr_return stpmic2_irq_handler(struct itr_handler *handler)
 
 	stpmic2_handle_irq(pmic);
 
-	if (pmic->pinctrl)
-		stm32_exti_clear(pmic->pinctrl->pin);
-
 	return ITRR_HANDLED;
 }
 
@@ -580,13 +578,14 @@ static TEE_Result initialize_pmic2_irq(const void *fdt, int node,
 
 		it = fdt32_to_cpu(*cuint) - U(1);
 
-		res = stm32mp2_pwr_itr_alloc_add(it, stpmic2_irq_handler,
-						 PWR_WKUP_FLAG_FALLING,
-						 pmic, &hdl);
+		res = stm32mp25_pwr_itr_alloc_add(it, stpmic2_irq_handler,
+						  PWR_WKUP_FLAG_FALLING |
+						  PWR_WKUP_FLAG_THREADED,
+						  pmic, &hdl);
 		if (res)
 			return res;
 
-		stm32mp2_pwr_itr_enable(hdl->it);
+		stm32mp25_pwr_itr_enable(hdl->it);
 	}
 
 	/* Enable ponkey irq */
