@@ -353,6 +353,11 @@ endif
 
 ifeq ($(CFG_SCMI_SCPFW),y)
 $(call force,CFG_SCMI_SCPFW_PRODUCT,optee-stm32mp1)
+ifeq ($(wildcard $(CFG_SCP_FIRMWARE)),)
+$(info Warning on SCMI server implementation:)
+$(info CFG_SCP_FIRMWARE shall provide SCP-firmware source tree path.)
+$(info If unsure, you can use CFG_SCMI_SCPFW=n to restore legacy scmi-msg support.)
+endif
 endif
 
 ifeq ($(CFG_SCMI_MSG_DRIVERS),y)
