@@ -69,6 +69,7 @@
 
 struct pwr_pdata {
 	vaddr_t base;
+	int interrupt;
 	uint8_t nb_ressources;
 	struct rif_conf_data conf_data;
 };
@@ -260,6 +261,13 @@ static void parse_dt(const void *fdt, int node)
 				    _PWR_NB_MAX_CID_SUPPORTED,
 				    _PWR_NB_RESSOURCES);
 	}
+
+#ifdef CFG_STM32_PWR_IRQ
+	if (info.interrupt == DT_INFO_INVALID_INTERRUPT)
+		panic("No interrupt defined in PWR");
+
+	pwr_d->interrupt = info.interrupt;
+#endif
 }
 
 static TEE_Result stm32mp_pwr_probe(const void *fdt, int node,
@@ -279,6 +287,14 @@ static TEE_Result stm32mp_pwr_probe(const void *fdt, int node,
 	res = apply_rif_config();
 	if (res)
 		panic("Failed to apply rif_config");
+
+#ifdef CFG_STM32_PWR_IRQ
+	res = stm32mp25_pwr_irq_probe(fdt, node, pwr_d->interrupt);
+	if (res) {
+		free(pwr_d);
+		return res;
+	}
+#endif
 
 	fdt_for_each_subnode(subnode, fdt, node) {
 		res = dt_driver_maybe_add_probe_node(fdt, subnode);
