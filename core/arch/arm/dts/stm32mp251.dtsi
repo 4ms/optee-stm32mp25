@@ -656,6 +656,8 @@
 		pwr: pwr@44210000 {
 			compatible = "st,stm32mp25-pwr";
 			reg = <0x44210000 0x400>;
+			wakeup-parent = <&exti1>;
+			interrupts = <GIC_SPI 226 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";
 
 			vdd33ucpd: vdd33ucpd {
