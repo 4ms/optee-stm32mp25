@@ -83,6 +83,7 @@
 	pmic2: stpmic2@33 {
 		compatible = "st,stpmic2";
 		reg = <0x33>;
+		st,wakeup-pin-number = <1>;
 		status = "okay";
 
 		regulators {
@@ -191,6 +192,8 @@
 };
 
 &pwr {
+	pinctrl-names = "default";
+	pinctrl-0 = <&wakeup_pins>;
 	status = "okay";
 
 	vdd33ucpd: vdd33ucpd {
