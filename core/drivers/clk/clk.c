@@ -434,7 +434,7 @@ TEE_Result clk_set_rate(struct clk *clk, unsigned long rate)
 	return res;
 }
 
-TEE_Result clk_get_duty_cyle(struct clk *clk, struct clk_duty *duty)
+TEE_Result clk_get_duty_cycle(struct clk *clk, struct clk_duty *duty)
 {
 	if (clk->ops->get_duty_cycle)
 		return clk->ops->get_duty_cycle(clk, duty);

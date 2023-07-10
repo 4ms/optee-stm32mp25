@@ -250,13 +250,13 @@ TEE_Result clk_set_parent(struct clk *clk, struct clk *parent);
 TEE_Result clk_reparent(struct clk *clk, struct clk *parent);
 
 /**
- * clk_get_duty_cyle - Get clock duty cycle
+ * clk_get_duty_cycle - Get clock duty cycle
  *
  * @clk: Clock for which the duty cycle is requested
  * @duty: Output duty cycle info
  * Return a TEE_Result compliant value
  */
-TEE_Result clk_get_duty_cyle(struct clk *clk, struct clk_duty *duty);
+TEE_Result clk_get_duty_cycle(struct clk *clk, struct clk_duty *duty);
 
 /**
  * clk_round_rate - Round the given rate for a clock

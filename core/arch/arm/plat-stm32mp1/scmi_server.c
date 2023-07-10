@@ -490,7 +490,7 @@ int32_t plat_scmi_clock_get_duty_cycle(unsigned int channel_id, unsigned int scm
 
 	clk_ref = stm32mp_rcc_clock_id_to_clk(clock->clock_id);
 
-	ret = clk_get_duty_cyle(clk_ref, duty);
+	ret = clk_get_duty_cycle(clk_ref, duty);
 	if (ret)
 		return SCMI_NOT_SUPPORTED;
 
