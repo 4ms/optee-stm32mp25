@@ -456,7 +456,7 @@ unsigned long clk_round_rate(struct clk *clk, unsigned long rate)
 	if (clk->ops->round_rate)
 		return clk->ops->round_rate(clk, rate, clk->parent->rate);
 
-	return TEE_ERROR_GENERIC;
+	return 0;
 }
 
 #include <stdio.h>
