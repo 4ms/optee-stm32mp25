@@ -16,6 +16,7 @@
 #include <libfdt.h>
 #include <mm/core_memprot.h>
 #include <platform_config.h>
+#include <stm32_sysconf.h>
 
 #define _RISAB_CR				U(0x0)
 #define _RISAB_IASR				U(0x8)
@@ -443,6 +444,19 @@ static void clean_iac_regs(struct stm32_risab_pdata *risab_d)
 	io_setbits32(risab_d->base + _RISAB_IACR, GENMASK_32(1, 0));
 }
 
+static void set_vderam_syscfg(struct stm32_risab_pdata *risab_d)
+{
+	/*
+	 * Set the VDERAMCR_VDERAM_EN bit if the VDERAM should be accessed by
+	 * the system. Else, clear it so that VDEC/VENC can access it.
+	 */
+	if (risab_d->nb_regions_cfged)
+		stm32mp_syscfg_write(SYSCFG_VDERAMCR, VDERAMCR_VDERAM_EN,
+				     VDERAMCR_MASK);
+	else
+		stm32mp_syscfg_write(SYSCFG_VDERAMCR, 0, VDERAMCR_MASK);
+}
+
 static TEE_Result stm32_risab_probe(const void *fdt, int node,
 				    const void *compat_data __maybe_unused)
 {
@@ -465,6 +479,8 @@ static TEE_Result stm32_risab_probe(const void *fdt, int node,
 		panic("Can't enable RISAB clock");
 
 	if (is_tdcid) {
+		if (virt_to_phys((void *)risab_d->base) == RISAB6_BASE)
+			set_vderam_syscfg(risab_d);
 		clean_iac_regs(risab_d);
 		set_srswiad_conf(risab_d);
 	}
