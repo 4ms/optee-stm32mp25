@@ -453,8 +453,13 @@ static void set_vderam_syscfg(struct stm32_risab_pdata *risab_d)
 	if (risab_d->nb_regions_cfged)
 		stm32mp_syscfg_write(SYSCFG_VDERAMCR, VDERAMCR_VDERAM_EN,
 				     VDERAMCR_MASK);
+#ifndef CFG_STM32MP25x_REVA
 	else
 		stm32mp_syscfg_write(SYSCFG_VDERAMCR, 0, VDERAMCR_MASK);
+#else /* CFG_STM32MP25x_REVA */
+	else
+		panic();
+#endif /* CFG_STM32MP25x_REVA */
 }
 
 static TEE_Result stm32_risab_probe(const void *fdt, int node,
