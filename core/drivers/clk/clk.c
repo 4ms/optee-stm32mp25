@@ -439,7 +439,7 @@ TEE_Result clk_get_duty_cycle(struct clk *clk, struct clk_duty *duty)
 	if (clk->ops->get_duty_cycle)
 		return clk->ops->get_duty_cycle(clk, duty);
 
-	return TEE_ERROR_GENERIC;
+	return TEE_ERROR_NOT_SUPPORTED;
 }
 
 unsigned long clk_round_rate(struct clk *clk, unsigned long rate)
