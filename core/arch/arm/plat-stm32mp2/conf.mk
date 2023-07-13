@@ -64,7 +64,6 @@ $(call force,CFG_STM32MP_CLK_CORE,y)
 $(call force,CFG_STM32MP25_CLK,y)
 $(call force,CFG_STM32MP25_REMOTEPROC,y)
 $(call force,CFG_STM32MP25_RSTCTRL,y)
-$(call force,CFG_TEE_CORE_EMBED_INTERNAL_TESTS,n)
 
 ifneq ($(filter $(CFG_EMBED_DTB_SOURCE_FILE),$(flavorlist-1G)),)
 CFG_DRAM_SIZE    ?= 0x40000000
@@ -113,8 +112,9 @@ CFG_STM32_TAMP ?= y
 CFG_STM32_UART ?= y
 
 # Default enable some test facitilites
-CFG_TEE_CORE_EMBED_INTERNAL_TESTS ?= y
+CFG_ENABLE_EMBEDDED_TESTS ?= y
 CFG_WITH_STATS ?= y
+CFG_WERROR ?= y
 
 # Default disable ASLR
 CFG_CORE_ASLR ?= n
