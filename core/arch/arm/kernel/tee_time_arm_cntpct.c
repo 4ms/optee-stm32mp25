@@ -24,6 +24,7 @@ static TEE_Result arm_cntpct_get_sys_time(TEE_Time *time)
 
 	return TEE_SUCCESS;
 }
+DECLARE_KEEP_PAGER(arm_cntpct_get_sys_time);
 
 static const struct time_source arm_cntpct_time_source = {
 	.name = "arm cntpct",
