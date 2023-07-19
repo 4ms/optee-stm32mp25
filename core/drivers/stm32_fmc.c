@@ -15,6 +15,7 @@
 #include <kernel/dt.h>
 #include <kernel/dt_driver.h>
 #include <kernel/panic.h>
+#include <kernel/pm.h>
 #include <libfdt.h>
 #include <mm/core_memprot.h>
 #include <stdbool.h>
@@ -81,7 +82,8 @@
 
 struct fmc_pdata {
 	struct clk *fmc_clock;
-	struct stm32_pinctrl_list *pinctrl_l;
+	struct stm32_pinctrl_list *pinctrl_d;
+	struct stm32_pinctrl_list *pinctrl_s;
 	struct rif_conf_data conf_data;
 	unsigned int nb_controller;
 	vaddr_t base;
@@ -296,11 +298,15 @@ static TEE_Result parse_dt(const void *fdt, int node)
 	if (res)
 		return res;
 
-	res = stm32_pinctrl_dt_get_by_index(fdt, node, 0, &fmc_d->pinctrl_l);
-	if (res) {
-		DMSG("Failed to get pinctrl: FDT errno %x", res);
+	res = stm32_pinctrl_dt_get_by_name(fdt, node, "default",
+					   &fmc_d->pinctrl_d);
+	if (res && res != TEE_ERROR_ITEM_NOT_FOUND)
 		return res;
-	}
+
+	res = stm32_pinctrl_dt_get_by_name(fdt, node, "sleep",
+					   &fmc_d->pinctrl_s);
+	if (res && res != TEE_ERROR_ITEM_NOT_FOUND)
+		return res;
 
 	cuint = fdt_getprop(fdt, node, "st,protreg", &lenp);
 	if (!cuint)
@@ -435,7 +441,8 @@ static void configure_fmc(void)
 #endif /* CFG_STM32MP25x_REVA */
 		panic("Couldn't acquire controller 0 semaphore");
 
-	stm32_pinctrl_load_config(fmc_d->pinctrl_l);
+	if (fmc_d->pinctrl_d)
+		stm32_pinctrl_load_config(fmc_d->pinctrl_d);
 
 	if (fmc_d->cclken) {
 		unsigned long hclk = clk_get_rate(fmc_d->fmc_clock);
@@ -465,6 +472,59 @@ end:
 	clk_disable(fmc_d->fmc_clock);
 }
 
+static void fmc_setup(void)
+{
+	if (apply_rif_config())
+		panic("Failed to apply rif_config");
+
+	/* Sanity check for FMC RIF config */
+	if (IS_ENABLED(CFG_TEE_CORE_DEBUG) && check_fmc_rif_conf())
+		panic("Incorrect FMC RIF configuration");
+
+	configure_fmc();
+}
+
+static void fmc_suspend(void)
+{
+	unsigned int i = 0;
+
+	if (clk_enable(fmc_d->fmc_clock))
+		panic("Cannot access FMC clock");
+
+	if (is_fmc_controller_secure(0) && fmc_d->pinctrl_s)
+		stm32_pinctrl_load_config(fmc_d->pinctrl_s);
+
+	for (i = 0; i < FMC_RIF_CONTROLLERS; i++)
+		fmc_d->conf_data.cid_confs[i] =
+			io_read32(fmc_d->base + _FMC_CIDCFGR(i)) &
+			_FMC_CIDCFGR_CONF_MASK;
+
+	fmc_d->conf_data.priv_conf[0] =
+		io_read32(fmc_d->base + _FMC_PRIVCFGR) & _FMC_PRIVCFGR_MASK;
+	fmc_d->conf_data.sec_conf[0] =
+		io_read32(fmc_d->base + _FMC_SECCFGR) & _FMC_SECCFGR_MASK;
+	fmc_d->conf_data.lock_conf[0] =
+		io_read32(fmc_d->base + _FMC_RCFGLOCKR) & _FMC_RCFGLOCKR_MASK;
+	fmc_d->conf_data.access_mask[0] =
+		GENMASK_32(FMC_RIF_CONTROLLERS - 1, 0);
+
+	clk_disable(fmc_d->fmc_clock);
+}
+
+static TEE_Result fmc_pm(enum pm_op op, unsigned int pm_hint,
+			 const struct pm_callback_handle *pm_handle __unused)
+{
+	if (pm_hint != PM_HINT_CONTEXT_STATE)
+		return TEE_SUCCESS;
+
+	if (op == PM_OP_RESUME)
+		fmc_setup();
+	else
+		fmc_suspend();
+
+	return TEE_SUCCESS;
+}
+
 static TEE_Result fmc_probe(const void *fdt, int node,
 			    const void *compat_data __unused)
 {
@@ -478,18 +538,10 @@ static TEE_Result fmc_probe(const void *fdt, int node,
 	if (res)
 		goto err;
 
-	res = apply_rif_config();
-	if (res)
-		panic("Failed to apply rif_config");
+	fmc_setup();
 
-	/* Sanity check for FMC RIF config */
-	if (IS_ENABLED(CFG_TEE_CORE_DEBUG)) {
-		res = check_fmc_rif_conf();
-		if (res)
-			panic("Incorrect FMC RIF configuration");
-	}
-
-	configure_fmc();
+	if (IS_ENABLED(CFG_PM))
+		register_pm_core_service_cb(fmc_pm, NULL, "stm32-fmc");
 
 	return res;
 err:
