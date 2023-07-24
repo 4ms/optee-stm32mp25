@@ -108,6 +108,10 @@ struct clk_ops {
 				      unsigned long *rates, size_t *nb_elts);
 	TEE_Result (*get_rates_steps)(struct clk *clk, unsigned long *min,
 				      unsigned long *max, unsigned long *step);
+#ifdef CFG_PM
+	TEE_Result (*save_context)(struct clk *clk);
+	void (*restore_context)(struct clk *clk);
+#endif
 };
 
 /**
@@ -283,5 +287,30 @@ TEE_Result clk_get_duty_cycle(struct clk *clk, struct clk_duty *duty);
 unsigned long clk_round_rate(struct clk *clk, unsigned long rate);
 
 void clk_summary(void);
+
+#ifdef CFG_PM
+/**
+ * clk_save_context - save clock context for poweroff
+ *
+ * Saves the context of the clock register for powerstates in which the
+ * contents of the registers will be lost. Occurs deep within the suspend
+ * code.
+ */
+TEE_Result clk_save_context(void);
+
+/**
+ * clk_restore_context - restore clock context after poweroff
+ *
+ * Restore the saved clock context upon resume.
+ *
+ */
+void clk_restore_context(void);
+
+#else /* CFG_PM */
+
+static inline TEE_Result clk_save_context(void) { return TEE_SUCCESS; };
+static inline void clk_restore_context(void) {};
+
+#endif /* CFG_PM */
 
 #endif /* __DRIVERS_CLK_H */

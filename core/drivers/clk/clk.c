@@ -524,3 +524,33 @@ void clk_summary(void)
 		clk_stm32_tree(clk, 0);
 	}
 }
+
+#ifdef CFG_PM
+TEE_Result clk_save_context(void)
+{
+	struct clk *clk = NULL;
+	TEE_Result res = TEE_ERROR_GENERIC;
+
+	STAILQ_FOREACH(clk, &clock_list, link) {
+		if (clk->ops && clk->ops->save_context) {
+			res = clk->ops->save_context(clk);
+			if (res) {
+				EMSG("Failed to save context of %s", clk->name);
+				return res;
+			}
+		}
+	}
+
+	return TEE_SUCCESS;
+}
+
+void clk_restore_context(void)
+{
+	struct clk *clk = NULL;
+
+	STAILQ_FOREACH(clk, &clock_list, link) {
+		if (clk->ops && clk->ops->restore_context)
+			clk->ops->restore_context(clk);
+	}
+}
+#endif
