@@ -45,9 +45,20 @@ struct stm32_rtc_time {
 /* Get calendar formatted time from RTC device */
 void stm32_rtc_get_calendar(struct stm32_rtc_calendar *calendar);
 
-/* Return time diff in milliseconds between current and reference time */
-unsigned long long stm32_rtc_diff_calendar(struct stm32_rtc_calendar *cur,
-					   struct stm32_rtc_calendar *ref);
+/*
+ * Return time diff in milliseconds between current and reference time
+ * System will panic if stm32_rtc_calendar "cur" is older than "ref".
+ */
+unsigned long long stm32_rtc_diff_calendar_ms(struct stm32_rtc_calendar *cur,
+					      struct stm32_rtc_calendar *ref);
+
+/*
+ * Return time diff in tick count between current and reference time
+ * System will panic if stm32_rtc_calendar "cur" is older than "ref".
+ */
+unsigned long long stm32_rtc_diff_calendar_tick(struct stm32_rtc_calendar *cur,
+						struct stm32_rtc_calendar *ref,
+						unsigned long tick_rate);
 
 /* Enable tamper and secure timestamp access in RTC */
 void stm32_rtc_set_tamper_timestamp(void);

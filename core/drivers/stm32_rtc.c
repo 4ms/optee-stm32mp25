@@ -114,6 +114,7 @@
 #define RTC_FLAGS_SECURE		BIT(1)
 
 #define TIMEOUT_US_RTC_SHADOW		U(10000)
+#define MS_PER_SEC			U(1000)
 
 struct rtc_compat {
 	bool has_seccfgr;
@@ -246,27 +247,54 @@ void stm32_rtc_get_calendar(struct stm32_rtc_calendar *calendar)
 	clk_disable(rtc_dev.pclk);
 }
 
-/* Return difference in milliseconds on second fraction */
-static uint32_t stm32_rtc_get_second_fraction(struct stm32_rtc_calendar *cal)
+/*
+ * Get the subsecond value.
+ *
+ * Subsecond is a counter that grows from 0 to stm32_rtc_get_subsecond_scale()
+ * every second.
+ */
+static uint32_t stm32_rtc_get_subsecond(struct stm32_rtc_calendar *cal)
 {
 	uint32_t prediv_s = io_read32(get_base() + RTC_PRER) &
 			    RTC_PRER_PREDIV_S_MASK;
 	uint32_t ss = cal->ssr & RTC_SSR_SS_MASK;
 
-	return ((prediv_s - ss) * 1000) / (prediv_s + 1);
+	return prediv_s - ss;
 }
 
-/* Return absolute difference in milliseconds on second fraction */
-static signed long long stm32_rtc_diff_frac(struct stm32_rtc_calendar *cur,
-					    struct stm32_rtc_calendar *ref)
+/*
+ * Get the subsecond scale.
+ *
+ * Number of subseconds in a second is linked to RTC PREDIV_S value.
+ * The more PREDIV_S will be high, the more subseconds will be precise.
+ */
+static uint32_t stm32_rtc_get_subsecond_scale(void)
 {
-	return (signed long long)stm32_rtc_get_second_fraction(cur) -
-	       (signed long long)stm32_rtc_get_second_fraction(ref);
+	return (io_read32(get_base() + RTC_PRER) & RTC_PRER_PREDIV_S_MASK) + 1;
+}
+
+/* Return relative difference of ticks count between two rtc calendar */
+static signed long long
+stm32_rtc_diff_subs_tick(struct stm32_rtc_calendar *cur,
+			 struct stm32_rtc_calendar *ref,
+			 unsigned long tick_rate)
+{
+	return (((signed long long)stm32_rtc_get_subsecond(cur) -
+		 (signed long long)stm32_rtc_get_subsecond(ref)) *
+		(signed long long)tick_rate) /
+		stm32_rtc_get_subsecond_scale();
+}
+
+/* Return relative difference in milliseconds on subsecond */
+static signed long long stm32_rtc_diff_subs_ms(struct stm32_rtc_calendar *cur,
+					       struct stm32_rtc_calendar *ref)
+{
+	return stm32_rtc_diff_subs_tick(cur, ref, MS_PER_SEC);
 }
 
 /* Return absolute difference in milliseconds on seconds-in-day fraction */
-static signed long long stm32_rtc_diff_time(struct stm32_rtc_time *current,
-					    struct stm32_rtc_time *ref)
+static signed long long stm32_rtc_diff_time_ms(struct stm32_rtc_time *current,
+					       struct stm32_rtc_time *ref)
 {
 	signed long long curr_s = 0;
 	signed long long ref_s = 0;
@@ -289,8 +317,8 @@ static bool stm32_is_a_leap_year(uint32_t year)
 }
 
 /* Return absolute difference in milliseconds on day-in-year fraction */
-static signed long long stm32_rtc_diff_date(struct stm32_rtc_time *current,
-					    struct stm32_rtc_time *ref)
+static signed long long stm32_rtc_diff_date_ms(struct stm32_rtc_time *current,
+					       struct stm32_rtc_time *ref)
 {
 	uint32_t diff_in_days = 0;
 	uint32_t m = 0;
@@ -353,8 +381,12 @@ static signed long long stm32_rtc_diff_date(struct stm32_rtc_time *current,
 	return (24 * 60 * 60 * 1000) * (signed long long)diff_in_days;
 }
 
-unsigned long long stm32_rtc_diff_calendar(struct stm32_rtc_calendar *cur,
-					   struct stm32_rtc_calendar *ref)
+/*
+ * Return time diff in milliseconds between current and reference time
+ * System will panic if stm32_rtc_calendar "cur" is older than "ref".
+ */
+unsigned long long stm32_rtc_diff_calendar_ms(struct stm32_rtc_calendar *cur,
+					      struct stm32_rtc_calendar *ref)
 {
 	signed long long diff_in_ms = 0;
 	struct stm32_rtc_time curr_t = { };
@@ -365,11 +397,43 @@ unsigned long long stm32_rtc_diff_calendar(struct stm32_rtc_calendar *cur,
 	stm32_rtc_get_time(cur, &curr_t);
 	stm32_rtc_get_time(ref, &ref_t);
 
-	diff_in_ms += stm32_rtc_diff_frac(cur, ref);
-	diff_in_ms += stm32_rtc_diff_time(&curr_t, &ref_t);
-	diff_in_ms += stm32_rtc_diff_date(&curr_t, &ref_t);
+	diff_in_ms += stm32_rtc_diff_subs_ms(cur, ref);
+	diff_in_ms += stm32_rtc_diff_time_ms(&curr_t, &ref_t);
+	diff_in_ms += stm32_rtc_diff_date_ms(&curr_t, &ref_t);
+
+	if (diff_in_ms < 0)
+		panic("Negative time difference is not allowed");
 
 	return (unsigned long long)diff_in_ms;
+}
+
+/*
+ * Return time diff in tick count between current and reference time
+ * System will panic if stm32_rtc_calendar "cur" is older than "ref".
+ */
+unsigned long long stm32_rtc_diff_calendar_tick(struct stm32_rtc_calendar *cur,
+						struct stm32_rtc_calendar *ref,
+						unsigned long tick_rate)
+{
+	signed long long diff_in_tick = 0;
+	struct stm32_rtc_time curr_t = { };
+	struct stm32_rtc_time ref_t = { };
+
+	stm32_rtc_get_date(cur, &curr_t);
+	stm32_rtc_get_date(ref, &ref_t);
+	stm32_rtc_get_time(cur, &curr_t);
+	stm32_rtc_get_time(ref, &ref_t);
+
+	diff_in_tick += stm32_rtc_diff_subs_tick(cur, ref, tick_rate);
+	diff_in_tick += stm32_rtc_diff_time_ms(&curr_t, &ref_t) *
+			tick_rate / MS_PER_SEC;
+	diff_in_tick += stm32_rtc_diff_date_ms(&curr_t, &ref_t) *
+			tick_rate / MS_PER_SEC;
+
+	if (diff_in_tick < 0)
+		panic("Negative time difference is not allowed");
+
+	return (unsigned long long)diff_in_tick;
 }
 
 void stm32_rtc_get_timestamp(struct stm32_rtc_time *tamp_ts)

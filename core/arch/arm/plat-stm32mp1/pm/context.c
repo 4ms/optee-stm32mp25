@@ -229,8 +229,8 @@ static void restore_time(void)
 	struct retram_resume_ctx __maybe_unused *ctx = get_retram_resume_ctx();
 
 	stm32_rtc_get_calendar(&current_calendar);
-	stdby_time_in_ms = stm32_rtc_diff_calendar(&current_calendar,
-						   &plat_ctx.rtc);
+	stdby_time_in_ms = stm32_rtc_diff_calendar_ms(&current_calendar,
+						      &plat_ctx.rtc);
 
 	cnt = ((uint64_t)plat_ctx.stgen_cnt_h << 32) | plat_ctx.stgen_cnt_l;
 	cnt += (stdby_time_in_ms * io_read32(stgen + CNTFID_OFFSET)) / 1000U;
