@@ -118,7 +118,11 @@
 
 /* OTP18 = BOOTROM_CONFIG_0-3: Security life-cycle word 2 */
 #define OTP_SECURE_BOOT			18U
+#ifdef CFG_STM32MP25x_REVA
+#define OTP_CLOSED_SECURE		BIT(0)
+#else
 #define OTP_CLOSED_SECURE		GENMASK_32(3, 0)
+#endif
 
 struct nvmem_cell {
 	char *name;
