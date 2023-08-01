@@ -627,12 +627,16 @@ static TEE_Result stm32_rng_probe(const void *fdt, int offs,
 	     version & RNG_VERR_MINOR_MASK);
 
 	if (stm32_rng->rstctrl &&
-	    rstctrl_assert_to(stm32_rng->rstctrl, RNG_RESET_TIMEOUT_US))
+	    rstctrl_assert_to(stm32_rng->rstctrl, RNG_RESET_TIMEOUT_US)) {
+		res = TEE_ERROR_GENERIC;
 		goto err;
+	}
 
 	if (stm32_rng->rstctrl &&
-	    rstctrl_deassert_to(stm32_rng->rstctrl, RNG_RESET_TIMEOUT_US))
+	    rstctrl_deassert_to(stm32_rng->rstctrl, RNG_RESET_TIMEOUT_US)) {
+		res = TEE_ERROR_GENERIC;
 		goto err;
+	}
 
 	res = init_rng();
 	if (res)
