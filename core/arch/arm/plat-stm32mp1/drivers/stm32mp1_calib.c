@@ -292,8 +292,11 @@ static void osc_calibration(struct stm32mp1_clk_cal *clk_cal)
 			trim = new_trim;
 		}
 
-		if (timeout_elapsed(timeout_ref))
+		if (timeout_elapsed(timeout_ref)) {
+			EMSG("%s Timeout: %lu , trim %i\n",
+			     clk_cal->name, freq, trim);
 			break;
+		}
 
 	} while (conv == min_conv);
 
@@ -301,10 +304,10 @@ static void osc_calibration(struct stm32mp1_clk_cal *clk_cal)
 
 	clk_cal->set_trim(trim, clk_cal->cal_ref);
 	freq = get_freq(clk_cal);
-	if (freq < min || freq > max) {
-		EMSG("Calibration failed: Freq %lu , trim %i\n", freq, trim);
-		panic();
-	}
+	if (freq < min || freq > max)
+		EMSG("%s Freq out of range: %lu , trim %i\n", clk_cal->name,
+		     freq, trim);
+
 }
 
 static void save_trim(struct stm32mp1_clk_cal *clk_cal,
