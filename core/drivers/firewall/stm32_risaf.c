@@ -270,9 +270,9 @@ risaf_check_region_boundaries(struct stm32_risaf_instance *risaf,
 	return TEE_SUCCESS;
 }
 
-static TEE_Result risaf_check_overlap(struct stm32_risaf_instance *risaf,
-				      struct stm32_risaf_region *region,
-				      unsigned int index)
+static TEE_Result
+risaf_check_overlap(struct stm32_risaf_instance *risaf __maybe_unused,
+		    struct stm32_risaf_region *region, unsigned int index)
 {
 	unsigned int i = 0;
 
