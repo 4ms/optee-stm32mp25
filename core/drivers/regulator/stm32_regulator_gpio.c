@@ -244,6 +244,10 @@ static TEE_Result gpio_regulator_probe(const void *fdt, int node,
 		gr->ops.get_state = gpio_get_state;
 	}
 
+	res = stm32_pinctrl_set_secure_cfg(list, true /*secure*/);
+	if (res)
+		goto err;
+
 	res = regulator_register(&gr->desc, node);
 	if (res) {
 		EMSG("regulator_register(%s) failed with %#"PRIx32,
