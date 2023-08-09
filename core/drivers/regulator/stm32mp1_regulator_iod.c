@@ -146,9 +146,11 @@ static TEE_Result iod_set_voltage(const struct regul_desc *desc, uint16_t mv)
 
 	/* Forward set voltage request to the power supply */
 	res = regulator_set_voltage(iod->supply, mv);
-	if (res) {
+	if (res && res != TEE_ERROR_NOT_IMPLEMENTED) {
 		EMSG("regulator %s set voltage failed", desc->node_name);
 		return res;
+	} else {
+		res = TEE_SUCCESS;
 	}
 
 	if (mv < IO_VOLTAGE_THRESHOLD)
