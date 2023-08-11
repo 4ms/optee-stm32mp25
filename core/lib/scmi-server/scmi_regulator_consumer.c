@@ -13,11 +13,13 @@
 #include <libfdt.h>
 #include <malloc.h>
 #include <mod_stm32_regu_consumer.h>
+#include <scmi_agent_configuration.h>
 #include <scmi_regulator_consumer.h>
 #include <trace.h>
 
 static TEE_Result init_channel(void *fdt, int node)
 {
+	TEE_Result res = TEE_ERROR_GENERIC;
 	struct scmi_server_regu_channel voltd_channel = { };
 	size_t voltd_domain_count = 0;
 	const fdt32_t *cuint = NULL;
@@ -98,8 +100,11 @@ static TEE_Result init_channel(void *fdt, int node)
 			voltd_channel.regu[n].domain_id = n;
 	}
 
-	/* Export SCMI voltage domains to SCMI server */
-	scmi_server_build_optee_regu_config(&voltd_channel, 1);
+	res = scmi_scpfw_cfg_add_regu(0/*agent*/, voltd_channel.channel_id,
+				      voltd_channel.regu,
+				      voltd_channel.regu_count);
+	if (res)
+		panic();
 
 	/* We can free voltd_channel resources since SCMI server handles them */
 	free(voltd_channel.regu);

@@ -19,6 +19,9 @@
 #include <kernel/panic.h>
 #include <kernel/pm.h>
 #include <libfdt.h>
+#ifdef CFG_SCMI_SCPFW
+#include <scmi_agent_configuration.h>
+#endif
 #include <stm32_util.h>
 #include <trace.h>
 #include <util.h>
@@ -259,8 +262,8 @@ static TEE_Result set_regu_voltage(const struct regul_desc *desc __unused,
 	if (res)
 		return res;
 
-	/* We don't expect to be called when regulator is at the expect level */
-	assert(mv != cur_mv);
+	if (mv == cur_mv)
+		return TEE_SUCCESS;
 
 #ifdef CFG_STM32MP13
 	if (cur_mv > MPU_RAM_LOW_SPEED_THRESHOLD &&
@@ -408,8 +411,11 @@ static void setup_scmi_server_resources(void)
 
 	free(sorted_dvfs);
 
-	scmi_server_set_cpu_resources(&cpu_opp.scp_rdev, &cpu_opp.scp_clock,
+	res = scmi_scpfw_cfg_add_dvfs(0 /*agent*/, 0 /*channel*/, 0 /*domain*/,
+				      &cpu_opp.scp_rdev, &cpu_opp.scp_clock,
 				      dvfs_khz, dvfs_mv, cpu_opp.opp_count);
+	if (res)
+		panic();
 
 	free(dvfs_khz);
 	free(dvfs_mv);

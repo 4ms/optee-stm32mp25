@@ -20,7 +20,7 @@ scpfw-integ-version = $(scpfw-integ-version-maj).$(scpfw-integ-version-min).$(sc
 
 srcs-y += scmi_server.c
 srcs-$(CFG_SCMI_SERVER_REGULATOR_CONSUMER) += scmi_regulator_consumer.c
-incdirs-y += include
+global-incdirs-y += include
 
 # SCP-firmware cmake configuration generates header fwk_module_idx.h and
 # source files fwk_module_list.c needed for scp-firmware compilation.
