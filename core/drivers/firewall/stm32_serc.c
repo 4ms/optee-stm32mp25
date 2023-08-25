@@ -7,6 +7,7 @@
 #include <kernel/dt.h>
 #include <kernel/interrupt.h>
 #include <kernel/panic.h>
+#include <kernel/pm.h>
 #include <drivers/clk.h>
 #include <drivers/clk_dt.h>
 #include <libfdt.h>
@@ -71,8 +72,6 @@ static void stm32_serc_get_hwdata(struct serc_device *serc_dev)
 	uintptr_t base = pdata->base;
 	uint32_t regval = 0;
 
-	clk_enable(pdata->clock);
-
 	regval = io_read32(base + _SERC_HWCFGR);
 	ddata->num_ilac = _SERC_FLD_GET(_SERC_HWCFGR_CFG1, regval);
 
@@ -83,8 +82,6 @@ static void stm32_serc_get_hwdata(struct serc_device *serc_dev)
 	     _SERC_FLD_GET(_SERC_VERR_MINREV, ddata->version));
 
 	DMSG("HW cap: num ilac:[%"PRIu8"]", ddata->num_ilac);
-
-	clk_disable(pdata->clock);
 }
 
 #ifdef CFG_EMBED_DTB
@@ -199,7 +196,6 @@ static void stm32_serc_setup(struct serc_device *serc_dev)
 	uint32_t nreg = DIV_ROUND_UP(ddata->num_ilac, _PERIPH_IDS_PER_REG);
 	uint32_t i = 0;
 
-	clk_enable(pdata->clock);
 	io_setbits32(pdata->base + _SERC_ENABLE, _SERC_ENABLE_SERFEN);
 
 	for (i = 0; i < nreg; i++) {
@@ -226,6 +222,10 @@ static TEE_Result probe_serc_device(struct serc_device *serc_dev)
 	if (err)
 		return TEE_ERROR_GENERIC;
 
+	/* Asymmetric clock enable to have the SERC running */
+	if (clk_enable(serc_dev->pdata.clock))
+		panic();
+
 	stm32_serc_get_hwdata(serc_dev);
 	stm32_serc_setup(serc_dev);
 
@@ -235,6 +235,27 @@ static TEE_Result probe_serc_device(struct serc_device *serc_dev)
 		return TEE_ERROR_BAD_PARAMETERS;
 
 	itr_enable(serc_dev->itr->it);
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result stm32_serc_pm(enum pm_op op, unsigned int pm_hint,
+				const struct pm_callback_handle *pm_handle)
+{
+	struct serc_device *serc_dev = pm_handle->handle;
+
+	if (pm_hint != PM_HINT_CONTEXT_STATE)
+		return TEE_SUCCESS;
+
+	if (op == PM_OP_RESUME) {
+		/* Asymmetric clock enable to have the SERC running */
+		if (clk_enable(serc_dev->pdata.clock))
+			panic();
+		stm32_serc_setup(serc_dev);
+
+	} else {
+		clk_disable(serc_dev->pdata.clock);
+	}
 
 	return TEE_SUCCESS;
 }
@@ -280,10 +301,14 @@ static TEE_Result stm32_serc_probe(const void *fdt, int node,
 	serc_dev->node = node;
 
 	res = probe_serc_device(serc_dev);
-	if (res)
+	if (res) {
 		stm32_serc_free(serc_dev);
+		return res;
+	}
 
-	return res;
+	register_pm_core_service_cb(stm32_serc_pm, serc_dev, "stm32-serc");
+
+	return TEE_SUCCESS;
 }
 
 static const struct dt_device_match stm32_serc_match_table[] = {
