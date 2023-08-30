@@ -459,6 +459,26 @@ static TEE_Result stm32_iwdg_setup(struct stm32_iwdg_device *iwdg,
 	return TEE_SUCCESS;
 }
 
+static TEE_Result
+stm32_iwdg_pm(enum pm_op op, unsigned int pm_hint __unused,
+	      const struct pm_callback_handle *pm_handle __unused)
+{
+	struct stm32_iwdg_device *iwdg = NULL;
+
+	SLIST_FOREACH(iwdg, &iwdg_dev_list, link) {
+		if (op == PM_OP_RESUME) {
+			clk_enable(iwdg->clk_lsi);
+			clk_enable(iwdg->clk_pclk);
+		} else {
+			clk_disable(iwdg->clk_lsi);
+			clk_disable(iwdg->clk_pclk);
+		}
+	}
+
+	return TEE_SUCCESS;
+}
+DECLARE_KEEP_PAGER(stm32_iwdg_pm);
+
 static TEE_Result stm32_iwdg_register(struct stm32_iwdg_device *iwdg)
 {
 	TEE_Result res = TEE_ERROR_GENERIC;
@@ -493,6 +513,9 @@ static TEE_Result stm32_iwdg_probe(const void *fdt, int node,
 	res = stm32_iwdg_register(iwdg);
 	if (res)
 		goto err;
+
+	if (IS_ENABLED(CFG_PM))
+		register_pm_core_service_cb(stm32_iwdg_pm, NULL, "stm32-iwdg");
 
 	return TEE_SUCCESS;
 
