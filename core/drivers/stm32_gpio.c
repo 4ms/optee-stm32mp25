@@ -409,7 +409,8 @@ TEE_Result stm32_gpio_set_secure_cfg(unsigned int bank_id, unsigned int pin,
 	uint32_t exceptions = 0;
 
 	bank = stm32_gpio_get_bank(bank_id);
-	assert(bank);
+	if (!bank)
+		return TEE_ERROR_BAD_PARAMETERS;
 
 	if (!bank->secure_support) {
 		assert(!secure);
