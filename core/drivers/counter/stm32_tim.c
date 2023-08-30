@@ -235,7 +235,7 @@ stm32_tim_counter_set_config(struct counter_device *counter __maybe_unused,
 {
 	struct stm32_timer_config *conf = NULL;
 
-	if (!params && !config)
+	if (!params || !config)
 		return TEE_ERROR_BAD_PARAMETERS;
 
 	if (len < 2 || len > 3)
