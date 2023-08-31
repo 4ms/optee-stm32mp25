@@ -4184,8 +4184,6 @@ static bool clk_stm32_clock_is_critical(__maybe_unused struct clk *clk)
 		&ck_lsi,
 		&ck_lse,
 		&ck_cpu1,
-		&ck_ker_sdmmc2,
-		&ck_ker_adf1,
 		&ck_icn_p_syscpu1,
 		&ck_icn_s_ddr,
 		&ck_icn_p_ddrc,
@@ -4216,11 +4214,7 @@ static bool clk_stm32_clock_is_critical(__maybe_unused struct clk *clk)
 		&ck_icn_p_gpiok,
 		&ck_icn_p_gpioz,
 		&ck_icn_p_ipcc1,
-		&ck_icn_p_ipcc2,
-		&ck_ker_i2c1,
-		&ck_ker_adc3,
-		&ck_ker_uart5,
-		&ck_ker_usbtc
+		&ck_icn_p_ipcc2
 	};
 	size_t i = 0;
 
