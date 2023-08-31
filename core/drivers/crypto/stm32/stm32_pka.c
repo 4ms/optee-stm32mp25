@@ -12,6 +12,7 @@
 #include <kernel/delay.h>
 #include <kernel/dt.h>
 #include <kernel/mutex.h>
+#include <kernel/pm.h>
 #include <libfdt.h>
 #include <mm/core_memprot.h>
 #include <stm32_util.h>
@@ -1560,6 +1561,18 @@ int stm32_pka_get_platdata(struct stm32_pka_platdata *pdata __unused)
 }
 #endif
 
+static TEE_Result
+stm32_pka_pm(enum pm_op op, unsigned int pm_hint __unused,
+	     const struct pm_callback_handle *pm_handle __unused)
+{
+	if (op == PM_OP_RESUME)
+		clk_enable(pka_pdata.clk);
+	else
+		clk_disable(pka_pdata.clk);
+
+	return TEE_SUCCESS;
+}
+
 /*
  * @brief  Initialize the PKA driver.
  * @param  None.
@@ -1610,6 +1623,9 @@ static TEE_Result stm32_pka_probe(const void *fdt, int node,
 			panic();
 		}
 	}
+
+	if (IS_ENABLED(CFG_PM))
+		register_pm_core_service_cb(stm32_pka_pm, NULL, "stm32-pka");
 
 	return TEE_SUCCESS;
 }
