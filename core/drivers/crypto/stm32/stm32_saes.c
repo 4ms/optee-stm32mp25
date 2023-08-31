@@ -13,6 +13,7 @@
 #include <kernel/dt.h>
 #include <kernel/huk_subkey.h>
 #include <kernel/mutex.h>
+#include <kernel/pm.h>
 #include <libfdt.h>
 #include <mm/core_memprot.h>
 #include <stdint.h>
@@ -1440,6 +1441,18 @@ TEE_Result stm32_saes_get_platdata(struct stm32_saes_platdata *pdata __unused)
 }
 #endif
 
+static TEE_Result
+stm32_saes_pm(enum pm_op op, unsigned int pm_hint __unused,
+	      const struct pm_callback_handle *pm_handle __unused)
+{
+	if (op == PM_OP_RESUME)
+		clk_enable(saes_pdata.clk);
+	else
+		clk_disable(saes_pdata.clk);
+
+	return TEE_SUCCESS;
+}
+
 /**
  * @brief Initialize SAES driver.
  * @param None.
@@ -1479,6 +1492,9 @@ static TEE_Result stm32_saes_probe(const void *fdt, int node,
 			panic();
 		}
 	}
+
+	if (IS_ENABLED(CFG_PM))
+		register_pm_core_service_cb(stm32_saes_pm, NULL, "stm32-saes");
 
 	return res;
 }
