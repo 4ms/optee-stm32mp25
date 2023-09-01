@@ -1586,8 +1586,12 @@ static TEE_Result stm32_i2c_probe(const void *fdt, int node,
 	i2c_pdata.analog_filter = true;
 	i2c_pdata.digital_filter_coef = 0;
 
-	if (compat_data == &secure_i2c_r)
+	if (compat_data == &secure_i2c_r) {
 		i2c_handle_p->secure_i2c = true;
+		res = stm32_pinctrl_set_secure_cfg(pinctrl_l, true);
+		if (res)
+			return res;
+	}
 
 	res = stm32_i2c_init(i2c_handle_p, &i2c_pdata);
 	if (res)
