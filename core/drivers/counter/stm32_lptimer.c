@@ -421,7 +421,10 @@ static void stm32_lptimer_set_driverdata(struct lptimer_device *lpt_dev)
 }
 
 #ifdef CFG_EMBED_DTB
-#define LPTIMER_COUNTER_COMPAT	"st,stm32-lptimer-counter"
+static const char * const stm32_lptimer_counter_compat[] = {
+	"st,stm32-lptimer-counter",
+	"st,stm32mp25-lptimer-counter",
+};
 
 struct dt_id_attr {
 	/* The effective size of the array is meaningless here */
@@ -436,6 +439,7 @@ static TEE_Result stm32_lptimer_parse_fdt(struct lptimer_device *lpt_dev)
 	const void *fdt = lpt_dev->fdt;
 	int node = lpt_dev->node;
 	TEE_Result res = TEE_ERROR_GENERIC;
+	unsigned int i = 0;
 	int len = 0;
 
 	assert(lpt_dev && lpt_dev->fdt);
@@ -460,10 +464,16 @@ static TEE_Result stm32_lptimer_parse_fdt(struct lptimer_device *lpt_dev)
 	stm32_lptimer_set_driverdata(lpt_dev);
 
 	node = fdt_subnode_offset(fdt, node, "counter");
-	if (node >= 0 &&
-	    !fdt_node_check_compatible(fdt, node, LPTIMER_COUNTER_COMPAT) &&
-	    _fdt_get_status(fdt, node) != DT_STATUS_DISABLED)
-		pdata->mode = LPTIMER_MODE_COUNTER;
+	if (node >= 0 && _fdt_get_status(fdt, node) != DT_STATUS_DISABLED) {
+		for (i = 0; i < ARRAY_SIZE(stm32_lptimer_counter_compat); i++) {
+			const char *compat = stm32_lptimer_counter_compat[i];
+
+			if (!fdt_node_check_compatible(fdt, node, compat)) {
+				pdata->mode = LPTIMER_MODE_COUNTER;
+				break;
+			}
+		}
+	}
 
 	return 0;
 }
@@ -580,6 +590,7 @@ static TEE_Result stm32_lptimer_probe(const void *fdt, int node,
 
 static const struct dt_device_match stm32_lptimer_match_table[] = {
 	{ .compatible = "st,stm32-lptimer" },
+	{ .compatible = "st,stm32mp25-lptimer" },
 	{ }
 };
 
