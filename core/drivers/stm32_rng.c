@@ -72,9 +72,11 @@
 struct stm32_rng_driver_data {
 	unsigned long max_noise_clk_freq;
 	unsigned long nb_clock;
+	uint32_t cr;
+	uint32_t nscr;
+	uint32_t htcr;
 	bool has_power_optim;
 	bool has_cond_reset;
-	bool entropy_src_config;
 };
 
 struct stm32_rng_instance {
@@ -565,9 +567,7 @@ DECLARE_KEEP_PAGER(stm32_rng_pm);
 static TEE_Result stm32_rng_parse_fdt(const void *fdt, int node)
 {
 	TEE_Result res = TEE_ERROR_GENERIC;
-	const fdt32_t *cuint = NULL;
 	struct dt_node_info dt_rng = { };
-	int len = 0;
 
 	_fdt_fill_device_info(fdt, &dt_rng, node);
 	if (dt_rng.reg == DT_INFO_INVALID_REG)
@@ -605,26 +605,11 @@ static TEE_Result stm32_rng_parse_fdt(const void *fdt, int node)
 	stm32_rng->release_post_boot = IS_ENABLED(CFG_WITH_SOFTWARE_PRNG) &&
 				       !IS_ENABLED(CFG_PM);
 
-	if (!stm32_rng->ddata->entropy_src_config)
-		return TEE_SUCCESS;
-
-	cuint = fdt_getprop(fdt, node, "st,rng-entropy-source-config", &len);
-	if (!cuint) {
-		if (len != -FDT_ERR_NOTFOUND)
-			panic();
-
-		IMSG("No RNG configuration specified, preserving default one");
-
-		return TEE_SUCCESS;
-	} else if (len / sizeof(uint32_t) != RNG_CONF_LEN) {
-		panic("Incorrect number of arguments for RNG configuration");
-	}
-
-	stm32_rng->rng_config = fdt32_to_cpu(cuint[0]);
+	stm32_rng->rng_config = stm32_rng->ddata->cr;
 	if (stm32_rng->rng_config & ~RNG_CR_ENTROPY_SRC_MASK)
 		panic("Incorrect entropy source configuration");
-	stm32_rng->health_test_conf = fdt32_to_cpu(cuint[1]);
-	stm32_rng->noise_ctrl_conf = fdt32_to_cpu(cuint[2]);
+	stm32_rng->health_test_conf = stm32_rng->ddata->htcr;
+	stm32_rng->noise_ctrl_conf = stm32_rng->ddata->nscr;
 	if (stm32_rng->noise_ctrl_conf & ~RNG_NSCR_MASK)
 		panic("Incorrect noise source control configuration");
 
@@ -721,8 +706,10 @@ static const struct stm32_rng_driver_data mp13_data[] = {
 		.max_noise_clk_freq = U(3000000),
 		.nb_clock = 1,
 		.has_cond_reset = true,
-		.entropy_src_config = true,
 		.has_power_optim = true,
+		.cr = 0x00F00D00,
+		.nscr = 0x2B5BB,
+		.htcr = 0x969D,
 	},
 };
 
@@ -731,7 +718,6 @@ static const struct stm32_rng_driver_data mp15_data[] = {
 		.max_noise_clk_freq = U(3000000),
 		.nb_clock = 1,
 		.has_cond_reset = false,
-		.entropy_src_config = false,
 		.has_power_optim = false,
 	},
 };
@@ -742,8 +728,10 @@ static const struct stm32_rng_driver_data mp25_data[] = {
 		.max_noise_clk_freq = U(48000000),
 		.nb_clock = 2,
 		.has_cond_reset = true,
-		.entropy_src_config = true,
 		.has_power_optim = true,
+		.cr = 0x00F00D00,
+		.nscr = 0x2B5BB,
+		.htcr = 0x969D,
 	},
 };
 
