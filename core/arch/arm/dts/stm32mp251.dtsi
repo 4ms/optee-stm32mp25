@@ -395,7 +395,8 @@
 			rng: rng@42020000 {
 				compatible = "st,stm32mp25-rng";
 				reg = <0x42020000 0x400>;
-				clocks = <&rcc CK_BUS_RNG>;
+				clocks = <&clk_rcbsec>, <&rcc CK_BUS_RNG>;
+				clock-names = "rng_clk", "rng_hclk";
 				resets = <&rcc RNG_R>;
 			};
 
