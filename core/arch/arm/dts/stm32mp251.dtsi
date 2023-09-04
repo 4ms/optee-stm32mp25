@@ -90,6 +90,14 @@
 			compatible = "fixed-clock";
 			clock-frequency = <0>;
 		};
+
+		clocks {
+			clk_rcbsec: clk-rcbsec {
+				#clock-cells = <0>;
+				compatible = "fixed-clock";
+				clock-frequency = <64000000>;
+			};
+		};
 	};
 
 	remoteproc_m33: remoteproc {
