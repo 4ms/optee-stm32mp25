@@ -17,6 +17,7 @@
 #define CLK_OPS_PARENT_ENABLE	BIT(2) /* parent need enable during re-parent */
 #define CLK_SET_RATE_PARENT	BIT(3) /* propagate rate change up one level */
 #define CLK_SET_RATE_UNGATE	BIT(4) /* clock needs to run to set rate */
+#define CLK_DUTY_CYCLE_PARENT	BIT(5) /* forward duty cycle call to parent */
 
 /**
  * struct clk - Clock structure
