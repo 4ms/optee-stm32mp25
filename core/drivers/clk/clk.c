@@ -453,10 +453,15 @@ TEE_Result clk_get_duty_cycle(struct clk *clk, struct clk_duty *duty)
 
 unsigned long clk_round_rate(struct clk *clk, unsigned long rate)
 {
+	struct clk *parent = clk->parent;
+
 	if (clk->ops->round_rate)
 		return clk->ops->round_rate(clk, rate, clk->parent->rate);
 
-	return 0;
+	if (parent && (clk->flags & CLK_SET_RATE_PARENT))
+		return clk_round_rate(parent, rate);
+
+	return clk->rate;
 }
 
 #include <stdio.h>
