@@ -432,7 +432,7 @@ static TEE_Result stm32_lptimer_parse_fdt(struct lptimer_device *lpt_dev)
 {
 	struct stm32_lptimer_platdata *pdata = &lpt_dev->pdata;
 	struct dt_node_info dt_info = { };
-	static struct io_pa_va base;
+	struct io_pa_va base = { };
 	const void *fdt = lpt_dev->fdt;
 	int node = lpt_dev->node;
 	TEE_Result res = TEE_ERROR_GENERIC;
