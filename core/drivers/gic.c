@@ -635,8 +635,8 @@ static void gic_save_it(struct gic_data *gd, struct gic_it_pm *pm)
 	unsigned int it = pm->it;
 	size_t idx = 0;
 	uint32_t bit_mask = BIT(it % NUM_INTS_PER_REG);
-	uint32_t shift2 = it % (NUM_INTS_PER_REG / 2);
-	uint32_t shift8 = it % (NUM_INTS_PER_REG / 8);
+	uint32_t shift2 = it % (NUM_INTS_PER_REG / 2) * 2;
+	uint32_t shift8 = it % (NUM_INTS_PER_REG / 8) * 8;
 	uint32_t data32 = 0;
 
 	pm->flags = 0;
@@ -670,8 +670,8 @@ static void gic_restore_it(struct gic_data *gd, struct gic_it_pm *pm)
 	unsigned int it = pm->it;
 	size_t idx = it / NUM_INTS_PER_REG;
 	uint32_t mask = BIT(it % NUM_INTS_PER_REG);
-	uint32_t shift2 = it % (NUM_INTS_PER_REG / 2);
-	uint32_t shift8 = it % (NUM_INTS_PER_REG / 8);
+	uint32_t shift2 = it % (NUM_INTS_PER_REG / 2) * 2;
+	uint32_t shift8 = it % (NUM_INTS_PER_REG / 8) * 8;
 
 	io_mask32(gd->gicd_base + GICD_IGROUPR(idx),
 		  (pm->flags & IT_PM_GPOUP1_BIT) ? mask : 0, mask);
