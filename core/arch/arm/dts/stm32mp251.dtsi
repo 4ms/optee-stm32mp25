@@ -578,7 +578,6 @@
 			reg = <0x42130000 0x1000>;
 			clocks = <&rcc CK_ICN_LS_MCU>;
 			st,mem-map = <0xa080000 0x20000>;
-			status = "disabled";
 		};
 
 		risab6: risab@42140000 {
