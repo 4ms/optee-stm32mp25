@@ -58,6 +58,10 @@ static TEE_Result stm32mp_rcc_probe(const void *fdt, int node,
 		panic("Failed to get RCC pinctrl");
 	}
 
+	res = stm32_pinctrl_set_secure_cfg(pinctrl_cfg, true);
+	if (res)
+		panic("Failed to secure RCC pinctrl");
+
 	/* Enable clock(s) if present */
 	while (!clk_dt_get_by_index(fdt, node, idx++, &clk)) {
 		struct stm32mp_rcc_clock *rcc_clock = NULL;
