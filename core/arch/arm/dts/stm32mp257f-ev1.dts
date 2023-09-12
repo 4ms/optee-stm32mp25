@@ -271,9 +271,7 @@
 };
 
 &remoteproc_m33 {
-	memory-region = <&cm33_cube_fw>, <&cm33_cube_data>,
-			<&ipc_shmem>, <&tfm_code>, <&tfm_data>;
-	st,s-memory-region = <0>, <0>, <0>, <1>, <1>;
+	st,non-secure-loading;
 	status = "okay";
 };
 
