@@ -28,9 +28,17 @@
 #define UART_REG_RDR			0x24	/* Receive data register */
 #define UART_REG_TDR			0x28	/* Transmit data register */
 #define UART_REG_PRESC			0x2c	/* Prescaler register */
+#define UART_REG_HWCFGR1		0x3f0	/* Hardware configuration 1 */
 
-#define PUTC_TIMEOUT_US			1000
-#define FLUSH_TIMEOUT_US		16000
+/*
+ * At 115200 bits/s
+ * 1 bit = 1 / 115200 = 8,68 us
+ * 8 bits = 69,444 us
+ * 10 bits are needed for worst case (8 bits + 1 start + 1 stop) = 86.806 us
+ * Round it to 90 us.
+ */
+#define ONE_BYTE_B115200_US		90
+#define UART_DFLT_FIFO_SIZE		64
 
 /*
  * Uart Interrupt & status register bits
@@ -45,6 +53,11 @@
 #define USART_ISR_TXE_TXFNF		BIT(7)
 #define USART_ISR_TXFE			BIT(23)
 
+/*
+ * Hardware configuration register 1 bits
+ */
+#define UART_HWCFGR1_CFG8		GENMASK_32(31, 28)
+
 static vaddr_t loc_chip_to_base(struct serial_chip *chip)
 {
 	struct stm32_uart_pdata *pd = NULL;
@@ -57,7 +70,9 @@ static vaddr_t loc_chip_to_base(struct serial_chip *chip)
 static void loc_flush(struct serial_chip *chip)
 {
 	vaddr_t base = loc_chip_to_base(chip);
-	uint64_t timeout = timeout_init_us(FLUSH_TIMEOUT_US);
+	struct stm32_uart_pdata *pd =
+		container_of(chip, struct stm32_uart_pdata, chip);
+	uint64_t timeout = timeout_init_us(pd->fifo_size * ONE_BYTE_B115200_US);
 
 	while (!(io_read32(base + UART_REG_ISR) & USART_ISR_TXFE))
 		if (timeout_elapsed(timeout))
@@ -67,7 +82,7 @@ static void loc_flush(struct serial_chip *chip)
 static void loc_putc(struct serial_chip *chip, int ch)
 {
 	vaddr_t base = loc_chip_to_base(chip);
-	uint64_t timeout = timeout_init_us(PUTC_TIMEOUT_US);
+	uint64_t timeout = timeout_init_us(ONE_BYTE_B115200_US);
 
 	while (!(io_read32(base + UART_REG_ISR) & USART_ISR_TXE_TXFNF))
 		if (timeout_elapsed(timeout))
@@ -106,6 +121,9 @@ void stm32_uart_init(struct stm32_uart_pdata *pd, vaddr_t base)
 {
 	pd->base.pa = base;
 	pd->chip.ops = &stm32_uart_serial_ops;
+
+	/* Here is the early console, take a fixed value */
+	pd->fifo_size = UART_DFLT_FIFO_SIZE;
 }
 
 #ifdef CFG_DT
@@ -128,6 +146,7 @@ struct stm32_uart_pdata *stm32_uart_init_from_dt_node(void *fdt, int node)
 	TEE_Result res = TEE_ERROR_GENERIC;
 	struct stm32_uart_pdata *pd = NULL;
 	struct dt_node_info info = { };
+	uint32_t cfg8 = 0;
 
 	_fdt_fill_device_info(fdt, &info, node);
 
@@ -163,6 +182,16 @@ struct stm32_uart_pdata *stm32_uart_init_from_dt_node(void *fdt, int node)
 	res = stm32_pinctrl_dt_get_by_index(fdt, node, 0, &pd->pinctrl);
 	if (res)
 		panic();
+
+	cfg8 = get_field_u32(io_read32(pd->base.va + UART_REG_HWCFGR1),
+			     UART_HWCFGR1_CFG8);
+	if (cfg8) {
+		pd->fifo_size = 1 << cfg8;
+	} else {
+		EMSG("fifo size could not be read, setting to %d",
+		     UART_DFLT_FIFO_SIZE);
+		pd->fifo_size = UART_DFLT_FIFO_SIZE;
+	}
 
 	if (pd->secure)
 		register_secure_uart(pd);

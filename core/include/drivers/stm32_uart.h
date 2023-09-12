@@ -16,6 +16,7 @@ struct stm32_uart_pdata {
 	bool secure;
 	struct clk *clock;
 	struct stm32_pinctrl_list *pinctrl;
+	char fifo_size;
 };
 
 /*
