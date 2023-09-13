@@ -56,7 +56,7 @@ static struct mutex pmic_mu = MUTEX_INITIALIZER;
 #define STM32_PM_OFF			3
 #define STM32_PM_NB_SOC_MODES		4
 
-const char *plat_get_lp_mode_name(int mode __unused)
+static const char *plat_get_lp_mode_name(int mode __unused)
 {
 	switch (mode) {
 	case STM32_PM_DEFAULT:

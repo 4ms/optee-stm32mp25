@@ -9,9 +9,6 @@
 #include <tee_api_types.h>
 #include <util.h>
 
-const char *plat_get_lp_mode_name(int mode);
-int plat_get_lp_mode_count(void);
-
 /*
  * Consumer interface
  */
@@ -80,8 +77,6 @@ struct regul_ops {
 	TEE_Result (*set_flag)(const struct regul_desc *desc, uint16_t flag);
 	void (*lock)(const struct regul_desc *desc);
 	void (*unlock)(const struct regul_desc *desc);
-	TEE_Result (*suspend)(const struct regul_desc *desc, uint8_t state,
-			      uint16_t mv);
 };
 
 TEE_Result regulator_register(const struct regul_desc *desc, int node);
@@ -104,8 +99,6 @@ struct rdev {
 	uint8_t use_count;
 	int32_t supply_phandle;
 	struct rdev *supply_dev;
-	uint8_t *lp_state;
-	uint16_t *lp_mv;
 	SLIST_ENTRY(rdev) link;
 };
 

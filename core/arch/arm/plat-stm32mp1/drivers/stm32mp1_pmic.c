@@ -31,6 +31,8 @@
 #include <trace.h>
 #include <util.h>
 
+#include "pm/power.h"
+
 #define MODE_STANDBY                    8
 
 #define PMIC_I2C_TRIALS			1

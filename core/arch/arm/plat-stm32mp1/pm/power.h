@@ -10,6 +10,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+const char *plat_get_lp_mode_name(int mode);
+
 bool need_to_backup_cpu_context(unsigned int soc_mode);
 bool need_to_backup_stop_context(unsigned int soc_mode);
 

@@ -5,7 +5,6 @@
 
 #include <assert.h>
 #include <config.h>
-#include <drivers/regulator.h>
 #include <drivers/stm32mp_dt_bindings.h>
 #include <kernel/dt.h>
 #include <kernel/boot.h>
@@ -35,11 +34,6 @@ static bool stm32mp1_pm_dom[STM32MP1_PD_MAX_PM_DOMAIN] = {
 	[STM32MP1_PD_CORE_RET] = false,
 	[STM32MP1_PD_CORE] = false
 };
-
-int plat_get_lp_mode_count(void)
-{
-	return STM32_PM_MAX_SOC_MODE;
-}
 
 bool stm32mp1_is_retram_during_standby(void)
 {
