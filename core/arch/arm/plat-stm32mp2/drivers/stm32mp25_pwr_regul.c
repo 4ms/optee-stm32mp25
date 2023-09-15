@@ -225,6 +225,7 @@ static TEE_Result pwr_set_voltage(const struct regul_desc *desc, uint16_t mv)
 {
 	struct pwr_regu *regu = (struct pwr_regu *)desc->driver_data;
 	TEE_Result res = TEE_ERROR_GENERIC;
+	TEE_Result result = TEE_ERROR_GENERIC;
 	bool en = false;
 
 	FMSG("%s: set volt to %"PRIu16" mv", desc->node_name, mv);
@@ -248,10 +249,14 @@ static TEE_Result pwr_set_voltage(const struct regul_desc *desc, uint16_t mv)
 	}
 
 	/* Forward set voltage request to the power supply */
-	res = regulator_set_voltage(regu->supply, mv);
-	if (res) {
-		EMSG("regulator %s set voltage failed", desc->node_name);
-		return res;
+	result = regulator_set_voltage(regu->supply, mv);
+	if (result) {
+		EMSG("regulator %s set voltage failed (%d)",
+		     desc->node_name, result);
+		/* continue to restore IOs setting for current voltage */
+		res = regulator_get_voltage(regu->supply, &mv);
+		if (res)
+			return res;
 	}
 
 	if (mv < IO_VOLTAGE_THRESHOLD_MV)
@@ -264,7 +269,7 @@ static TEE_Result pwr_set_voltage(const struct regul_desc *desc, uint16_t mv)
 			return res;
 	}
 
-	return res;
+	return result;
 }
 
 static TEE_Result pwr_list_voltages(const struct regul_desc *desc,
