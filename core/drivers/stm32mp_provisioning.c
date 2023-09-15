@@ -12,6 +12,7 @@
 #include <kernel/dt.h>
 #include <kernel/dt_driver.h>
 #include <kernel/panic.h>
+#include <kernel/pm.h>
 #include <libfdt.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -110,7 +111,7 @@ static TEE_Result provisioning_subnode(const void *fdt, int node)
 }
 
 #ifdef CFG_DT
-static TEE_Result provisioning_probe(void)
+static TEE_Result provisioning_init(void)
 {
 	const void *fdt = get_embedded_dt();
 	int node = -1;
@@ -123,6 +124,31 @@ static TEE_Result provisioning_probe(void)
 		return TEE_SUCCESS;
 
 	return provisioning_subnode(fdt, node);
+}
+
+#ifdef CFG_PM
+static TEE_Result provisioning_pm(enum pm_op op, unsigned int pm_hint __unused,
+				  const struct pm_callback_handle *hdl __unused)
+{
+	if (op == PM_OP_RESUME)
+		return provisioning_init();
+
+	return TEE_SUCCESS;
+}
+#endif
+
+static TEE_Result provisioning_probe(void)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+
+	res = provisioning_init();
+
+#ifdef CFG_PM
+	if (res == TEE_SUCCESS)
+		register_pm_driver_cb(provisioning_pm, NULL, "provisionning");
+#endif
+
+	return res;
 }
 #else
 static TEE_Result provisioning_probe(void)
