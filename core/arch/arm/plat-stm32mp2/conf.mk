@@ -168,7 +168,7 @@ CFG_HWRNG_QUALITY ?= 1024
 endif
 
 # Default enable SCMI PTA support with SCP firmware SCMI server
-CFG_SCMI_SCPFW ?= n
+CFG_SCMI_SCPFW ?= y
 
 # CFG_SCMI_MSG_DRIVERS will soon be deprecated for this platform.
 # Until then, enable it as fallback configuration if CFG_SCMI_SCPFW is disabled.
