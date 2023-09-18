@@ -79,6 +79,9 @@ struct stm32_risab_pdata {
 	struct clk *clock;
 	struct mem_region region_cfged;
 	struct stm32_risab_rif_conf *subr_cfg;
+#if TRACE_LEVEL >= TRACE_INFO
+	char risab_name[20];
+#endif
 	uintptr_t base;
 	uint32_t pages_configured;
 	bool srwiad;
@@ -90,6 +93,36 @@ static SLIST_HEAD(, stm32_risab_pdata) risab_list =
 		SLIST_HEAD_INITIALIZER(risab_list);
 
 static bool is_tdcid;
+
+#if TRACE_LEVEL >= TRACE_INFO
+void stm32_risab_dump_erroneous_data(void)
+{
+	struct stm32_risab_pdata *risab = NULL;
+
+	SLIST_FOREACH(risab, &risab_list, link) {
+		if (clk_enable(risab->clock))
+			panic("Can't enable RISAB clock");
+
+		/* Check if faulty address on this RISAB */
+		if (!io_read32(risab->base + _RISAB_IASR)) {
+			clk_disable(risab->clock);
+			continue;
+		}
+
+		EMSG("\n\nDUMPING DATA FOR %s\n\n", risab->risab_name);
+		EMSG("=====================================================");
+		EMSG("Status register (IAESR): %#x",
+		     io_read32(risab->base + _RISAB_IAESR));
+		EMSG("-----------------------------------------------------");
+		EMSG("Faulty address (IADDR): %#x",
+		     io_read32(risab->base + _RISAB_IADDR));
+
+		EMSG("=====================================================\n");
+
+		clk_disable(risab->clock);
+	};
+}
+#endif /* TRACE_LEVEL >= TRACE_INFO */
 
 static bool regs_access_granted(struct stm32_risab_pdata *risab_d,
 				unsigned int reg_idx)
@@ -360,6 +393,10 @@ static TEE_Result parse_dt(const void *fdt, int node,
 	res = clk_dt_get_by_index(fdt, node, 0, &risab_d->clock);
 	if (res)
 		return res;
+
+#if TRACE_LEVEL >= TRACE_INFO
+	strncpy(risab_d->risab_name, fdt_get_name(fdt, node, NULL), 19);
+#endif
 
 	cuint = fdt_getprop(fdt, node, "st,srwiad", NULL);
 	if (cuint)

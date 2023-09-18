@@ -9,6 +9,7 @@
 #include <drivers/gic.h>
 #include <drivers/stm32_bsec.h>
 #include <drivers/stm32_iac.h>
+#include <drivers/stm32_risab.h>
 #include <drivers/stm32_risaf.h>
 #include <drivers/stm32_uart.h>
 #include <drivers/stm32mp_dt_bindings.h>
@@ -190,6 +191,7 @@ void may_spin_unlock(unsigned int *lock, uint32_t exceptions)
 __noreturn void access_violation_action(void)
 {
 	stm32_risaf_dump_erroneous_data();
+	stm32_risab_dump_erroneous_data();
 
 	panic();
 }
