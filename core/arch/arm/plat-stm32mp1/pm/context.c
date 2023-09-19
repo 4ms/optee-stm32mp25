@@ -197,7 +197,8 @@ static void save_time(void)
 
 	clk_enable(pm_clocks.rtc);
 
-	stm32_rtc_get_calendar(&plat_ctx.rtc);
+	if (stm32_rtc_get_calendar(&plat_ctx.rtc))
+		panic();
 }
 
 #if TRACE_LEVEL >= TRACE_DEBUG
@@ -228,7 +229,9 @@ static void restore_time(void)
 	vaddr_t stgen = stm32mp_stgen_base();
 	struct retram_resume_ctx __maybe_unused *ctx = get_retram_resume_ctx();
 
-	stm32_rtc_get_calendar(&current_calendar);
+	if (stm32_rtc_get_calendar(&current_calendar))
+		panic();
+
 	stdby_time_in_ms = stm32_rtc_diff_calendar_ms(&current_calendar,
 						      &plat_ctx.rtc);
 
