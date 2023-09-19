@@ -258,9 +258,16 @@ static void stm32_rtc_read_timestamp(struct stm32_rtc_time *time)
 	stm32_rtc_get_date(&cal_tamp, time);
 }
 
-void stm32_rtc_get_calendar(struct stm32_rtc_calendar *calendar)
+TEE_Result stm32_rtc_get_calendar(struct stm32_rtc_calendar *calendar)
 {
-	clk_enable(rtc_dev.pclk);
+	TEE_Result res = TEE_ERROR_GENERIC;
+
+	if (!rtc_dev.pclk)
+		return TEE_ERROR_GENERIC;
+
+	res = clk_enable(rtc_dev.pclk);
+	if (res)
+		return res;
 
 	stm32_rtc_read_calendar(calendar);
 
@@ -275,6 +282,8 @@ void stm32_rtc_get_calendar(struct stm32_rtc_calendar *calendar)
 	}
 
 	clk_disable(rtc_dev.pclk);
+
+	return TEE_SUCCESS;
 }
 
 /*
@@ -466,11 +475,17 @@ unsigned long long stm32_rtc_diff_calendar_tick(struct stm32_rtc_calendar *cur,
 	return (unsigned long long)diff_in_tick;
 }
 
-void stm32_rtc_get_timestamp(struct stm32_rtc_time *tamp_ts)
+TEE_Result stm32_rtc_get_timestamp(struct stm32_rtc_time *tamp_ts)
 {
+	TEE_Result res = TEE_ERROR_GENERIC;
 	vaddr_t rtc_base = get_base();
 
-	clk_enable(rtc_dev.pclk);
+	if (!rtc_dev.pclk)
+		return TEE_ERROR_GENERIC;
+
+	res = clk_enable(rtc_dev.pclk);
+	if (res)
+		return res;
 
 	if (io_read32(rtc_base + RTC_SR) & RTC_SR_TSF) {
 		/* Timestamp for tamper event */
@@ -483,13 +498,21 @@ void stm32_rtc_get_timestamp(struct stm32_rtc_time *tamp_ts)
 	}
 
 	clk_disable(rtc_dev.pclk);
+
+	return TEE_SUCCESS;
 }
 
-void stm32_rtc_set_tamper_timestamp(void)
+TEE_Result stm32_rtc_set_tamper_timestamp(void)
 {
+	TEE_Result res = TEE_ERROR_GENERIC;
 	vaddr_t rtc_base = get_base();
 
-	clk_enable(rtc_dev.pclk);
+	if (!rtc_dev.pclk)
+		return TEE_ERROR_GENERIC;
+
+	res = clk_enable(rtc_dev.pclk);
+	if (res)
+		return res;
 
 	stm32_rtc_write_unprotect();
 
@@ -507,6 +530,8 @@ void stm32_rtc_set_tamper_timestamp(void)
 	stm32_rtc_write_protect();
 
 	clk_disable(rtc_dev.pclk);
+
+	return TEE_SUCCESS;
 }
 
 TEE_Result stm32_rtc_is_timestamp_enable(bool *ret)
