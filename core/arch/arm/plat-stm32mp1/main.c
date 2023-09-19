@@ -775,7 +775,8 @@ static TEE_Result stm32_configure_tamp(void)
 		panic();
 
 	/* Enable timestamp for tamper */
-	stm32_rtc_set_tamper_timestamp();
+	if (stm32_rtc_set_tamper_timestamp())
+		panic();
 
 	return TEE_SUCCESS;
 }
