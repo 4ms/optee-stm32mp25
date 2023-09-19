@@ -96,7 +96,8 @@ static void stm32_stgen_pm_suspend(void)
 	io_clrbits32(stgen_d.base + STGENC_CNTCR, BIT(0));
 
 	/* Save current time from the RTC */
-	stm32_rtc_get_calendar(stgen_d.calendar);
+	if (stm32_rtc_get_calendar(stgen_d.calendar))
+		panic("Could not get RTC calendar at suspend");
 
 	/* Save current counter value */
 	counter_val = stm32_stgen_get_counter_value();
@@ -122,7 +123,8 @@ static void stm32_stgen_pm_resume(void)
 	io_clrbits32(stgen_d.base + STGENC_CNTCR, BIT(0));
 
 	/* Read the current time from the RTC to update system counter */
-	stm32_rtc_get_calendar(cur_calendar);
+	if (stm32_rtc_get_calendar(cur_calendar))
+		panic("Could not get RTC calendar at resume");
 
 	nb_pm_count_ticks = stm32_rtc_diff_calendar_tick(cur_calendar,
 							 stgen_d.calendar,
@@ -240,12 +242,12 @@ static TEE_Result stgen_probe(const void *fdt, int node,
 
 	res = clk_enable(stgen_d.tsgen_clock);
 	if (res)
-		return res;
+		goto err;
 
 	res = clk_enable(stgen_d.bus_clock);
 	if (res) {
 		clk_disable(stgen_d.tsgen_clock);
-		return res;
+		goto err;
 	}
 
 	/*
@@ -293,6 +295,11 @@ end:
 	io_setbits32(stgen_d.base + STGENC_CNTCR, BIT(0));
 
 	return TEE_SUCCESS;
+
+err:
+	free(stgen_d.calendar);
+
+	return res;
 }
 
 static const struct stm32_stgen_compat_data stm32_stgen_mp1 = {
