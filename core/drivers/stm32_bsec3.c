@@ -10,6 +10,7 @@
 #include <io.h>
 #include <kernel/delay.h>
 #include <kernel/dt.h>
+#include <kernel/pm.h>
 #include <kernel/boot.h>
 #include <kernel/spinlock.h>
 #include <limits.h>
@@ -828,9 +829,8 @@ static uint32_t init_state(uint32_t status)
 	return state;
 }
 
-static void stm32_bsec_shadow_init(void)
+static void stm32_bsec_shadow_load(uint32_t status)
 {
-	uint32_t status = bsec_get_otp_status();
 	unsigned int otp = 0U, bank = 0U;
 	uint32_t exceptions = 0U;
 	uint32_t srlock[OTP_ACCESS_SIZE] = { 0U };
@@ -840,6 +840,10 @@ static void stm32_bsec_shadow_init(void)
 	uint32_t otpvldr[OTP_ACCESS_SIZE] = { 0U };
 	uint32_t mask = 0U;
 	unsigned int max_id = bsec_dev.max_id;
+
+	memset(bsec_dev.shadow, 0, sizeof(*bsec_dev.shadow));
+	bsec_dev.shadow->magic = BSEC_MAGIC;
+	bsec_dev.shadow->state = BSEC_STATE_INVALID;
 
 	exceptions = bsec_lock();
 
@@ -889,9 +893,21 @@ static void stm32_bsec_shadow_init(void)
 					      BSEC_FVR(otp));
 	}
 
-	bsec_dev.shadow->state = init_state(status);
-
 	bsec_unlock(exceptions);
+}
+
+static void stm32_bsec_shadow_init(bool force_load)
+{
+	uint32_t status = bsec_get_otp_status();
+
+	/* update shadow when forced or invalid */
+	if (force_load || bsec_dev.shadow->magic != BSEC_MAGIC)
+		stm32_bsec_shadow_load(status);
+
+	/* always update status */
+	bsec_dev.shadow->state = init_state(status);
+	if ((bsec_dev.shadow->state & BSEC_STATE_MASK) == BSEC_STATE_INVALID)
+		panic("BSEC invalid state");
 }
 
 TEE_Result stm32_bsec_find_otp_in_nvmem_layout(const char *name,
@@ -1072,12 +1088,28 @@ static void initialize_bsec_from_dt(void)
 	save_dt_nvmem_layout(fdt, node);
 }
 
+static TEE_Result
+stm32_bsec_pm(enum pm_op op, unsigned int pm_hint,
+	      const struct pm_callback_handle *pm_handle __unused)
+{
+	if (pm_hint != PM_HINT_CONTEXT_STATE)
+		return TEE_SUCCESS;
+
+	if (op == PM_OP_RESUME) {
+		/* treat BSEC error */
+		check_reset_error();
+
+		/* re initialize the shadow */
+		stm32_bsec_shadow_init(false);
+	}
+
+	return TEE_SUCCESS;
+}
+
 static TEE_Result initialize_bsec(void)
 {
 	struct stm32_bsec_static_cfg cfg = { };
 	vaddr_t va = 0;
-	uint32_t state = BSEC_STATE_INVALID;
-	TEE_Result res = TEE_SUCCESS;
 
 	plat_bsec_get_static_cfg(&cfg);
 
@@ -1090,11 +1122,6 @@ static TEE_Result initialize_bsec(void)
 	bsec_dev.upper_base = cfg.upper_start;
 	bsec_dev.max_id = cfg.max_id;
 
-	/* initialise the shadow */
-	memset(bsec_dev.shadow, 0, sizeof(*bsec_dev.shadow));
-	bsec_dev.shadow->magic = BSEC_MAGIC;
-	bsec_dev.shadow->state = BSEC_STATE_INVALID;
-
 	initialize_bsec_from_dt();
 
 	if ((bsec_get_version() != BSEC_IP_VERSION_1_0) ||
@@ -1103,11 +1130,11 @@ static TEE_Result initialize_bsec(void)
 
 	check_reset_error();
 
-	stm32_bsec_shadow_init();
+	/* initialize the shadow */
+	stm32_bsec_shadow_init(true);
 
-	res = stm32_bsec_get_state(&state);
-	if (res || (state & BSEC_STATE_MASK) == BSEC_STATE_INVALID)
-		panic("BSEC invalid state");
+	if (IS_ENABLED(CFG_PM))
+		register_pm_core_service_cb(stm32_bsec_pm, NULL, "stm32-bsec");
 
 	return TEE_SUCCESS;
 }
