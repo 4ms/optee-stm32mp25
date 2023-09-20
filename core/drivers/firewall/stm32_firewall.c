@@ -225,7 +225,7 @@ stm32_firewall_bus_dt_register(struct stm32_firewall_device *fdev,
 
 	if (fdev->ops->has_access(fdev, id, pbase, 0, sec_cfg)) {
 		const struct stm32_firewall_cfg non_sec_cfg[] = {
-			{ FWLL_NSEC_RW | FWLL_MASTER(0) },
+			{ FWLL_NSEC_PRIV_RW | FWLL_MASTER(0) },
 			{ }, /* Null terminated */
 		};
 		int len_array = ARRAY_SIZE(firewall_compatible_exceptions);
