@@ -67,21 +67,25 @@ static TEE_Result provisioning_subnode(const void *fdt, int node)
 			if (stm32_bsec_read_sw_lock(otp_id + i, &lock))
 				panic();
 
-			if (lock)
-				panic("Shadow write lock");
+			if (lock) {
+				EMSG("Override the OTP %u: shadow write lock",
+				     otp_id + i);
+				panic();
+			}
 
 			shadow_val = fdt32_to_cpu(*cuint++);
 
 			if (stm32_bsec_shadow_read_otp(&otp_val, otp_id + i))
 				panic();
 
-			if (otp_val)
-				IMSG("Override the OTP %u initial value",
-				     otp_id);
+			if (otp_val != (otp_val | shadow_val)) {
+				IMSG("Override the OTP %u: %x to %x",
+				     otp_id + i, otp_val, otp_val | shadow_val);
 
-			if (stm32_bsec_write_otp(otp_val | shadow_val,
-						 otp_id + i))
-				panic();
+				if (stm32_bsec_write_otp(otp_val | shadow_val,
+							 otp_id + i))
+					panic();
+			}
 
 			switch (otp_lock) {
 			case STICKY_LOCK_SW:
