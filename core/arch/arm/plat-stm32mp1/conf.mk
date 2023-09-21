@@ -384,6 +384,8 @@ ifeq ($(CFG_TA_STM32MP_NVMEM),y)
 $(call force,CFG_BSEC_PTA,y,Mandated by CFG_TA_STM32MP_NVMEM)
 CFG_IN_TREE_EARLY_TAS += stm32mp_nvmem/1a8342cc-81a5-4512-99fe-9e2b3e37d626
 endif
+CFG_DRIVERS_NVMEM ?= y
+CFG_STM32_TAMP_NVRAM ?= y
 
 # Default use stm32mp1 PM mailbox context version 3
 CFG_STM32MP1_PM_CONTEXT_VERSION ?= 3
