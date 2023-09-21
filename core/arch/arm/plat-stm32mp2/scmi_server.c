@@ -242,7 +242,8 @@ static struct stm32_scmi_rd stm32_scmi_reset_domain[] = {
 	RESET_CELL(RST_SCMI_C2_R, C2_R, 0, "c2"),
 	RESET_CELL(RST_SCMI_C1_HOLDBOOT_R, HOLD_BOOT_C1_R, 0, "c1_holdboot"),
 	RESET_CELL(RST_SCMI_C2_HOLDBOOT_R, HOLD_BOOT_C2_R, 0, "c2_holdboot"),
-	RESET_CELL(RST_SCMI_FMC, FMC_R, FMC_BASE, "fmc"),
+	/* SCMI FMC reset allowed: RCC driver stubs request if necessary */
+	RESET_CELL(RST_SCMI_FMC, FMC_R, 0, "fmc"),
 	RESET_CELL(RST_SCMI_PCIE, PCIE_R, PCIE_BASE, "pcie"),
 	RESET_CELL(RST_SCMI_OSPI1, OSPI1_R, OSPI1_BASE, "ospi1"),
 	RESET_CELL(RST_SCMI_OSPI2, OSPI2_R, OSPI2_BASE, "ospi2"),
