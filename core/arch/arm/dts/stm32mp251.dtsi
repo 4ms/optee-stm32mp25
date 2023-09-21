@@ -952,6 +952,20 @@
 			reg = <0x46010000 0x400>;
 			clocks = <&rcc CK_BUS_RTC>;
 			interrupts = <GIC_SPI 14 IRQ_TYPE_LEVEL_HIGH>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges;
+
+			nvram: nvram@46010100 {
+				compatible = "st,stm32mp25-tamp-nvram";
+				#address-cells = <1>;
+				#size-cells = <1>;
+				reg = <0x46010100 0x200>;
+
+				boot_mode: tamp-bkp@180 {
+					reg = <0x180 0x4>;
+				};
+			};
 		};
 
 		pinctrl_z: pinctrl-z@46200000 {
