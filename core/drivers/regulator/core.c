@@ -288,6 +288,9 @@ TEE_Result regulator_set_voltage(struct rdev *rdev, uint16_t mvolt)
 
 	FMSG("%s %"PRIu16"mV", rdev->desc->node_name, mvolt);
 
+	if (rdev->cur_mv == mvolt)
+		return TEE_SUCCESS;
+
 	if (!rdev->desc->ops->set_voltage)
 		return TEE_ERROR_NOT_IMPLEMENTED;
 
