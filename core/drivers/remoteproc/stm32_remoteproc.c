@@ -172,6 +172,8 @@ TEE_Result stm32_rproc_da_to_pa(uint32_t firmware_id, paddr_t da, size_t size,
 		}
 	}
 
+	EMSG("Invalid DA region %#"PRIxPA" size %zu", da, size);
+
 	return TEE_ERROR_ACCESS_DENIED;
 }
 
