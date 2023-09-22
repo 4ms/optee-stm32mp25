@@ -583,10 +583,6 @@ TEE_Result stm32_bsec_read_sr_lock(uint32_t otp, bool *value)
 
 	*value = bsec_dev.shadow->status[otp] & LOCK_SHADOW_R;
 
-	/* Fuse words 364 to 375 are accessible only in ROM code */
-	if (otp >= 364)
-		*value = LOCK_SHADOW_R;
-
 	return TEE_SUCCESS;
 }
 
@@ -874,6 +870,12 @@ static void stm32_bsec_shadow_init(void)
 
 		if (bsec_dev.shadow->status[otp] & STATUS_SECURE)
 			continue;
+
+		/* Fuse words 364 to 375 are accessible only in ROM code */
+		if (otp >= 364) {
+			bsec_dev.shadow->status[otp] |= LOCK_SHADOW_R;
+			continue;
+		}
 
 		/* request shadow if not yet done or not valid */
 		if (!(sfsr[bank] & mask) || !(otpvldr[bank] & mask))
