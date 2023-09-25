@@ -297,7 +297,7 @@ static TEE_Result stm32_adc_core_probe(const void *fdt, int node,
 	}
 
 	res = regulator_set_min_voltage(priv->vref);
-	if (res && res != TEE_ERROR_NOT_IMPLEMENTED)
+	if (res)
 		goto err;
 
 	res = regulator_get_voltage(priv->vref, &priv->common.vref_mv);
