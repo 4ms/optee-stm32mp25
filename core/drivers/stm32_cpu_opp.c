@@ -97,26 +97,7 @@ static TEE_Result _set_opp_clk_rate(unsigned int opp)
 
 static TEE_Result opp_set_voltage(struct rdev *rdev, uint16_t volt_mv)
 {
-	TEE_Result res = TEE_ERROR_GENERIC;
-	uint16_t mv = 0;
-
-	res = regulator_set_voltage(rdev, volt_mv);
-	if (!res)
-		return TEE_SUCCESS;
-
-	if (res != TEE_ERROR_NOT_IMPLEMENTED) {
-		EMSG("Failed to set voltage to %umV: %#"PRIx32, volt_mv, res);
-		return res;
-	}
-
-	/* Fixed regulator management */
-	if (regulator_get_voltage(rdev, &mv))
-		return TEE_ERROR_GENERIC;
-
-	if (mv != volt_mv)
-		return TEE_ERROR_GENERIC;
-
-	return TEE_SUCCESS;
+	return regulator_set_voltage(rdev, volt_mv);
 }
 
 static TEE_Result set_clock_then_voltage(unsigned int opp)
