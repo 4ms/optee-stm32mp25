@@ -18,7 +18,8 @@
 		compatible = "st,stm32mp13-saes";
 		reg = <0x42050000 0x400>;
 		interrupts = <GIC_SPI 179 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&rcc CK_BUS_SAES>;
+		clocks = <&rcc CK_BUS_SAES>, <&rcc CK_BUS_RNG>;
+		clock-names = "bus", "rng";
 		resets = <&rcc SAES_R>;
 		status = "disabled";
 	};
@@ -27,7 +28,8 @@
 		compatible = "st,stm32mp13-pka64";
 		reg = <0x42060000 0x2000>;
 		interrupts = <GIC_SPI 146 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&rcc CK_BUS_PKA>;
+		clocks = <&rcc CK_BUS_PKA>,  <&rcc CK_BUS_RNG>;
+		clock-names = "bus", "rng";
 		resets = <&rcc PKA_R>;
 		status = "disabled";
 	};
