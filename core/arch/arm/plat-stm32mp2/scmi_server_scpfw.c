@@ -32,6 +32,7 @@
 /*
  * struct stm32_scmi_clk - Data for the exposed clock
  * @clock_id: Clock identifier in RCC clock driver
+ * @is_exposed: True if SMCI clock is exposed, false if it is not reachable
  * @name: Clock string ID exposed to channel
  * @enabled: State of the SCMI clock at initialization
  * @change_rate: SCMMI agent is allowed to change the rate
@@ -39,6 +40,7 @@
  */
 struct stm32_scmi_clk {
 	unsigned long clock_id;
+	bool is_exposed;
 	const char *name;
 	bool enabled;
 	bool change_rate;
@@ -48,6 +50,7 @@ struct stm32_scmi_clk {
 /*
  * struct stm32_scmi_rd - Data for the exposed reset controller
  * @reset_id: Reset identifier in RCC reset driver
+ * @is_exposed: True if SMCI reset is exposed, false if it is not reachable
  * @base: Physical controller address
  * @name: Reset string ID exposed to channel
  * @rstctrl: Reset controller manipulated by the SCMI channel
@@ -55,6 +58,7 @@ struct stm32_scmi_clk {
  */
 struct stm32_scmi_rd {
 	unsigned long reset_id;
+	bool is_exposed;
 	paddr_t base;
 	const char *name;
 	struct rstctrl *rstctrl;
@@ -74,6 +78,7 @@ struct stm32_scmi_perfd {
 		.clock_id = _id, \
 		.name = _name, \
 		.enabled = _init_enabled, \
+		.is_exposed = true, \
 	}
 
 #define CLOCK_CELL_RATES(_scmi_id, _id, _name, _init_enabled) \
@@ -82,6 +87,7 @@ struct stm32_scmi_perfd {
 		.name = _name, \
 		.enabled = _init_enabled, \
 		.change_rate = true, \
+		.is_exposed = true, \
 	}
 
 #define RESET_CELL(_scmi_id, _id, _base, _name) \
@@ -89,6 +95,7 @@ struct stm32_scmi_perfd {
 		.reset_id = _id, \
 		.base = _base, \
 		.name = _name, \
+		.is_exposed = true, \
 	}
 
 #define PERFD_CELL(_scmi_id, _name) \
@@ -318,6 +325,12 @@ static void get_scmi_clocks(void)
 		struct stm32_scmi_clk *scmi_clk = stm32_scmi_clock + i;
 		struct clk *clk = plat_clocks + i;
 
+		if (!scmi_clk->is_exposed) {
+			/* SCP-firmware needs a name */
+			scmi_clk->name = "<reserved>";
+			continue;
+		}
+
 		clk->ops = &plat_scmi_clk_ops;
 		clk->priv = scmi_clk;
 		clk->name = scmi_clk->name;
@@ -403,6 +416,12 @@ static void get_scmi_resets(void)
 	for (i = 0; i < ARRAY_SIZE(stm32_scmi_reset); i++) {
 		struct stm32_scmi_rd *scmi_reset = stm32_scmi_reset + i;
 		struct rstctrl *rstctrl = plat_resets + i;
+
+		if (!scmi_reset->is_exposed) {
+			/* SCP-firmware needs a name */
+			scmi_reset->name = "<reserved>";
+			continue;
+		}
 
 		rstctrl->ops = &plat_scmi_reset_ops;
 
