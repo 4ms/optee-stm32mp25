@@ -210,9 +210,6 @@
 #endif
 
 /* Bit map for BSEC word HW2_OTP */
-#define HW2_OTP_IWDG_HW_ENABLE_SHIFT	U(3)
-#define HW2_OTP_IWDG_FZ_STOP_SHIFT	U(5)
-#define HW2_OTP_IWDG_FZ_STANDBY_SHIFT	U(7)
 #define HW2_OTP_PRODUCT_BELOW_2V5	BIT(13)
 
 /* GIC resources */
