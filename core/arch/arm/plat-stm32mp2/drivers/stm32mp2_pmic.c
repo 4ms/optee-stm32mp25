@@ -19,6 +19,7 @@
 #include <platform_config.h>
 #include <stdbool.h>
 #include <stm32_util.h>
+#include <stm32mp_pm.h>
 #include <trace.h>
 #include <util.h>
 
@@ -434,17 +435,36 @@ static void parse_low_power_modes(const void *fdt,
 }
 
 #ifdef CFG_PM
-static TEE_Result stpmic2_regu_pm(enum pm_op op, uint32_t pm_hint __unused,
+static TEE_Result stpmic2_regu_pm(enum pm_op op, uint32_t pm_hint,
 				  const struct pm_callback_handle *pm_handle)
 {
 	struct regul_desc *desc = (struct regul_desc *)pm_handle->handle;
 	TEE_Result res = TEE_SUCCESS;
+	unsigned int pwrlvl = PM_HINT_PLATFORM_STATE(pm_hint);
+	uint8_t mode = STM32_PM_DEFAULT;
 
-	if (op == PM_OP_SUSPEND)
-		res = regu_prepare_suspend(desc, STM32_PM_STANDBY);
+	if (op == PM_OP_SUSPEND) {
+		/* configure PMIC level according MAX PM domain OFF */
+		switch (pwrlvl) {
+		case PM_D1_LEVEL:
+		case PM_D2_LEVEL:
+			mode = STM32_PM_LPLV;
+			break;
+		case PM_D2_LPLV_LEVEL:
+			mode = STM32_PM_STANDBY;
+			break;
+		case PM_MAX_LEVEL:
+			mode = STM32_PM_OFF;
+			break;
+		default:
+			mode = STM32_PM_DEFAULT;
+			break;
+		}
+	} else if (op == PM_OP_RESUME) {
+		mode = STM32_PM_DEFAULT;
+	}
 
-	else if (op == PM_OP_RESUME)
-		res = regu_prepare_suspend(desc, STM32_PM_DEFAULT);
+	res = regu_prepare_suspend(desc, mode);
 
 	return res;
 }
