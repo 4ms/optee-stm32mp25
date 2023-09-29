@@ -1047,13 +1047,13 @@ static TEE_Result stm32_gpio_pm_suspend(void)
 }
 
 static TEE_Result
-stm32_gpio_pm(enum pm_op op, unsigned int pm_hint __unused,
+stm32_gpio_pm(enum pm_op op, unsigned int pm_hint,
 	      const struct pm_callback_handle *pm_handle __unused)
 {
 	TEE_Result ret = 0;
 
 	if (!IS_ENABLED(CFG_STM32MP13) && !IS_ENABLED(CFG_STM32MP15) &&
-	    pm_hint != PM_HINT_CONTEXT_STATE)
+	    !PM_HINT_IS_STATE(pm_hint, CONTEXT))
 		return TEE_SUCCESS;
 
 	if (op == PM_OP_RESUME)

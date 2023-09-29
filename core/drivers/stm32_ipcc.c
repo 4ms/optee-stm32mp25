@@ -214,7 +214,7 @@ stm32_ipcc_pm(enum pm_op op, unsigned int pm_hint,
 	if (stm32_rifsc_check_tdcid(&is_tdcid))
 		panic();
 
-	if (pm_hint != PM_HINT_CONTEXT_STATE || !is_tdcid)
+	if (!PM_HINT_IS_STATE(pm_hint, CONTEXT) || !is_tdcid)
 		return TEE_SUCCESS;
 
 	res = clk_enable(ipcc->ipcc_clock);

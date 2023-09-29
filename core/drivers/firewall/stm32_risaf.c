@@ -546,7 +546,7 @@ stm32_risaf_pm(enum pm_op op, unsigned int pm_hint,
 	struct stm32_risaf_instance *risaf = pm_handle->handle;
 	TEE_Result res = TEE_ERROR_GENERIC;
 
-	if (pm_hint != PM_HINT_CONTEXT_STATE)
+	if (!PM_HINT_IS_STATE(pm_hint, CONTEXT))
 		return TEE_SUCCESS;
 
 	res = clk_enable(risaf->pdata.clock);

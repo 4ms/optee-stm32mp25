@@ -4744,7 +4744,7 @@ static TEE_Result stm32_rcc_rif_pm_suspend(void)
 }
 
 static TEE_Result
-stm32_rcc_rif_pm(enum pm_op op, unsigned int pm_hint __unused,
+stm32_rcc_rif_pm(enum pm_op op, unsigned int pm_hint,
 		 const struct pm_callback_handle *pm_handle __unused)
 {
 	TEE_Result res = TEE_ERROR_GENERIC;
@@ -4754,7 +4754,7 @@ stm32_rcc_rif_pm(enum pm_op op, unsigned int pm_hint __unused,
 	if (res)
 		return res;
 
-	if (pm_hint != PM_HINT_CONTEXT_STATE || !is_tdcid)
+	if (!PM_HINT_IS_STATE(pm_hint, CONTEXT) || !is_tdcid)
 		return TEE_SUCCESS;
 
 	if (op == PM_OP_RESUME)
@@ -4813,7 +4813,7 @@ stm32_rcc_pm(enum pm_op op, unsigned int pm_hint,
 {
 	TEE_Result res = TEE_ERROR_GENERIC;
 
-	if (pm_hint != PM_HINT_CONTEXT_STATE)
+	if (!PM_HINT_IS_STATE(pm_hint, CONTEXT))
 		return TEE_SUCCESS;
 
 	if (op == PM_OP_RESUME)

@@ -569,7 +569,7 @@ stm32_risab_pm(enum pm_op op, unsigned int pm_hint,
 	struct stm32_risab_pdata *risab = pm_handle->handle;
 	TEE_Result res = TEE_ERROR_GENERIC;
 
-	if (pm_hint != PM_HINT_CONTEXT_STATE || !is_tdcid)
+	if (!PM_HINT_IS_STATE(pm_hint, CONTEXT) || !is_tdcid)
 		return TEE_SUCCESS;
 
 	res = clk_enable(risab->clock);

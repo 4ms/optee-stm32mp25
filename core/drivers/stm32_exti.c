@@ -491,7 +491,7 @@ stm32_exti_pm(enum pm_op op, unsigned int pm_hint,
 	struct stm32_exti_pdata *exti = NULL;
 
 	if (!IS_ENABLED(CFG_STM32MP13) && !IS_ENABLED(CFG_STM32MP15) &&
-	    pm_hint != PM_HINT_CONTEXT_STATE)
+	    !PM_HINT_IS_STATE(pm_hint, CONTEXT))
 		return TEE_SUCCESS;
 
 	SLIST_FOREACH(exti, &stm32_exti_list, link) {

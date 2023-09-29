@@ -291,7 +291,7 @@ stm32_hpdma_pm(enum pm_op op, unsigned int pm_hint,
 	if (res)
 		panic();
 
-	if (pm_hint != PM_HINT_CONTEXT_STATE || !is_tdcid)
+	if (!PM_HINT_IS_STATE(pm_hint, CONTEXT) || !is_tdcid)
 		return TEE_SUCCESS;
 
 	res = clk_enable(hpdma->hpdma_clock);

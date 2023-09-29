@@ -335,7 +335,7 @@ static TEE_Result
 stm32_omm_pm(enum pm_op op, unsigned int pm_hint,
 	     const struct pm_callback_handle *pm_handle __unused)
 {
-	if (pm_hint != PM_HINT_CONTEXT_STATE)
+	if (!PM_HINT_IS_STATE(pm_hint, CONTEXT))
 		return TEE_SUCCESS;
 
 	if (op == PM_OP_RESUME)
