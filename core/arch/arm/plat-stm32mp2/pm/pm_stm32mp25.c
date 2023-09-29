@@ -20,10 +20,31 @@
 unsigned long thread_system_off_handler(unsigned long a0 __unused,
 					unsigned long a1 __unused)
 {
-	/* TODO: configure targeted mode in PMIC for system OFF */
-	/* stpmic2_configure_power_off(); */
+	/*
+	 * configure targeted mode in PMIC for system OFF,
+	 * no need to save context
+	 */
+	uint32_t pm_hint = PM_HINT_CLOCK_STATE |
+		((PM_MAX_LEVEL << PM_HINT_PLATFORM_STATE_SHIFT) &
+		  PM_HINT_PLATFORM_STATE_MASK);
 
-	return 0;
+	return pm_change_state(PM_OP_SUSPEND, pm_hint);
+}
+
+static uint32_t get_pm_hint(unsigned long a0)
+{
+	uint32_t pm_hint = 0U;
+
+	/* a0 is the highest power level which was powered down. */
+	if (a0 < PM_D2_LPLV_LEVEL)
+		pm_hint = PM_HINT_CLOCK_STATE;
+	else
+		pm_hint = PM_HINT_CONTEXT_STATE;
+
+	pm_hint |= ((a0 << PM_HINT_PLATFORM_STATE_SHIFT) &
+		    PM_HINT_PLATFORM_STATE_MASK);
+
+	return pm_hint;
 }
 
 /**
@@ -39,13 +60,7 @@ unsigned long thread_cpu_resume_handler(unsigned long a0,
 {
 	TEE_Result retstatus = TEE_SUCCESS;
 
-	/* a0 is the highest power level which was powered down. */
-	if (a0 < PM_D2_LPLV_LEVEL)
-		retstatus = pm_change_state(PM_OP_RESUME,
-					    PM_HINT_CLOCK_STATE);
-	else
-		retstatus = pm_change_state(PM_OP_RESUME,
-					    PM_HINT_CONTEXT_STATE);
+	retstatus = pm_change_state(PM_OP_RESUME, get_pm_hint(a0));
 
 	/*
 	 * Returned value to the TF-A.
@@ -70,16 +85,7 @@ unsigned long thread_cpu_suspend_handler(unsigned long a0,
 {
 	TEE_Result retstatus = TEE_SUCCESS;
 
-	/* TODO: configure targeted mode in PMIC for next power level */
-	/* stpmic2_configure_low_power(a0); */
-
-	/* a0 is the highest power level which was powered down. */
-	if (a0 < PM_D2_LPLV_LEVEL)
-		retstatus = pm_change_state(PM_OP_SUSPEND,
-					    PM_HINT_CLOCK_STATE);
-	else
-		retstatus = pm_change_state(PM_OP_SUSPEND,
-					    PM_HINT_CONTEXT_STATE);
+	retstatus = pm_change_state(PM_OP_SUSPEND, get_pm_hint(a0));
 
 	/*
 	 * Returned value to the TF-A.

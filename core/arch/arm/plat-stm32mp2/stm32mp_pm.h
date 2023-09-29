@@ -16,6 +16,7 @@
  * 2: LPLV D1                 (Stop2 or LP-Stop2)
  * 3: D2                      (LPLV-Stop1)
  * 4: LPLV D2                 (Standby)
+ * 5: MAX                     (PowerOff)
  *
  * these power level are only managed in power driver (PMIC), for pm function
  * use the 2 associated parameters:
@@ -29,5 +30,6 @@
 #define PM_D1_LPLV_LEVEL        2
 #define PM_D2_LEVEL             3
 #define PM_D2_LPLV_LEVEL        4
+#define PM_MAX_LEVEL            5
 
 #endif /*__STM32MP_PM_H__*/
