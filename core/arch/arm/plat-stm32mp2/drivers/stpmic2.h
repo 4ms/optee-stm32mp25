@@ -276,8 +276,6 @@ enum stpmic2_prop_id {
 struct pmic_handle_s {
 	struct i2c_handle_s *pmic_i2c_handle;
 	uint16_t pmic_i2c_addr;
-	struct stm32_pinctrl_list *pinctrl_list;
-	struct stm32_pinctrl *pinctrl;
 	uint16_t irq_count;
 };
 

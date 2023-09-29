@@ -538,19 +538,6 @@ static TEE_Result parse_regulator_fdt_nodes(const void *fdt, int node,
 	return TEE_SUCCESS;
 }
 
-#ifdef CFG_PM
-static TEE_Result stpmic2_pm(enum pm_op op __unused, uint32_t pm_hint __unused,
-			     const struct pm_callback_handle *pm_handle)
-{
-	struct pmic_handle_s *pmic = pm_handle->handle;
-
-	if (op == PM_OP_RESUME && pmic->pinctrl)
-		stm32_pinctrl_load_config(pmic->pinctrl_list);
-
-	return TEE_SUCCESS;
-}
-#endif
-
 #ifdef CFG_STM32_PWR_IRQ
 static enum itr_return stpmic2_irq_handler(struct itr_handler *handler)
 {
@@ -683,10 +670,6 @@ static TEE_Result stm32_pmic2_probe(const void *fdt, int node,
 	res = parse_regulator_fdt_nodes(fdt, node, pmic);
 	if (res)
 		panic();
-
-#ifdef CFG_PM
-	register_pm_core_service_cb(stpmic2_pm, pmic, "stpmic2");
-#endif
 
 	return TEE_SUCCESS;
 }
