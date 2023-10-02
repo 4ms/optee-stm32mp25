@@ -1445,9 +1445,15 @@ TEE_Result stm32_saes_get_platdata(struct stm32_saes_platdata *pdata __unused)
 static TEE_Result stm32_saes_reset(void)
 {
 	TEE_Result ret = TEE_SUCCESS;
+	vaddr_t base = io_pa_or_va(&saes_pdata.base, 1);
 
-	if (!saes_pdata.reset)
+	if (!saes_pdata.reset) {
+		/* Internal reset of SAES */
+		io_setbits32(base + _SAES_CR, _SAES_CR_IPRST);
+		udelay(SAES_RESET_DELAY);
+		io_clrbits32(base + _SAES_CR, _SAES_CR_IPRST);
 		return ret;
+	}
 
 	ret = rstctrl_assert_to(saes_pdata.reset, TIMEOUT_US_1MS);
 	if (ret)
@@ -1494,7 +1500,6 @@ static TEE_Result stm32_saes_probe(const void *fdt, int node,
 				   const void *compat_data __unused)
 {
 	TEE_Result res = TEE_SUCCESS;
-	vaddr_t base = 0;
 
 	if (stm32_saes_get_platdata(&saes_pdata))
 		return TEE_ERROR_NOT_SUPPORTED;
@@ -1509,11 +1514,6 @@ static TEE_Result stm32_saes_probe(const void *fdt, int node,
 
 	if (stm32_saes_reset())
 		panic();
-
-	base = io_pa_or_va(&saes_pdata.base, 1);
-	/* Internal reset of SAES */
-	io_setbits32(base + _SAES_CR, _SAES_CR_IPRST);
-	io_clrbits32(base + _SAES_CR, _SAES_CR_IPRST);
 
 	if (IS_ENABLED(CFG_CRYPTO_DRV_CIPHER)) {
 		res = stm32_register_cipher(SAES_IP);
