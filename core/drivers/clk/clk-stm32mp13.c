@@ -3344,7 +3344,7 @@ static void __maybe_unused stm32_clock_resume(void)
 	clk_stm32_pm_disable_ker_clocks();
 }
 
-static TEE_Result stm32_clock_pm(enum pm_op op, unsigned int pm_hint __unused,
+static TEE_Result stm32_clock_pm(enum pm_op op, unsigned int pm_hint,
 				 const struct pm_callback_handle *hdl __unused)
 {
 	static int standby_prepared;
