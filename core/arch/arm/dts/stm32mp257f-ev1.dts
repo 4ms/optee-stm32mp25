@@ -43,7 +43,7 @@
 		compatible = "st,provisioning";
 		hconf1_prov {
 			nvmem-cells = <&hconf1_otp>;
-			st,shadow-value = <0x00018006>;
+			st,shadow-value = <0x00018DB6>;
 			st,shadow-lock = <STICKY_LOCK_SR>;
 		};
 	};
