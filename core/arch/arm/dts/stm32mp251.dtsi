@@ -614,7 +614,12 @@
 				st,non-secure-otp-provisioning;
 			};
 
-			oem_enc_key: otp364@5b0 {
+			oem_enc_key_2: otp360@5a0 {
+				reg = <0x5a0 0x10>;
+				st,non-secure-otp-provisioning;
+			};
+
+			oem_enc_key_1: otp364@5b0 {
 				reg = <0x5b0 0x10>;
 				st,non-secure-otp-provisioning;
 			};
