@@ -6,6 +6,7 @@
 #include <drivers/stm32_firewall.h>
 #include <drivers/stm32_rif.h>
 #include <drivers/stm32_rifsc.h>
+#include <dt-bindings/soc/stm32mp25-rif.h>
 #include <dt-bindings/soc/stm32mp25-rifsc.h>
 #include <io.h>
 #include <kernel/dt.h>
@@ -513,6 +514,90 @@ static TEE_Result stm32_rimu_setup(struct rifsc_platdata *pdata)
 	return 0;
 }
 
+static TEE_Result stm32_rifsc_sem_pm_suspend(void)
+{
+	int i = 0;
+
+	for (i = 0; i < rifsc_pdata.nrisup && i < rifsc_drvdata.nb_risup; i++) {
+		uint32_t semcfgr = io_read32(rifsc_pdata.base +
+					     _RIFSC_RISC_PER0_SEMCR +
+					     _OFST_PERX_CIDCFGR * i);
+		struct risup_cfg *risup = rifsc_pdata.risup + i;
+
+		/* Save semaphores that were taken by the CID1 */
+		risup->pm_sem = semcfgr & _SEMCR_MUTEX &&
+				((semcfgr & _SEMCR_SEMCID_MASK) >>
+				 _SEMCR_SEMCID_SHIFT == RIF_CID1) ?
+				true : false;
+
+		FMSG("RIF semaphore %s for ID: %u",
+		     risup->pm_sem ? "SAVED" : "NOT SAVED", risup->id);
+	}
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result stm32_rifsc_sem_pm_resume(void)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+	int i = 0;
+
+	for (i = 0; i < rifsc_pdata.nrisup && i < rifsc_drvdata.nb_risup; i++) {
+		struct risup_cfg *risup = rifsc_pdata.risup + i;
+		uintptr_t cidcfgr_offset = _OFST_PERX_CIDCFGR * risup->id;
+		uintptr_t offset = sizeof(uint32_t) *
+				   (risup->id / _PERIPH_IDS_PER_REG);
+		uintptr_t perih_offset = risup->id % _PERIPH_IDS_PER_REG;
+		uint32_t seccgfr = io_read32(rifsc_pdata.base +
+					     _RIFSC_RISC_SECCFGR0 + offset);
+		uint32_t privcgfr = io_read32(rifsc_pdata.base +
+					      _RIFSC_RISC_PRIVCFGR0 + offset);
+		uint32_t lockcfgr = io_read32(rifsc_pdata.base +
+					      _RIFSC_RISC_RCFGLOCKR0 + offset);
+
+		/* Update RISUPs fields */
+		risup->cid_attr = io_read32(rifsc_pdata.base +
+					    _RIFSC_RISC_PER0_CIDCFGR +
+					    cidcfgr_offset);
+		risup->sec = (bool)(seccgfr & BIT(perih_offset));
+		risup->priv = (bool)(privcgfr & BIT(perih_offset));
+		risup->lock = (bool)(lockcfgr & BIT(perih_offset));
+
+		/* Acquire available appropriate semaphores */
+		if (SEM_MODE_INCORRECT(risup->cid_attr) || !risup->pm_sem)
+			continue;
+
+		res = stm32_rif_acquire_semaphore(rifsc_pdata.base +
+						  _RIFSC_RISC_PER0_SEMCR +
+						  cidcfgr_offset,
+						  MAX_CID_SUPPORTED);
+		if (res) {
+			EMSG("Could not acquire semaphore for resource %u",
+			     risup->id);
+			return TEE_ERROR_ACCESS_DENIED;
+		}
+	}
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result
+stm32_rifsc_sem_pm(enum pm_op op, unsigned int pm_hint,
+		   const struct pm_callback_handle *pm_handle __unused)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+
+	if (pm_hint != PM_HINT_CONTEXT_STATE)
+		return TEE_SUCCESS;
+
+	if (op == PM_OP_RESUME)
+		res = stm32_rifsc_sem_pm_resume();
+	else
+		res = stm32_rifsc_sem_pm_suspend();
+
+	return res;
+}
+
 TEE_Result stm32_rifsc_check_tdcid(bool *tdcid_state)
 {
 	if (!rifsc_pdata.base)
@@ -610,6 +695,10 @@ static TEE_Result stm32_rifsc_probe(const void *fdt, int node,
 		goto out;
 
 	stm32_firewall_bus_probe(fdev, fdt, node);
+
+	if (IS_ENABLED(CFG_PM))
+		register_pm_core_service_cb(stm32_rifsc_sem_pm, NULL,
+					    "stm32-rifsc-semaphores");
 
 out:
 	if (res)

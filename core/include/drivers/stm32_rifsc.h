@@ -14,6 +14,7 @@ struct risup_cfg {
 	bool sec;
 	bool priv;
 	bool lock;
+	bool pm_sem;
 };
 
 struct rimu_cfg {
