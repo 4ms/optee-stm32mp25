@@ -1595,13 +1595,6 @@ static TEE_Result stm32_tamp_parse_fdt(struct stm32_tamp_platdata *pdata,
 				return res;
 			pinnode = subnode;
 		}
-
-		res = dt_driver_maybe_add_probe_node(fdt, subnode);
-		if (res) {
-			EMSG("Failed on node %s with %#" PRIx32,
-			     fdt_get_name(fdt, subnode, NULL), res);
-			panic();
-		}
 	}
 
 	if (pinnode < 0 && pinnode != -FDT_ERR_NOTFOUND)
@@ -1688,6 +1681,7 @@ static TEE_Result stm32_tamp_probe(const void *fdt, int node,
 	uint32_t __maybe_unused revision = 0;
 	TEE_Result res = TEE_SUCCESS;
 	vaddr_t base = 0;
+	int subnode = -FDT_ERR_NOTFOUND;
 
 	res = stm32_tamp_get_platdata(&stm32_tamp.pdata);
 	if (res)
@@ -1778,6 +1772,16 @@ static TEE_Result stm32_tamp_probe(const void *fdt, int node,
 	}
 
 	itr_enable(stm32_tamp.itr->it);
+
+
+	fdt_for_each_subnode(subnode, fdt, node) {
+		res = dt_driver_maybe_add_probe_node(fdt, subnode);
+		if (res) {
+			EMSG("Failed on node %s with %#" PRIx32,
+			     fdt_get_name(fdt, subnode, NULL), res);
+			panic();
+		}
+	}
 
 	return TEE_SUCCESS;
 
