@@ -24,6 +24,8 @@ struct nvmem_cell;
 struct nvmem_ops {
 	TEE_Result (*read_cell)(struct nvmem_cell *cell, uint8_t *data,
 				size_t buf_len, size_t *read_len);
+	TEE_Result (*write_cell)(struct nvmem_cell *cell, uint8_t *data,
+				 size_t len);
 	TEE_Result (*free_cell)(struct nvmem_cell *cell);
 };
 
@@ -153,6 +155,20 @@ static inline TEE_Result nvmem_cell_read(struct nvmem_cell *cell, uint8_t *data,
 	return cell->ops->read_cell(cell, data, buf_len, read_len);
 }
 
+/*
+ * nvmem_cell_write() - write data to a nvmem cell
+ * @cell: Cell to write
+ * @data: Input buffer
+ * @buf_len: Size of the buffer to write in the cell
+ */
+static inline TEE_Result nvmem_cell_write(struct nvmem_cell *cell,
+					  uint8_t *data, size_t buf_len)
+{
+	if (!cell->ops->write_cell)
+		return TEE_ERROR_NOT_SUPPORTED;
+
+	return cell->ops->write_cell(cell, data, buf_len);
+}
 #else /* CFG_DRIVERS_NVMEM */
 static inline TEE_Result nvmem_register_provider(const void *fdt __unused,
 						 int nodeoffset __unused,
@@ -193,6 +209,13 @@ static inline TEE_Result nvmem_cell_read(struct nvmem_cell *cell __unused,
 					 uint8_t *data __unused,
 					 size_t buf_len __unused,
 					 size_t *read_len __unused)
+{
+	return TEE_ERROR_NOT_SUPPORTED;
+}
+
+static inline TEE_Result nvmem_cell_write(struct nvmem_cell *cell __unused,
+					  uint8_t *data __unused,
+					  size_t buf_len __unused)
 {
 	return TEE_ERROR_NOT_SUPPORTED;
 }
