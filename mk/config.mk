@@ -843,6 +843,10 @@ $(eval $(call cfg-depends-all,CFG_DRIVERS_CLK_FIXED,CFG_DRIVERS_CLK_DT))
 # OP-TEE core to provide reset controls on subsystems of the devices.
 CFG_DRIVERS_RSTCTRL ?= n
 
+# When enabled, CFG_DRIVERS_NVMEM provides a framework to register nvmem
+# providers and allow consumer drivers to get NVMEM cells using the Device Tree.
+CFG_DRIVERS_NVMEM ?= n
+
 # The purpose of this flag is to show a print when booting up the device that
 # indicates whether the board runs a standard developer configuration or not.
 # A developer configuration doesn't necessarily has to be secure. The intention

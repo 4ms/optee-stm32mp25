@@ -79,6 +79,7 @@ subdirs-$(CFG_DRIVERS_ADC) += adc
 subdirs-$(CFG_STM32_FIREWALL) += firewall
 subdirs-$(CFG_BNXT_FW) += bnxt
 subdirs-$(CFG_DRIVERS_CLK) += clk
+subdirs-$(CFG_DRIVERS_NVMEM) += nvmem
 subdirs-$(CFG_DRIVERS_RSTCTRL) += rstctrl
 subdirs-$(CFG_REGULATOR_DRIVERS) += regulator
 subdirs-$(CFG_REMOTEPROC_DRIVERS) += remoteproc
