@@ -1883,14 +1883,21 @@ static void clk_stm32_pll_config_csg(struct clk_stm32_priv *priv,
 	io_setbits32(pllxcfgr3, RCC_PLLxCFGR3_DACEN);
 }
 
-static int stm32_clk_configure_mux(struct clk_stm32_priv *priv, uint32_t data);
-
 static inline struct stm32_pll_dt_cfg *clk_stm32_pll_get_pdata(int pll_idx)
 {
 	struct clk_stm32_priv *priv = clk_stm32_get_priv();
 	struct stm32_clk_platdata *pdata = priv->pdata;
 
 	return  &pdata->pll[pll_idx];
+}
+
+static int clk_stm32_pll_set_mux(__maybe_unused struct clk_stm32_priv *priv,
+				 uint32_t src)
+{
+	int mux = (src & MUX_ID_MASK) >> MUX_ID_SHIFT;
+	int sel = (src & MUX_SEL_MASK) >> MUX_SEL_SHIFT;
+
+	return stm32_mux_set_parent(mux, sel);
 }
 
 static int clk_stm32_pll1_init(struct clk_stm32_priv *priv,
@@ -1908,7 +1915,7 @@ static int clk_stm32_pll1_init(struct clk_stm32_priv *priv,
 
 	stm32mp2_a35_ss_on_hsi();
 
-	ret = stm32_clk_configure_mux(priv, pll_conf->src);
+	ret = clk_stm32_pll_set_mux(priv, pll_conf->src);
 	if (ret != 0)
 		panic();
 
@@ -1950,7 +1957,7 @@ static int clk_stm32_pll_init(struct clk_stm32_priv *priv, int pll_idx,
 
 	stm32_gate_rdy_disable(pll->gate_id);
 
-	ret = stm32_clk_configure_mux(priv, pll_conf->src);
+	ret = clk_stm32_pll_set_mux(priv, pll_conf->src);
 	if (ret != 0)
 		panic();
 
@@ -2168,13 +2175,70 @@ static int stm32_clk_configure_div(__maybe_unused struct clk_stm32_priv *priv,
 	return stm32_div_set_value(div_id, div_n);
 }
 
+struct mux_rifsc_cfg {
+	bool	is_rifsc;
+	int	rifsc_id;
+};
+
+/* Muxes which RIF config is inherited from the RIFSC */
+#define MUX_RIFSC_CFG(_mux_id, _rifsc_id)\
+	[(_mux_id)] = {\
+		.rifsc_id	= (_rifsc_id),\
+		.is_rifsc	= (true),\
+	}
+
+#define _RIFSC_RISC_PER0_CIDCFGR	U(0x100)
+#define _RIFSC_RISC_PER0_SEMCR		U(0x104)
+
+#define _OFST_PERX_CIDCFGR		U(0x8)
+
+struct mux_rifsc_cfg tab_mux_rifsc[MUX_NB] = {
+	MUX_RIFSC_CFG(MUX_ADC12, STM32MP25_RIFSC_ADC12_ID),
+	MUX_RIFSC_CFG(MUX_ADC3, STM32MP25_RIFSC_ADC3_ID),
+	MUX_RIFSC_CFG(MUX_USB2PHY1, STM32MP25_RIFSC_USBH_ID),
+	MUX_RIFSC_CFG(MUX_USB2PHY2, STM32MP25_RIFSC_USBH_ID),
+	MUX_RIFSC_CFG(MUX_USB3PCIEPHY, STM32MP25_RIFSC_USB3DR_ID),
+	MUX_RIFSC_CFG(MUX_LVDSPHY, STM32MP25_RIFSC_LVDS_ID),
+	MUX_RIFSC_CFG(MUX_DSIBLANE, STM32MP25_RIFSC_DSI_CMN_ID),
+	MUX_RIFSC_CFG(MUX_DSIPHY, STM32MP25_RIFSC_DSI_CMN_ID),
+	MUX_RIFSC_CFG(MUX_DTS, STM32MP25_RIFSC_DTS_ID),
+};
+
 static int stm32_clk_configure_mux(__maybe_unused struct clk_stm32_priv *priv,
 				   uint32_t data)
 {
 	int mux = (data & MUX_ID_MASK) >> MUX_ID_SHIFT;
 	int sel = (data & MUX_SEL_MASK) >> MUX_SEL_SHIFT;
+	unsigned int rifsc_id = tab_mux_rifsc[mux].rifsc_id;
+	uintptr_t per_offset = _OFST_PERX_CIDCFGR * rifsc_id;
+	struct io_pa_va rifsc_addr = { .pa = RIFSC_BASE };
+	vaddr_t rifsc_base = io_pa_or_va(&rifsc_addr, 1);
+	uint32_t cidcfgr = io_read32(rifsc_base + _RIFSC_RISC_PER0_CIDCFGR +
+				     per_offset);
+	bool sem_taken = false;
+	int ret = 0;
 
-	return stm32_mux_set_parent(mux, sel);
+	if (tab_mux_rifsc[mux].is_rifsc && SEM_EN_AND_OK(cidcfgr, RIF_CID1)) {
+		if (stm32_rif_acquire_semaphore(rifsc_base +
+						_RIFSC_RISC_PER0_SEMCR +
+						per_offset,
+						MAX_CID_SUPPORTED))
+			return -1;
+
+		sem_taken = true;
+	}
+
+	ret = stm32_mux_set_parent(mux, sel);
+
+	if (sem_taken) {
+		if (stm32_rif_release_semaphore(rifsc_base +
+						_RIFSC_RISC_PER0_SEMCR +
+						per_offset,
+						MAX_CID_SUPPORTED))
+			return -1;
+	}
+
+	return ret;
 }
 
 static int stm32_clk_configure_by_addr_val(struct clk_stm32_priv *priv,
