@@ -156,6 +156,34 @@ static inline TEE_Result nvmem_cell_read(struct nvmem_cell *cell, uint8_t *data,
 }
 
 /*
+ * nvmem_cell_alloc_read() - Allocate and read data from a nvmem cell
+ * @cell: Cell to read from nvmem
+ * @data: Output buffer allocated from the heap (malloc() and friends)
+ * @len: Output size of @data, i.e. byte size of the nvmem cell read
+ *
+ * Caller is responsible for freeing @data buffer when needed.
+ */
+static inline TEE_Result nvmem_cell_alloc_read(struct nvmem_cell *cell,
+					       uint8_t **data, size_t *len)
+{
+	TEE_Result ret = TEE_ERROR_GENERIC;
+
+	if (!cell->ops->read_cell)
+		return TEE_ERROR_NOT_SUPPORTED;
+
+	*data = calloc(1, cell->len);
+	if (!*data)
+		return TEE_ERROR_OUT_OF_MEMORY;
+
+	ret = cell->ops->read_cell(cell, *data, cell->len, len);
+
+	if (ret != TEE_SUCCESS)
+		free(*data);
+
+	return ret;
+}
+
+/*
  * nvmem_cell_write() - write data to a nvmem cell
  * @cell: Cell to write
  * @data: Input buffer
