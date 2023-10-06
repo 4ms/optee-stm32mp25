@@ -436,6 +436,7 @@
 };
 
 &rcc {
+	st,c1msrd = <2>;
 	st,clk_opp {
 		st,ck_cpu1 {
 			cfg_1 {
