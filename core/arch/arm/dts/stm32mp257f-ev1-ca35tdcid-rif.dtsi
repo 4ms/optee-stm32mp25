@@ -866,7 +866,7 @@
 };
 
 &retram {
-	st,protreg = <RISABPROT(RIF_DDCID_DIS, 0, RIF_NSEC, RIF_NPRIV, RIF_CFDIS, 0, 0, 0)>;
+	st,protreg = <RISABPROT(RIF_DDCID_DIS, 0, RIF_SEC, RIF_PRIV, RIF_CFDIS, 0, 0, 0)>;
 };
 
 &vderam {
