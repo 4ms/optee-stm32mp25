@@ -44,6 +44,7 @@ struct stm32_pka_point {
 struct stm32_pka_platdata {
 	struct io_pa_va pa_or_va;
 	struct clk *clk;
+	struct clk *clk_rng;
 	struct rstctrl *reset;
 	struct mutex *lock; /* Protect PKA HW instance access */
 };
