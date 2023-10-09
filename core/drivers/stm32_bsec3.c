@@ -125,6 +125,9 @@
 #define OTP_CLOSED_SECURE		GENMASK_32(3, 0)
 #endif
 
+/* OEM Keys are stored from OEM_KEY_FIRST_OTP to OTP bsec_dev.max_id (367) */
+#define OEM_KEY_FIRST_OTP		360
+
 struct nvmem_cell {
 	char *name;
 	uint32_t phandle;
@@ -639,8 +642,11 @@ TEE_Result stm32_bsec_read_sw_lock(uint32_t otp, bool *value)
 
 	*value = bsec_dev.shadow->status[otp] & LOCK_SHADOW_W;
 
-	/* Fuse words 364 to 375 are accessible only in ROM code */
-	if (otp >= 364)
+	/*
+	 * OEM keys are accessible only in ROM code
+	 * They are stored in last OTPs
+	 */
+	if (otp >= OEM_KEY_FIRST_OTP)
 		*value = LOCK_SHADOW_W;
 
 	return TEE_SUCCESS;
@@ -879,8 +885,11 @@ static void stm32_bsec_shadow_load(uint32_t status)
 		if (bsec_dev.shadow->status[otp] & STATUS_SECURE)
 			continue;
 
-		/* Fuse words 364 to 375 are accessible only in ROM code */
-		if (otp >= 364) {
+		/*
+		 * OEM keys are accessible only in ROM code
+		 * They are stored in last OTPs
+		 */
+		if (otp >= OEM_KEY_FIRST_OTP) {
 			bsec_dev.shadow->status[otp] |= LOCK_SHADOW_R;
 			continue;
 		}
