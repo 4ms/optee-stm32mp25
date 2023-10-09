@@ -126,7 +126,11 @@
 #endif
 
 /* OEM Keys are stored from OEM_KEY_FIRST_OTP to OTP bsec_dev.max_id (367) */
+#ifdef CFG_STM32MP25x_REVA
+#define OEM_KEY_FIRST_OTP		364
+#else
 #define OEM_KEY_FIRST_OTP		360
+#endif /* CFG_STM32MP25x_REVA */
 
 struct nvmem_cell {
 	char *name;
