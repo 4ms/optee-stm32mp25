@@ -17,6 +17,7 @@
 struct stm32_saes_platdata {
 	struct io_pa_va base;
 	struct clk *clk;
+	struct clk *clk_rng;
 	struct rstctrl *reset;
 };
 

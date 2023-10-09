@@ -1417,7 +1417,11 @@ static TEE_Result stm32_saes_parse_fdt(struct stm32_saes_platdata *pdata,
 	if (res != TEE_SUCCESS && res != TEE_ERROR_ITEM_NOT_FOUND)
 		return res;
 
-	return clk_dt_get_by_index(fdt, node, 0, &pdata->clk);
+	res = clk_dt_get_by_name(fdt, node, "bus", &pdata->clk);
+	if (res)
+		return res;
+
+	return clk_dt_get_by_name(fdt, node, "rng", &pdata->clk_rng);
 }
 
 __weak
@@ -1472,18 +1476,19 @@ static TEE_Result stm32_saes_pm(enum pm_op op, uint32_t pm_hint __unused,
 	switch (op) {
 	case PM_OP_SUSPEND:
 		clk_disable(saes_pdata.clk);
+		clk_disable(saes_pdata.clk_rng);
 		ret = TEE_SUCCESS;
 		break;
 	case PM_OP_RESUME:
-		ret = clk_enable(saes_pdata.clk);
-		if (ret)
-			return ret;
+		if (clk_enable(saes_pdata.clk) ||  clk_enable(saes_pdata.clk_rng))
+			panic();
 
 		if (pm_hint == PM_HINT_CONTEXT_STATE) {
 			ret = stm32_saes_reset();
 			if (ret)
 				panic();
 		}
+		ret = TEE_SUCCESS;
 		break;
 	default:
 		break;
@@ -1508,9 +1513,8 @@ static TEE_Result stm32_saes_probe(const void *fdt, int node,
 	if (res)
 		return res;
 
-	res = clk_enable(saes_pdata.clk);
-	if (res)
-		return res;
+	if (clk_enable(saes_pdata.clk) || clk_enable(saes_pdata.clk_rng))
+		panic();
 
 	if (stm32_saes_reset())
 		panic();
