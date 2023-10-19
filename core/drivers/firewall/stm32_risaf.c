@@ -573,7 +573,7 @@ static TEE_Result stm32_risaf_probe(const void *fdt, int node,
 	unsigned int nregions = 0;
 	int len = 0;
 	unsigned int i = 0;
-	const fdt32_t *cuint = NULL;
+	const fdt64_t *cuint = NULL;
 	const fdt32_t *conf_list = NULL;
 	const struct stm32_risaf_compat_data *compat = compat_data;
 
@@ -623,8 +623,8 @@ static TEE_Result stm32_risaf_probe(const void *fdt, int node,
 	if (!cuint)
 		panic();
 
-	risaf->pdata.mem_base = (uintptr_t)fdt32_to_cpu(*cuint);
-	risaf->pdata.mem_size = (size_t)fdt32_to_cpu(*(cuint + 1));
+	risaf->pdata.mem_base = (uintptr_t)fdt64_to_cpu(*cuint);
+	risaf->pdata.mem_size = (size_t)fdt64_to_cpu(*(cuint + 1));
 
 	nregions = (unsigned int)len / sizeof(uint32_t);
 
