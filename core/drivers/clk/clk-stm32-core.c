@@ -375,6 +375,25 @@ const struct clk_ops clk_stm32_gate_ops = {
 	.is_enabled	= clk_stm32_gate_is_enabled,
 };
 
+#ifdef CFG_PM
+static void clk_stm32_gate_pm_restore(struct clk *clk)
+{
+	struct clk_stm32_gate_cfg *cfg = clk->priv;
+
+	if (clk_is_enabled(clk))
+		stm32_gate_endisable(cfg->gate_id, true);
+}
+#endif
+
+const struct clk_ops clk_stm32_gate_pm_ops = {
+	.enable		= clk_stm32_gate_enable,
+	.disable	= clk_stm32_gate_disable,
+	.is_enabled	= clk_stm32_gate_is_enabled,
+#ifdef CFG_PM
+	.restore_context = clk_stm32_gate_pm_restore,
+#endif
+};
+
 TEE_Result clk_stm32_gate_ready_enable(struct clk *clk)
 {
 	struct clk_stm32_gate_cfg *cfg = clk->priv;

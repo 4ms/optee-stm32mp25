@@ -169,6 +169,8 @@ extern const struct clk_ops clk_stm32_divider_ops;
 extern const struct clk_ops clk_stm32_mux_ops;
 extern const struct clk_ops clk_stm32_composite_ops;
 
+extern const struct clk_ops clk_stm32_gate_pm_ops;
+
 #define PARENT(x...) { x }
 
 #define STM32_FIXED_RATE(_name, _rate)\
@@ -256,6 +258,18 @@ extern const struct clk_ops clk_stm32_composite_ops;
 		.flags = (_flags),\
 		.num_parents = (_nb_parents),\
 		.parents = _parents,\
+	}
+
+#define STM32_GATE_PM(_name, _parent, _flags, _gate_id)\
+	struct clk _name = {\
+		.ops = &clk_stm32_gate_pm_ops,\
+		.priv = &(struct clk_stm32_gate_cfg) {\
+			.gate_id = _gate_id,\
+		},\
+		.name = #_name,\
+		.flags = (_flags),\
+		.num_parents = 1,\
+		.parents = { (_parent) },\
 	}
 
 struct clk_stm32_priv *clk_stm32_get_priv(void);

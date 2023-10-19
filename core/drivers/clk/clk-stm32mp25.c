@@ -3722,7 +3722,7 @@ static STM32_GATE(ck_icn_p_ltdc, &ck_icn_apb4, 0, GATE_LTDC);
 static STM32_GATE(ck_icn_p_csi2, &ck_icn_apb4, 0, GATE_CSI);
 static STM32_GATE(ck_icn_p_dcmipp, &ck_icn_apb4, 0, GATE_DCMIPP);
 static STM32_GATE(ck_icn_p_lvds, &ck_icn_apb4, 0, GATE_LVDS);
-static STM32_GATE(ck_icn_p_gicv2m, &ck_icn_apb4, 0, GATE_GICV2M);
+static STM32_GATE_PM(ck_icn_p_gicv2m, &ck_icn_apb4, 0, GATE_GICV2M);
 static STM32_GATE(ck_icn_p_usbtc, &ck_icn_apb4, 0, GATE_USBTC);
 static STM32_GATE(ck_icn_p_usb3pciephy, &ck_icn_apb4, 0, GATE_USB3PCIEPHY);
 static STM32_GATE(ck_icn_p_stgen, &ck_icn_apb4, 0, GATE_STGEN);
@@ -4278,7 +4278,8 @@ static bool clk_stm32_clock_is_critical(__maybe_unused struct clk *clk)
 		&ck_icn_p_gpiok,
 		&ck_icn_p_gpioz,
 		&ck_icn_p_ipcc1,
-		&ck_icn_p_ipcc2
+		&ck_icn_p_ipcc2,
+		&ck_icn_p_gicv2m
 	};
 	size_t i = 0;
 
