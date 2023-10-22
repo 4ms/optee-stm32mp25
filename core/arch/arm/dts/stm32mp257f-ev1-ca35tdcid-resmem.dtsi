@@ -141,5 +141,9 @@
 			no-map;
 		};
 
+		linuxkernel_2: linuxkernel-2@100000000 {
+			reg = <0x1 0x00000000 0x0 0x80000000>;
+			no-map;
+		};
 	};
 };

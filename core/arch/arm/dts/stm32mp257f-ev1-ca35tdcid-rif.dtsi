@@ -987,14 +987,18 @@
 };
 
 &ltdc_sec_layer {
-	st,protreg = <RISAFPROT(RISAF_REG_ID(14), RIF_CID0_BF|RIF_CID1_BF, RIF_CID0_BF|RIF_CID1_BF, RIF_CID1_BF, RIF_NSEC, RIF_ENC_DIS, RIF_BREN_EN)>;
+	st,protreg = <RISAFPROT(RISAF_REG_ID(13), RIF_CID0_BF|RIF_CID1_BF, RIF_CID0_BF|RIF_CID1_BF, RIF_CID1_BF, RIF_NSEC, RIF_ENC_DIS, RIF_BREN_EN)>;
 };
 
 &ltdc_sec_rotation {
+	st,protreg = <RISAFPROT(RISAF_REG_ID(14), RIF_CID0_BF|RIF_CID1_BF, RIF_CID0_BF|RIF_CID1_BF, 0, RIF_NSEC, RIF_ENC_DIS, RIF_BREN_EN)>;
+};
+
+&linuxkernel_2 {
 	st,protreg = <RISAFPROT(RISAF_REG_ID(15), RIF_CID0_BF|RIF_CID1_BF, RIF_CID0_BF|RIF_CID1_BF, 0, RIF_NSEC, RIF_ENC_DIS, RIF_BREN_EN)>;
 };
 
 &risaf4 {
-	memory-region= <&tfm_code>, <&cm33_cube_fw>, <&tfm_data>, <&cm33_cube_data>, <&ipc_shmem>, <&spare1>, <&bl31_context>, <&op_tee>, <&linuxkernel>, <&gpu_reserved>, <&ltdc_sec_layer>, <&ltdc_sec_rotation>;
+	memory-region= <&tfm_code>, <&cm33_cube_fw>, <&tfm_data>, <&cm33_cube_data>, <&ipc_shmem>, <&spare1>, <&bl31_context>, <&op_tee>, <&linuxkernel>, <&gpu_reserved>, <&ltdc_sec_layer>, <&ltdc_sec_rotation>, <&linuxkernel_2>;
 };
 
