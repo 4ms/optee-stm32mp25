@@ -166,6 +166,11 @@ void main_init_gic(void)
 	itr_init(&gic_data.chip);
 }
 
+void main_secondary_init_gic(void)
+{
+	gic_cpu_init(&gic_data);
+}
+
 void itr_core_handler(void)
 {
 	gic_it_handle(&gic_data);
