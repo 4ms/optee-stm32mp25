@@ -183,7 +183,8 @@ static enum itr_return stm32_serc_itr(struct itr_handler *h)
 		}
 	}
 
-	access_violation_action();
+	if (IS_ENABLED(CFG_STM32_PANIC_ON_SERC_EVENT))
+		access_violation_action();
 
 	return ITRR_HANDLED;
 }

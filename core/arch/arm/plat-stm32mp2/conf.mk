@@ -242,3 +242,8 @@ endif
 
 # Optional behavior upon receiving illegal access events
 CFG_STM32_PANIC_ON_IAC_EVENT ?= y
+ifeq ($(CFG_TEE_CORE_DEBUG),y)
+CFG_STM32_PANIC_ON_SERC_EVENT ?= n
+else
+CFG_STM32_PANIC_ON_SERC_EVENT ?= y
+endif
