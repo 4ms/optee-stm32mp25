@@ -232,7 +232,7 @@ static enum itr_return stm32_iac_itr(struct itr_handler *h)
 		}
 	}
 
-	if (do_panic)
+	if (do_panic && IS_ENABLED(CFG_STM32_PANIC_ON_IAC_EVENT))
 		access_violation_action();
 
 	return ITRR_HANDLED;

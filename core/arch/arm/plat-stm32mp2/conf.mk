@@ -239,3 +239,6 @@ endif
 ifeq ($(CFG_STM32_LPTIMER),y)
 $(call force,CFG_COUNTER_DRIVER,y)
 endif
+
+# Optional behavior upon receiving illegal access events
+CFG_STM32_PANIC_ON_IAC_EVENT ?= y
