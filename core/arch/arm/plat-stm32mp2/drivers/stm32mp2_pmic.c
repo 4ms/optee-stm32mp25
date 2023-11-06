@@ -498,17 +498,18 @@ static TEE_Result register_pmic_regulator(const void *fdt,
 	memcpy(desc, pmic_reguls + id, sizeof(*desc));
 	desc->driver_data = regu;
 
+	res = parse_properties(fdt, desc, node);
+	if (res) {
+		EMSG("Failed to parse properties for %s", regu_name);
+		free(regu);
+		return res;
+	}
+
 	res = regulator_register(desc, node);
 	if (res) {
 		EMSG("Failed to register %s", regu_name);
 		free(regu);
 		return res;
-	}
-
-	res = parse_properties(fdt, desc, node);
-	if (res) {
-		EMSG("Failed to parse properties for %s", regu_name);
-		free(regu);
 	}
 
 	parse_low_power_modes(fdt, desc, node);
