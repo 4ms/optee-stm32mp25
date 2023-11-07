@@ -739,6 +739,10 @@ static TEE_Result stm32_rtc_probe(const void *fdt, int node,
 		rtc_dev.flags |= RTC_FLAGS_READ_TWICE;
 
 	if (rtc_dev.compat.has_rif_support) {
+		res = clk_enable(rtc_dev.pclk);
+		if (res)
+			return res;
+
 		apply_rif_config(is_tdcid);
 
 		/*
@@ -748,6 +752,8 @@ static TEE_Result stm32_rtc_probe(const void *fdt, int node,
 		res = check_rif_config();
 		if (res)
 			panic("Incompatible RTC RIF configuration");
+
+		clk_disable(rtc_dev.pclk);
 	}
 
 	return res;
