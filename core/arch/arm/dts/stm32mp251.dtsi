@@ -585,6 +585,7 @@
 			reg = <0x42140000 0x1000>;
 			clocks = <&rcc CK_ICN_LS_MCU>;
 			st,mem-map = <0xa0a0000 0x20000>;
+			status = "disabled";
 		};
 
 		bsec: efuse@44000000 {
