@@ -219,12 +219,22 @@ void stm32_risaf_dump_erroneous_data(void)
 			     io_read32(base + _RISAF_IAESR1));
 
 		EMSG("-----------------------------------------------------");
-		EMSG("Faulty address (IADDR0): %#"PRIxPA,
-		     risaf->pdata.mem_base +
-		     (paddr_t)io_read32(base + _RISAF_IADDR0));
+		if (IS_ENABLED(CFG_STM32MP25x_REVA) &&
+		    risaf->pdata.base.pa == RISAF4_BASE)
+			EMSG("Faulty address (IADDR0): %#"PRIxPA,
+			     (paddr_t)io_read32(base + _RISAF_IADDR0));
+		else
+			EMSG("Faulty address (IADDR0): %#"PRIxPA,
+			     risaf->pdata.mem_base +
+			     (paddr_t)io_read32(base + _RISAF_IADDR0));
 
 		/* Reserved if dual port feature not available */
-		if (io_read32(base + _RISAF_IADDR1))
+		if (io_read32(base + _RISAF_IADDR1) &&
+		    IS_ENABLED(CFG_STM32MP25x_REVA) &&
+		    risaf->pdata.base.pa == RISAF4_BASE)
+			EMSG("Dual port faulty address (IADDR1): %#"PRIxPA,
+			     (paddr_t)io_read32(base + _RISAF_IADDR1));
+		else if (io_read32(base + _RISAF_IADDR1))
 			EMSG("Dual port faulty address (IADDR1): %#"PRIxPA,
 			     risaf->pdata.mem_base +
 			     (paddr_t)io_read32(base + _RISAF_IADDR1));
