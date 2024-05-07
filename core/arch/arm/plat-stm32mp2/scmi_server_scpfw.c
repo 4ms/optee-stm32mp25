@@ -503,7 +503,8 @@ static TEE_Result scmi_scpfw_cfg_early_init(void)
 	/* There is 1 agent with 1 channel */
 
 	scpfw_cfg.agent_count = 1;
-	scpfw_cfg.agent_config = calloc(1, sizeof(*scpfw_cfg.agent_config));
+	scpfw_cfg.agent_config = calloc(scpfw_cfg.agent_count,
+					sizeof(*scpfw_cfg.agent_config));
 
 	scpfw_cfg.agent_config[0].name = "agent";
 	scpfw_cfg.agent_config[0].agent_id = 1;
