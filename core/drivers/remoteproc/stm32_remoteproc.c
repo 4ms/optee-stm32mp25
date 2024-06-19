@@ -545,7 +545,6 @@ static TEE_Result stm32_rproc_parse_mems(struct stm32_rproc_instance *rproc,
 
 	for (i = 0; i < n_regions; i++) {
 		int pnode = 0;
-		uint32_t sec_mem = 0;
 
 		pnode = fdt_node_offset_by_phandle(fdt, fdt32_to_cpu(list[i]));
 		if (pnode < 0) {
@@ -566,19 +565,12 @@ static TEE_Result stm32_rproc_parse_mems(struct stm32_rproc_instance *rproc,
 		if (res)
 			goto err;
 
-		/* TODO remove temporary property and use firewall */
-		res = _fdt_read_uint32_index(fdt, node, "st,s-memory-region",
-					     i, &sec_mem);
-		if (res)
-			sec_mem = 0;
-
 		if (!regions[i].addr || !regions[i].size) {
 			res = TEE_ERROR_BAD_PARAMETERS;
 			goto err;
 		}
 
-		DMSG("register %s region %#"PRIxPA" size %#zx",
-		     sec_mem ? "sec" : " nsec",
+		DMSG("register region %#"PRIxPA" size %#zx",
 		     regions[i].addr, regions[i].size);
 	}
 
