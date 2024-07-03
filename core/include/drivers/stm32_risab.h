@@ -17,13 +17,13 @@ struct mem_region {
 
 void stm32_risab_clear_illegal_access_flags(void);
 
-#if TRACE_LEVEL >= TRACE_INFO
+#ifdef CFG_TEE_CORE_DEBUG
 void stm32_risab_dump_erroneous_data(void);
-#else /* TRACE_LEVEL >= TRACE_INFO */
+#else /* CFG_TEE_CORE_DEBUG */
 static inline void stm32_risab_dump_erroneous_data(void)
 {
 }
-#endif /* TRACE_LEVEL >= TRACE_INFO */
+#endif /* CFG_TEE_CORE_DEBUG */
 
 /**
  * stm32_risaf_reconfigure_region() - Allows to reconfigure a previously

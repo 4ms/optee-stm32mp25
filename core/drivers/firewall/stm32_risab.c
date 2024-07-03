@@ -118,7 +118,7 @@ void stm32_risab_clear_illegal_access_flags(void)
 	}
 }
 
-#if TRACE_LEVEL >= TRACE_INFO
+#ifdef CFG_TEE_CORE_DEBUG
 void stm32_risab_dump_erroneous_data(void)
 {
 	struct stm32_risab_pdata *risab = NULL;
@@ -146,7 +146,7 @@ void stm32_risab_dump_erroneous_data(void)
 		clk_disable(risab->clock);
 	};
 }
-#endif /* TRACE_LEVEL >= TRACE_INFO */
+#endif /* CFG_TEE_CORE_DEBUG */
 
 static bool regs_access_granted(struct stm32_risab_pdata *risab_d,
 				unsigned int reg_idx)
