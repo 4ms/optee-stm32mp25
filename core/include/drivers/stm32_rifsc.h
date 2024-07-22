@@ -17,8 +17,16 @@ struct risup_cfg {
 	bool pm_sem;
 };
 
+/**
+ * struct rimu_cfg - RIMU configuration
+ *
+ * @id: ID of the RIMU
+ * @risup_id: ID of the associated RISUP
+ * @attr: RIMU configuration attributes
+ */
 struct rimu_cfg {
 	uint32_t id;
+	uint32_t risup_id;
 	uint32_t attr;
 };
 
