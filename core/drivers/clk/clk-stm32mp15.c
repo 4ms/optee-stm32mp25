@@ -3387,28 +3387,6 @@ static int clk_stm32_pll_init_switch_to_hsi_clk_system(int mux_sys)
 	return sel;
 }
 
-static uint32_t
-clk_stm32_pll_backup_output_diven(const struct stm32_clk_pll *pll)
-{
-	struct clk_stm32_priv *priv = clk_stm32_get_priv();
-	uintptr_t addr = priv->base + pll->reg_pllxcr;
-
-	return io_read32(addr + RCC_OFFSET_PLLXCR) &
-			 (RCC_PLLNCR_DIVPEN | RCC_PLLNCR_DIVQEN |
-			  RCC_PLLNCR_DIVREN);
-}
-
-static void clk_stm32_pll_restore_output_diven(const struct stm32_clk_pll *pll,
-					       uint32_t value)
-{
-	struct clk_stm32_priv *priv = clk_stm32_get_priv();
-	uintptr_t addr = priv->base + pll->reg_pllxcr;
-	const uint32_t mask = RCC_PLLNCR_DIVPEN | RCC_PLLNCR_DIVQEN |
-			      RCC_PLLNCR_DIVREN;
-
-	io_clrsetbits32(addr, mask, value & mask);
-}
-
 static int clk_stm32_pll_init(struct clk_stm32_priv *priv, int pll_idx,
 			      struct stm32_pll_dt_cfg *pll_conf)
 {
@@ -3416,7 +3394,6 @@ static int clk_stm32_pll_init(struct clk_stm32_priv *priv, int pll_idx,
 	int config_on_the_fly = -1;
 	int ret = 0;
 	uint8_t sel = 0;
-	uint32_t save_div_pqr_en = 0;
 	int mux_system[] = { MUX_MPU, MUX_AXI, MUX_MCU, -1 };
 	int mux_sys  = mux_system[pll_idx];
 
@@ -3424,9 +3401,6 @@ static int clk_stm32_pll_init(struct clk_stm32_priv *priv, int pll_idx,
 						 &config_on_the_fly);
 	if (ret != 0)
 		return ret;
-
-	/* Backup status of DIV DIVPEN / DIVQEN / DIVREN */
-	save_div_pqr_en = clk_stm32_pll_backup_output_diven(pll);
 
 	if (config_on_the_fly == -1) {
 		/* Make a backup to the current parent and switch to HSI */
@@ -3459,7 +3433,9 @@ static int clk_stm32_pll_init(struct clk_stm32_priv *priv, int pll_idx,
 		if (stm32_gate_rdy_enable(pll->gate_id))
 			return -1;
 
-		clk_stm32_pll_restore_output_diven(pll, save_div_pqr_en);
+		io_setbits32(priv->base + pll->reg_pllxcr, RCC_PLLNCR_DIVPEN |
+						   RCC_PLLNCR_DIVQEN |
+						   RCC_PLLNCR_DIVREN);
 	}
 
 	if ((config_on_the_fly == -1) && (mux_sys != -1)) {
