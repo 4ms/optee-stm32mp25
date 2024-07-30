@@ -350,7 +350,7 @@ static TEE_Result stm32_exti_rif_apply(const struct stm32_exti_pdata *exti)
 			if (!(BIT(bit_offset) & exti->access_mask[i]))
 				continue;
 
-			io_clrbits32(exti->base + _EXTI_EnCIDCFGR(i),
+			io_clrbits32(exti->base + _EXTI_EnCIDCFGR(event),
 				     _EXTI_CIDCFGR_CONF_MASK);
 		}
 
@@ -383,8 +383,8 @@ static TEE_Result stm32_exti_rif_apply(const struct stm32_exti_pdata *exti)
 		if (!(BIT(bit_offset) & exti->access_mask[i]))
 			continue;
 
-		io_clrsetbits32(exti->base + _EXTI_EnCIDCFGR(i),
-				_EXTI_CIDCFGR_CONF_MASK, exti->e_cids[i]);
+		io_clrsetbits32(exti->base + _EXTI_EnCIDCFGR(event),
+				_EXTI_CIDCFGR_CONF_MASK, exti->e_cids[event]);
 	}
 	for (i = 0; i < stm32_exti_nbcpus(exti); i++) {
 		if (!(exti->c_cids[i] & _CIDCFGR_CFEN))
@@ -430,7 +430,8 @@ static void stm32_exti_rif_save(struct stm32_exti_pdata *exti)
 		if (!(BIT(bit_offset) & exti->access_mask[i]))
 			continue;
 
-		exti->e_cids[i] = io_read32(exti->base + _EXTI_EnCIDCFGR(i));
+		exti->e_cids[event] = io_read32(exti->base +
+						_EXTI_EnCIDCFGR(event));
 	}
 	for (i = 0; i < stm32_exti_nbcpus(exti); i++)
 		exti->c_cids[i] = io_read32(exti->base + _EXTI_CmCIDCFGR(i));
