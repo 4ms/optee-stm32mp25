@@ -134,6 +134,7 @@ CFG_STM32_STGEN ?= y
 CFG_STM32_TAMP ?= y
 CFG_STM32_UART ?= y
 CFG_STM32_VREFBUF ?= y
+CFG_WITH_TUI ?= y
 
 # Default enable some test facitilites
 CFG_ENABLE_EMBEDDED_TESTS ?= y
