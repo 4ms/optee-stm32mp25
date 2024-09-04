@@ -55,8 +55,12 @@ cppflags-lib-y += -DBUILD_VERSION_MAJOR=$(scpfw-integ-version-maj) \
 		  -DBUILD_VERSION_MINOR=$(scpfw-integ-version-min) \
 		  -DBUILD_VERSION_PATCH=$(scpfw-integ-version-pat)
 
+ifeq ($(_CFG_SCP_FIRMWARE_IN_TREE),y)
+scpfw-impl-version := $(shell echo $(scpfw-integ-version)-intree-optee-os-$(TEE_IMPL_VERSION))
+else
 scpfw-impl-version := $(shell git -C $(scpfw-src-path) describe --tags --always --dirty=-dev 2>/dev/null || \
-                      echo Unknown_$(scpfw-integ-version))
+			echo Unknown_$(scpfw-integ-version))
+endif
 cppflags-lib-y += -DBUILD_VERSION_DESCRIBE_STRING=\"$(scpfw-impl-version)\"
 
 cppflags-lib-y += -DFWK_LOG_LEVEL=$(CFG_SCPFW_LOG_LEVEL)
