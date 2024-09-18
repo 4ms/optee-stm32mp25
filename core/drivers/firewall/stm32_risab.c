@@ -89,6 +89,7 @@ struct stm32_risab_pdata {
 	uintptr_t base;
 	uint32_t pages_configured;
 	bool srwiad;
+	bool errata_ahbrisab;
 
 	SLIST_ENTRY(stm32_risab_pdata) link;
 };
@@ -230,8 +231,15 @@ static void set_read_conf(struct stm32_risab_pdata *risab_d,
 	uint32_t mask = GENMASK_32(last_page, first_page);
 
 	for (i = 0; i < RISAB_NB_MAX_CID_SUPPORTED; i++) {
-		io_clrsetbits32(risab_d->base + _RISAB_CIDxRDCFGR(i), mask,
-				risab_d->subr_cfg[reg_idx].rlist[i]);
+		/*
+		 * Errata: CID0 must be authorized for RISAB accesses if
+		 * CID filtering is enabled on some RISAB instances so that
+		 * spurious CID0 transactions are handled.
+		 */
+		if (risab_d->subr_cfg[reg_idx].rlist[i] ||
+		    (risab_d->errata_ahbrisab && i == RIF_CID0))
+			io_clrsetbits32(risab_d->base + _RISAB_CIDxRDCFGR(i),
+					mask, mask);
 	}
 }
 
@@ -245,8 +253,15 @@ static void set_write_conf(struct stm32_risab_pdata *risab_d,
 	uint32_t mask = GENMASK_32(last_page, first_page);
 
 	for (i = 0; i < RISAB_NB_MAX_CID_SUPPORTED; i++) {
-		io_clrsetbits32(risab_d->base + _RISAB_CIDxWRCFGR(i), mask,
-				risab_d->subr_cfg[reg_idx].wlist[i]);
+		/*
+		 * Errata: CID0 must be authorized for RISAB accesses if
+		 * CID filtering is enabled on some RISAB instances so that
+		 * spurious CID0 transactions are handled.
+		 */
+		if (risab_d->subr_cfg[reg_idx].rlist[i] ||
+		    (risab_d->errata_ahbrisab && i == RIF_CID0))
+			io_clrsetbits32(risab_d->base + _RISAB_CIDxWRCFGR(i),
+					mask, mask);
 	}
 }
 
@@ -418,6 +433,9 @@ static TEE_Result parse_dt(const void *fdt, int node,
 	cuint = fdt_getprop(fdt, node, "st,srwiad", NULL);
 	if (cuint)
 		risab_d->srwiad = true;
+
+	risab_d->errata_ahbrisab = fdt_getprop(fdt, node, "st,errata-ahbrisab",
+					       NULL);
 
 	/* Get the memory region being configured */
 	cuint = fdt_getprop(fdt, node, "st,mem-map", &lenp);
