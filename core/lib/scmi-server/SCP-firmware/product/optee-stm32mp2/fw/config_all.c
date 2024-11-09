@@ -499,7 +499,7 @@ static void allocate_global_resources(struct scpfw_config *cfg)
 
 static void set_scmi_comm_resources(struct scpfw_config *cfg)
 {
-    unsigned int channel_index;
+    unsigned int channel_index = 0;
     size_t i, j;
     /* @cfg does not consider agent #0 this the reserved platform/server agent */
     size_t scmi_agent_count = cfg->agent_count + 1;
@@ -529,8 +529,6 @@ static void set_scmi_comm_resources(struct scpfw_config *cfg)
         .sub_vendor_identifier = "ST",
     };
 
-    channel_index = 0;
-
     for (i = 0; i < cfg->agent_count; i++) {
         struct scpfw_agent_config *agent_cfg = cfg->agent_config + i;
         size_t agent_index = i + 1;
@@ -544,7 +542,8 @@ static void set_scmi_comm_resources(struct scpfw_config *cfg)
 
             service_data = fwk_mm_calloc(1, sizeof(*service_data));
             *service_data = (struct mod_scmi_service_config){
-                .transport_id = (fwk_id_t)FWK_ID_ELEMENT_INIT(FWK_MODULE_IDX_MSG_SMT, 0),
+                .transport_id = (fwk_id_t)FWK_ID_ELEMENT_INIT(FWK_MODULE_IDX_MSG_SMT,
+                                                              channel_index),
                 .transport_api_id = (fwk_id_t)FWK_ID_API_INIT(FWK_MODULE_IDX_MSG_SMT,
                                                               MOD_MSG_SMT_API_IDX_SCMI_TRANSPORT),
                 .scmi_agent_id = agent_cfg->agent_id,
@@ -714,8 +713,8 @@ static void set_resources(struct scpfw_config *cfg)
                         name = reserved;
                     }
 
-                    dev[regu_index].element_id =
-                       (fwk_id_t)FWK_ID_ELEMENT_INIT(FWK_MODULE_IDX_VOLTAGE_DOMAIN, k);
+                    dev[k].element_id =
+                       (fwk_id_t)FWK_ID_ELEMENT_INIT(FWK_MODULE_IDX_VOLTAGE_DOMAIN, regu_index);
 
                     optee_regu_elt[regu_index].name = name;
                     optee_regu_elt[regu_index].data = (void *)(optee_regu_data + regu_index);
