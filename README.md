@@ -31,7 +31,7 @@ ARM64_core=y \
 CFG_EMBED_DTB_SOURCE_FILE=stm32mp257f-ev1.dts \
 CROSS_COMPILE64=aarch64-none-elf- \
 CROSS_COMPILE=arm-none-eabi- \
-CFG_TEE_CORE_LOG_LEVEL=4
+CFG_TEE_CORE_LOG_LEVEL=2
 
 
 TODO: try with this:
