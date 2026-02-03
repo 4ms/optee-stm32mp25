@@ -1750,6 +1750,8 @@ static void stm32mp2_a35_pll1_config(uint32_t fbdiv, uint32_t refdiv,
 			     ((postdiv1 << A35SS_SSC_PLL_FREQ2_POSTDIV1_SHIFT) |
 			      (postdiv2 << A35SS_SSC_PLL_FREQ2_POSTDIV2_SHIFT)),
 			     A35SS_SSC_PLL_FREQ2_MASK);
+
+	stm32mp_syscfg_write(A35SS_SSC_NS_EN, 0xFFFFFFFF, 0xFFFFFFFF);
 }
 
 static int clk_stm32_pll_config_output(struct clk_stm32_priv *priv,
