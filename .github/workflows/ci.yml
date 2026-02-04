@@ -38,3 +38,11 @@ jobs:
 
           make -j$(nproc) PLATFORM=stm32mp2 PLATFORM_FLAVOR=257F_EV1 ARCH=arm ARM64_core=y CFG_EMBED_DTB_SOURCE_FILE=stm32mp257f-ev1.dts CFG_TEE_CORE_LOG_LEVEL=2
 
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Release: ${{ env.CI_REF_NAME }}"
+          files: |
+            ${{ github.workspace }}/out/arm-plat-stm32mp2/core/tee-header_v2.bin 
+            ${{ github.workspace }}/out/arm-plat-stm32mp2/core/tee-pager_v2.bin
