@@ -196,10 +196,10 @@
 	};
 
 	pll8: st,pll-8 {
-		st,pll = <&pll8_cfg_594Mhz>;
+		st,pll = <&pll8_cfg_307_2Mhz>;
 
-		pll8_cfg_594Mhz: pll8-cfg-594Mhz {
-			cfg = <297 5 1 4>;
+		pll8_cfg_307_2Mhz: pll8-cfg-307_2Mhz {
+			cfg = <192 5 1 5>;
 			src = <MUX_CFG(MUX_MUXSEL4, MUXSEL_HSE)>;
 		};
 	};
