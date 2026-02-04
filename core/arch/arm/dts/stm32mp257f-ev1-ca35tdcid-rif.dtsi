@@ -11,6 +11,14 @@
  */
 
 &rifsc {
+	/*
+	Errata 2.3.21:
+	CID0 must be "reserved": not assigned to any master at RIFSC RISUP level.
+		* RIFSC_RISC_PERy_CIDCFGR.CFEN must be set to 1 (compartment filtering enabled) to avoid use of CID0 default at RISUP level.
+		* RIFSC_RISC_PERy_CIDCFGR.SCID must not be programmed with CID0 value.
+		* RIFSC_RISC_PERy_CIDCFGR.SEMWLC0 must not be set to 1.
+	*/
+	st,errata-ahbrisab;
 	st,protreg = <
 		RIFPROT(STM32MP25_RIFSC_ADC12_ID, RIF_UNUSED, RIF_UNLOCK, RIF_NSEC, RIF_NPRIV, RIF_UNUSED, RIF_SEM_DIS, RIF_CFDIS)
 		RIFPROT(STM32MP25_RIFSC_ADC3_ID, RIF_UNUSED, RIF_UNLOCK, RIF_NSEC, RIF_NPRIV, RIF_UNUSED, RIF_SEM_DIS, RIF_CFDIS)
@@ -568,6 +576,7 @@
 };
 
 &hpdma1 {
+	st,errata-ahbrisab;
 	st,protreg = <
 		RIFPROT(RIF_HPDMA_CHANNEL(0), RIF_UNUSED, RIF_UNLOCK, RIF_NSEC, RIF_NPRIV, RIF_CID1, RIF_SEM_DIS, RIF_CFEN)
 		RIFPROT(RIF_HPDMA_CHANNEL(1), RIF_UNUSED, RIF_UNLOCK, RIF_NSEC, RIF_NPRIV, RIF_CID1, RIF_SEM_DIS, RIF_CFEN)
@@ -589,6 +598,7 @@
 };
 
 &hpdma2 {
+	st,errata-ahbrisab;
 	st,protreg = <
 		RIFPROT(RIF_HPDMA_CHANNEL(0), RIF_UNUSED, RIF_UNLOCK, RIF_NSEC, RIF_PRIV, RIF_CID1, RIF_SEM_DIS, RIF_CFEN)
 		RIFPROT(RIF_HPDMA_CHANNEL(1), RIF_UNUSED, RIF_UNLOCK, RIF_NSEC, RIF_PRIV, RIF_CID1, RIF_SEM_DIS, RIF_CFEN)
@@ -610,6 +620,7 @@
 };
 
 &hpdma3 {
+	st,errata-ahbrisab;
 	st,protreg = <
 		RIFPROT(RIF_HPDMA_CHANNEL(0), RIF_UNUSED, RIF_UNLOCK, RIF_NSEC, RIF_PRIV, RIF_CID2, RIF_SEM_DIS, RIF_CFEN)
 		RIFPROT(RIF_HPDMA_CHANNEL(1), RIF_UNUSED, RIF_UNLOCK, RIF_NSEC, RIF_PRIV, RIF_CID2, RIF_SEM_DIS, RIF_CFEN)
@@ -631,6 +642,8 @@
 };
 
 &rifsc {
+	/* Errata 2.3.21: RIFSC_RIMC_ATTRx.MCID must not be programmed with CID0 value. */
+	st,errata-ahbrisab;
 	st,rimu = <
 		RIMUPROT(RIMU_ID(0), RIF_CID1, RIF_NSEC, RIF_PRIV, RIF_CIDSEL_M)
 		RIMUPROT(RIMU_ID(1), RIF_UNUSED, RIF_NSEC, RIF_PRIV, RIF_CIDSEL_P)
