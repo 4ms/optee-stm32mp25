@@ -29,8 +29,8 @@ jobs:
           set -e -v
           export LC_ALL=C
           export PATH=/usr/local/bin:$PATH  # clang
-          export CROSS_COMPILE32="ccache arm-linux-gnueabihf-"
-          export CROSS_COMPILE64="ccache aarch64-linux-gnu-"
+          export CROSS_COMPILE32="ccache arm-linux-gnueabihf-"   #TODO: use arm-none-eabi-
+          export CROSS_COMPILE64="ccache aarch64-linux-gnu-"     #TODO: use aarch64-none-elf-
           export CFG_DEBUG_INFO=n
           export CFG_WERROR=y
 
@@ -38,11 +38,14 @@ jobs:
 
           make -j$(nproc) PLATFORM=stm32mp2 PLATFORM_FLAVOR=257F_EV1 ARCH=arm ARM64_core=y CFG_EMBED_DTB_SOURCE_FILE=stm32mp257f-ev1.dts CFG_TEE_CORE_LOG_LEVEL=2
 
+          pwd
+          ls -l
+
       - name: Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           name: "Release: ${{ env.CI_REF_NAME }}"
           files: |
-            ${{ github.workspace }}/out/arm-plat-stm32mp2/core/tee-header_v2.bin 
-            ${{ github.workspace }}/out/arm-plat-stm32mp2/core/tee-pager_v2.bin
+            out/arm-plat-stm32mp2/core/tee-header_v2.bin 
+            out/arm-plat-stm32mp2/core/tee-pager_v2.bin
