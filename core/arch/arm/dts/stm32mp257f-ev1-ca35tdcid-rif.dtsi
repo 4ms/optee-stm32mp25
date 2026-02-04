@@ -18,7 +18,6 @@
 		* RIFSC_RISC_PERy_CIDCFGR.SCID must not be programmed with CID0 value.
 		* RIFSC_RISC_PERy_CIDCFGR.SEMWLC0 must not be set to 1.
 	*/
-	st,errata-ahbrisab;
 	st,protreg = <
 		RIFPROT(STM32MP25_RIFSC_ADC12_ID, RIF_UNUSED, RIF_UNLOCK, RIF_NSEC, RIF_NPRIV, RIF_UNUSED, RIF_SEM_DIS, RIF_CFDIS)
 		RIFPROT(STM32MP25_RIFSC_ADC3_ID, RIF_UNUSED, RIF_UNLOCK, RIF_NSEC, RIF_NPRIV, RIF_UNUSED, RIF_SEM_DIS, RIF_CFDIS)
@@ -643,7 +642,6 @@
 
 &rifsc {
 	/* Errata 2.3.21: RIFSC_RIMC_ATTRx.MCID must not be programmed with CID0 value. */
-	st,errata-ahbrisab;
 	st,rimu = <
 		RIMUPROT(RIMU_ID(0), RIF_CID1, RIF_NSEC, RIF_PRIV, RIF_CIDSEL_M)
 		RIMUPROT(RIMU_ID(1), RIF_UNUSED, RIF_NSEC, RIF_PRIV, RIF_CIDSEL_P)
@@ -892,16 +890,19 @@
 
 &risab3 {
 	st,srwiad;
+	st,errata-ahbrisab;
 	memory-region = <&bsec_mirror>, <&cm33_sram1>;
 };
 
 &risab4 {
 	st,srwiad;
+	st,errata-ahbrisab;
 	memory-region = <&cm33_sram2>;
 };
 
 &risab5 {
 	st,srwiad;
+	st,errata-ahbrisab;
 	memory-region = <&cm33_retram>, <&ddr_param>;
 };
 
