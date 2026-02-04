@@ -136,10 +136,10 @@
 	};
 
 	pll2: st,pll-2 {
-		st,pll = <&pll2_cfg_600Mhz>;
+		st,pll = <&pll2_cfg_900Mhz>;
 
-		pll2_cfg_600Mhz: pll2-cfg-600Mhz {
-			cfg = <30 1 1 2>;
+		pll2_cfg_900Mhz: pll2-cfg-900Mhz {
+			cfg = <45 1 1 2>;
 			src = <MUX_CFG(MUX_MUXSEL6, MUXSEL_HSE)>;
 		};
 	};
