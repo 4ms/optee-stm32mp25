@@ -28,6 +28,8 @@ jobs:
           export CFG_DEBUG_INFO=n
           export CFG_WERROR=y
 
+          pip install pyelftools pillow cryptography pycryptodomex
+
           ccache -s -v
 
           make -j$(nproc) PLATFORM=stm32mp2 PLATFORM_FLAVOR=257F_EV1 ARCH=arm ARM64_core=y CFG_EMBED_DTB_SOURCE_FILE=stm32mp257f-ev1.dts CFG_TEE_CORE_LOG_LEVEL=2
