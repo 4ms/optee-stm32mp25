@@ -1,7 +1,7 @@
 name: CI
 on: [push, pull_request]
 permissions:
-  contents: read # to fetch code (actions/checkout)
+  contents: write 
 jobs:
   build:
     name: make (stm32mp2)
